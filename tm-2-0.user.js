@@ -7,6 +7,7 @@
 // @match        https://foxford.ru/admin*
 // @grant        none
 // ==/UserScript==
+// test
 
 const NO_LIVE_TEACHER_IDS = [2169, 2014, 1932, 1100, 1769, 1655, 1196, 2397, 2398, 557, 2399, 2401, 1571, 1387, 1875];
 const CANCEL_GALINA_ID = 2363;
