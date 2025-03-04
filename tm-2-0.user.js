@@ -68,7 +68,6 @@ class ManagedWindow {
 
         // Сброс состояния
         if (this.location.href !== 'about:blank') {
-            // log(`Сброс состояния окна [${url}]`);
             this.location.replace('about:blank');
             await this.waitForElementDisappear('.loaded');
         }
@@ -76,7 +75,6 @@ class ManagedWindow {
         // Основная навигация
         if (url != 'about:blank') {
             this.location.href = url;
-            //log(`Начата загрузка: ${url}`);
             await this.waitForElement('.loaded');
         }
         this.jsCodeArea = this.querySelector('#js_code');
@@ -120,7 +118,7 @@ class ManagedWindow {
     }
 
     async waitForElement(selector, timeout = 30000, maxRetries = 20) {
-        executeWithRetry(async () => {
+        return executeWithRetry(async () => {
             const start = Date.now();
             while (Date.now() - start < timeout) {
                 try {
@@ -140,7 +138,7 @@ class ManagedWindow {
     }
 
     async waitForElementDisappear(selector, timeout = 30000, maxRetries = 20) {
-        executeWithRetry(async () => {
+        return executeWithRetry(async () => {
             const start = Date.now();
             while (Date.now() - start < timeout) {
                 try {
@@ -196,12 +194,12 @@ class ManagedWindow {
 
 }
 
-function executeWithRetry(codeToExecute, maxRetries = 10, delay = 1000) {
+async function executeWithRetry(codeToExecute, maxRetries = 10, delay = 1000) {
     let retries = 0;
 
-    function attempt() {
+    async function attempt() {
         try {
-            codeToExecute();
+            await codeToExecute();
         } catch (error) {
             if (retries < maxRetries) {
                 retries++;
@@ -213,7 +211,7 @@ function executeWithRetry(codeToExecute, maxRetries = 10, delay = 1000) {
         }
     }
 
-    attempt(); // Начинаем первую попытку
+    return await attempt(); // Начинаем первую попытку
 }
 
 
