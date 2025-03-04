@@ -6,6 +6,8 @@
 // @author       maxina29, wanna_get_out & deepseek
 // @match        https://foxford.ru/admin*
 // @grant        none
+// @updateURL    https://github.com/maxina29/tm-2-adminka/raw/refs/heads/main/tm-2-0.user.js
+// @downloadURL  https://github.com/maxina29/tm-2-adminka/raw/refs/heads/main/tm-2-0.user.js
 // ==/UserScript==
 
 const NO_LIVE_TEACHER_IDS = [2169, 2014, 1932, 1100, 1769, 1655, 1196, 2397, 2398, 557, 2399, 2401, 1571, 1387, 1875];
