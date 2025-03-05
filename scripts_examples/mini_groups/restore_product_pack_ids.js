@@ -1,5 +1,5 @@
 // Вернуть удаленную ранее подписку
-// Для удаления можно использовать clear_prosuct_pack_ids.js
+// Для удаления можно использовать clear_product_pack_ids.js
 clear();
 let coursesInfo = {
     10609: { 'course_product_pack_id': 12853 },
