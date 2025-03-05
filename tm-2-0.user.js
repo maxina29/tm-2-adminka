@@ -157,6 +157,13 @@ class ManagedWindow {
         }, maxRetries);
     }
 
+    async waitForAccess() {
+        await self.waitForElement('.alert-success');
+        let alertCloseButton=self.querySelector('.alert-success .close');
+        alertCloseButton.click();
+        await self.waitForElementDisappear('.alert-success');
+    }
+
     async log(s) {
         if (s && s !== '[object Promise]') {
             this.jsLoggingConsole.value += s + '\n';
