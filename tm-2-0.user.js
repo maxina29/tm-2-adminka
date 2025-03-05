@@ -420,7 +420,7 @@ async function cloneResource(sourceWin, targetWin, editUrl, newUrl) {
     await copyFormData(sourceForm, targetForm);
     await targetForm.querySelector('input[type="submit"]').click();
 
-    await targetWin.waitForElement('.alert-success');
+    await targetWin.waitForSuccess();
     log(`Ресурс успешно скопирован: ${newUrl}`);
 }
 
@@ -2089,7 +2089,7 @@ const pagePatterns = {
                             await win.openPage(window.location.href + '/' + id + '/edit');
                             win.document.getElementById('course_installment_only_prolongation').checked = true;
                             win.document.getElementsByClassName('btn-primary')[0].click();
-                            await win.waitForElement('.alert-success');
+                            await win.waitForSuccess();
                         }
                     }
                     log('Галочки проставлены, через 10 секунд страница будет перезагружена');
@@ -2139,7 +2139,7 @@ const pagePatterns = {
         let addButton = trainingsWindow.querySelectorAll('.task_table')[1].childNodes[1].firstChild.querySelector('a[title="Привязать"]');
         addButton.href = addButton.href.substr(0, addButton.href.search('=') + 1) + taskId;
         addButton.click();
-        await trainingsWindow.waitForElement('.alert-success');
+        await trainingsWindow.waitForSuccess();
         await trainingsWindow.openPage('about:blank');
     }
     trainingsWindow.close();
