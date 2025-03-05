@@ -5,6 +5,7 @@
 // - поменять массово разные поля (mass_change_fields_on_edit_page.js)
 // - массово проставить локацию МГ на странице groups (groups_set_location_mini.js)
 // - массово проставить локацию МГ в занятиях через дев-сервисы (dev_services_mass_mini_location.js)
+// - массово перестроить параллели (mass_reset_schedule.js)
 clear();
 let courseIds = `10609
 12345`.split('\n');
