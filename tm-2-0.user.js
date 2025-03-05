@@ -158,10 +158,10 @@ class ManagedWindow {
     }
 
     async waitForSuccess() {
-        await self.waitForElement('.alert-success');
-        let alertCloseButton = self.querySelector('.alert-success .close');
+        await this.waitForElement('.alert-success');
+        let alertCloseButton = this.querySelector('.alert-success .close');
         alertCloseButton.click();
-        await self.waitForElementDisappear('.alert-success');
+        await this.waitForElementDisappear('.alert-success');
     }
 
     async log(s) {
