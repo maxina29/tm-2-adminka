@@ -8,6 +8,6 @@ let win = await createWindow();
 for (let groupTemplateId of groupTemplateIds) {
     log(groupTemplateId);
     await win.openPage(`https://foxford.ru/admin/dev_services?only_week_day_webinars_settings&select_group_template=${groupTemplateId}&mini&auto_validate`);
-    await win.waitForElement('.alert-success');
+    await win.waitForSuccess();
 }
 win.close();

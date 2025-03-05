@@ -14,6 +14,6 @@ for (let courseId in coursesInfo) {
         tempWindow.querySelector(`#${selector}`).value = courseInfo[selector];
     }
     tempWindow.querySelector(`#course_name`).closest('form').querySelector('[type="submit"]').click();
-    await tempWindow.waitForElement('.alert-success');
+    await tempWindow.waitForSuccess();
 }
 await tempWindow.close();

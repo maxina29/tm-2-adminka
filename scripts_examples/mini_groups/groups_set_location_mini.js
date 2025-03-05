@@ -16,6 +16,6 @@ for (let courseId of courseIds) {
     selectElement.appendChild(optionElement);
     selectElement.value = 60;
     selectElement.closest('form').querySelector('[type="submit"]').click();
-    await tempWindow.waitForElement('.alert-success');
+    await tempWindow.waitForSuccess();
 }
 await tempWindow.close();

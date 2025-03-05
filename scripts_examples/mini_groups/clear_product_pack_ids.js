@@ -9,6 +9,6 @@ for (let courseId of courseIds) {
     await tempWindow.openPage(`https://foxford.ru/admin/mini_groups/${courseId}/edit`);
     tempWindow.querySelector('#course_product_pack_id').value = '';
     tempWindow.querySelector('#course_name').closest('form').querySelector('[type="submit"]').click();
-    await tempWindow.waitForElement('.alert-success');
+    await tempWindow.waitForSuccess();
 }
 await tempWindow.close();
