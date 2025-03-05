@@ -1,10 +1,9 @@
-// Вернуть удаленную ранее подписку
-// Для удаления можно использовать clear_product_pack_ids.js
-// Вместо course_product_pack_id можно использовать любые ID текстовых полей со страницы /edit, в любом количестве
+// Меняем массово полное название курса
+// Вместо course_full_name можно использовать любые ID текстовых полей со страницы /edit, в любом количестве
 clear();
 let coursesInfo = {
-    10609: { 'course_product_pack_id': 12853 },
-    12345: { 'course_product_pack_id': 12862 },
+    10609: { 'course_full_name': 'Тестовый курс 1' },
+    12345: { 'course_full_name': 'Тестовый курс 2' },
 }
 let tempWindow = await createWindow();
 for (let courseId in coursesInfo) {
