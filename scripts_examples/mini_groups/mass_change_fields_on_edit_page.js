@@ -1,8 +1,7 @@
 // Массовые одинаковые правки некоторых полей в edit мини-групп
 clear();
-let courseIds = `14579
-14580
-14581`.split('\n');
+let courseIds = `10609
+12345`.split('\n');
 let tempWindow = await createWindow();
 for (let i of courseIds) {
     log(i)
