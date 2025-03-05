@@ -20,4 +20,4 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('.btn.btn-default.btn-primary').click();
     await tempWindow.waitForElement('.alert-success');
 }
-tempWindow.close();
+await tempWindow.close();

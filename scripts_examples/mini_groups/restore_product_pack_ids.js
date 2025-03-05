@@ -16,4 +16,4 @@ for (let courseId in coursesInfo) {
     tempWindow.querySelector(`#course_name`).closest('form').querySelector('[type="submit"]').click();
     await tempWindow.waitForElement('.alert-success');
 }
-tempWindow.close();
+await tempWindow.close();
