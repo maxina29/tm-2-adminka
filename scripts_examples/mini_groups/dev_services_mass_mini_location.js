@@ -1,7 +1,8 @@
 // Массово проставляем локацию МГ через дев-сервисы по ID параллели
 // Для проставления локации в настройки параллели используйте groups_set_location_mini.js
+clear();
 let groupTemplateIds = `234567
-345678`.split('\n')
+345678`.split('\n');
 let win = await createWindow();
 for (let groupTemplateId of groupTemplateIds) {
     log(groupTemplateId);
