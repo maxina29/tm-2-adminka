@@ -1,4 +1,5 @@
 // Проставляем локацию «Мини-группа» в первых параллелях курсов
+// Для проставления локации в занятия через дев-сервисы используйте dev_services_mass_mini_location.js
 let courseIds = `10609
 12345`.split('\n');
 let tempWindow = await createWindow();
