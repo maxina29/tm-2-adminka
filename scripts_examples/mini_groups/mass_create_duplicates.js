@@ -16,6 +16,6 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('#course_duplicate_copy_groups').checked = false;
     while (!tempWindow.querySelector('#course_duplicate_group_templates_attributes_0_teacher_id').value) { await sleep(100); }
     tempWindow.querySelector('.btn.btn-default.btn-primary').click();
-    tempWindow.waitForElement('.alert-success');
+    await tempWindow.waitForElement('.alert-success');
 }
 tempWindow.close();
