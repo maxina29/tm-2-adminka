@@ -4,9 +4,9 @@ clear();
 let courseIds = `10609
 12345`.split('\n');
 let tempWindow = await createWindow();
-for (let i of courseIds) {
-    log(i)
-    await tempWindow.openPage(`https://foxford.ru/admin/mini_groups/${i}/edit`);
+for (let courseId of courseIds) {
+    log(courseId)
+    await tempWindow.openPage(`https://foxford.ru/admin/mini_groups/${courseId}/edit`);
     let tempStr = tempWindow.querySelector('#course_name').value;
     tempWindow.querySelector('#course_name').value = tempStr.substring(0, tempStr.length - 4); // убираем (д) из названия
     tempWindow.querySelector('#course_school_year_id').value = '14'; // 2025 - 26
