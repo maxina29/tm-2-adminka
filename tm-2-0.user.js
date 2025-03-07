@@ -206,19 +206,22 @@ async function executeWithRetry(codeToExecute, maxRetries = 10, delay = 1000) {
 
     async function attempt() {
         try {
-            await codeToExecute();
+            return await codeToExecute(); // Возвращаем результат
         } catch (error) {
             if (retries < maxRetries) {
                 retries++;
                 console.log(`Повторная попытка ${retries}/${maxRetries}...`);
-                setTimeout(attempt, delay); // Повторяем попытку через указанное время
+                await sleep(delay);
+                // Рекурсивно повторяем попытку
+                return attempt();
             } else {
-                console.log(`Превышено максимальное количество попыток.`);
+                console.log("Превышено максимальное количество попыток.");
+                throw error; // Отклоняем промис
             }
         }
     }
 
-    return await attempt(); // Начинаем первую попытку
+    return attempt(); // Запускаем первую попытку
 }
 
 
