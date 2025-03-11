@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka-refactored-demo
 // @namespace    https://u.foxford.ngcdn.ru/
-// @version      0.2-pre-3.3.15
+// @version      0.2-pre-3.11.10
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out & deepseek
 // @match        https://foxford.ru/admin*
@@ -2576,7 +2576,7 @@ const pagePatterns = {
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey (v.0.2-pre-3.3.15 от 3 марта 2025)'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey (v.0.2-pre-3.11.10 от 11 марта 2025)'
         currentWindow.log('Страница модифицирована');
     }
 })();
