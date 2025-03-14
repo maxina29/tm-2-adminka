@@ -69,12 +69,14 @@ class ManagedWindow {
         // Сброс состояния
         if (this.location.href !== 'about:blank') {
             this.location.replace('about:blank');
+            await sleep(100);
             await this.waitForElementDisappear('.loaded');
         }
 
         // Основная навигация
         if (url != 'about:blank') {
             this.location.href = url;
+            await sleep(100);
             await this.waitForElement('.loaded');
         }
         this.jsCodeArea = this.querySelector('#js_code');
