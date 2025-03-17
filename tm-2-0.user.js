@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka-refactored-demo
 // @namespace    https://u.foxford.ngcdn.ru/
-// @version      0.2-pre-3.11.10
+// @version      0.2-pre-3.17.10
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out & deepseek
 // @match        https://foxford.ru/admin*
@@ -546,11 +546,12 @@ const pagePatterns = {
     methodicalLinkCreateVideo: /methodical_materials\/units\/\d*\/link_items\/new#szh/,
     // эдш - типы продуктов
     gridsCreate: /externship\/product_types\/\d*\/grids\/new/,
-    gridsEdit: /externship\/product_types\/\d*\/grids\/[\d]*\/edit/,
+    gridsEdit: /externship\/product_types\/\d*\/grids\/\d*\/edit/,
     individualItems: /externship\/product_types\/\d*\/individual\/items$/,
     individualItemsCreateMass: /externship\/product_types\/\d*\/individual\/items\/new_mass$/,
     // прочее
     devServices: /admin\/dev_services([?#]|$)/,
+    webinar: /admin\/courses\/\d*\/groups\/\d*$/,
     massChange: 'https://foxford.ru/admin/mass_change',
     index: 'https://foxford.ru/admin',
     hasAnchor: /#/
@@ -563,7 +564,8 @@ const pagePatterns = {
     currentWindow.waitForLoad();
 
     // создаем поле для js-кода, кнопку запуска и нашу консоль
-    if (!currentWindow.checkPath(pagePatterns.taskPreviewAnswers)) {
+    if (!currentWindow.checkPath(pagePatterns.taskPreviewAnswers) &&
+        !currentWindow.checkPath(pagePatterns.webinar)) {
         createJsConsoles();
         if (currentWindow.checkPath(pagePatterns.hasAnchor)) {
             let anchorElement;
@@ -2578,7 +2580,7 @@ const pagePatterns = {
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey (v.0.2-pre-3.11.10 от 11 марта 2025)'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey (v.0.2-pre-3.17.10 от 17 марта 2025)'
         currentWindow.log('Страница модифицирована');
     }
 })();
