@@ -8,7 +8,7 @@ let coursesInfo = {
 let tempWindow = await createWindow();
 for (let courseId in coursesInfo) {
     log(courseId);
-    await tempWindow.openPage(`https://foxford.ru/admin/mini_groups/${courseId}/edit`);
+    await tempWindow.openPage(`https://foxford.ru/admin/courses/${courseId}/edit`);
     let courseInfo = coursesInfo[courseId];
     for (let selector in courseInfo) {
         tempWindow.querySelector(`#${selector}`).value = courseInfo[selector];
