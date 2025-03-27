@@ -579,9 +579,14 @@ const pagePatterns = {
                 }
                 catch (err) { displayError(err); }
             }
+            try {
+                anchorElement.scrollIntoView({ behavior: 'smooth' });
+                currentWindow.scrollBy(0, -80);
+            }
+            catch (err) {
+                console.log(`no ${anchor} on page`);
+            }
 
-            anchorElement.scrollIntoView({ behavior: 'smooth' });
-            currentWindow.scrollBy(0, -80);
         }
     }
     currentWindow.body.firstChild.className += ' loaded';
