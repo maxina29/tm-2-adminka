@@ -1,13 +1,13 @@
 // ==UserScript==
-// @name         TestAdminka-refactored-demo
+// @name         TestAdminka
 // @namespace    https://u.foxford.ngcdn.ru/
-// @version      0.2-pre-3.17.10
+// @version      0.2.0.1
 // @description  Улучшенная версия админских инструментов
-// @author       maxina29, wanna_get_out & deepseek
+// @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
 // @grant        none
-// @updateURL    https://github.com/maxina29/tm-2-adminka/raw/refs/heads/main/tm-2-0.user.js
-// @downloadURL  https://github.com/maxina29/tm-2-adminka/raw/refs/heads/main/tm-2-0.user.js
+// @updateURL    https://foxford.ru/tampermoney_script_adminka.user.js
+// @downloadURL  https://foxford.ru/tampermoney_script_adminka.user.js
 // ==/UserScript==
 
 const NO_LIVE_TEACHER_IDS = [2169, 2014, 1932, 1100, 1769, 1655, 1196, 2397, 2398, 557, 2399, 2401, 1571, 1387, 1875];
@@ -2593,7 +2593,7 @@ const pagePatterns = {
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey (v.0.2-pre-3.17.10 от 17 марта 2025)'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.1 от 17 апреля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
         currentWindow.log('Страница модифицирована');
     }
 })();
