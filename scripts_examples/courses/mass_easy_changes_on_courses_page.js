@@ -12,7 +12,7 @@ for (let courseId of courseIds) {
     let elem = currentWindow.querySelector('span[id^=best]');
     let newElem = elem.cloneNode(true);
     newElem.setAttribute('data-bip-attribute', tag);
-    newElem.setAttribute('data-bip-url', `/admin/mini_groups/${courseId}`);
+    newElem.setAttribute('data-bip-url', `/admin/courses/${courseId}`);
     newElem.setAttribute('id', `best_in_place_course_${courseId}_${tag}`);
     currentWindow.querySelector('tbody').appendChild(newElem);
     newElem.click();
