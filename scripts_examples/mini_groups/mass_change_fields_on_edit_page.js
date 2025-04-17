@@ -21,6 +21,7 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('#course_published').checked = 'checked';
     tempWindow.querySelector('#course_pin_top').checked = '';
     tempWindow.querySelector('#course_visible_in_list').checked = '';
+    tempWindow.querySelector('#course_product_pack_id').value = ''; // id привязанной подписки
     tempWindow.querySelector('#course_producer_id').value = '1867'; // Катя Афиногенова
     tempWindow.querySelector('#course_name').closest('form').querySelector('[type="submit"]').click();
     await tempWindow.waitForSuccess();
