@@ -23,7 +23,7 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('#course_visible_in_list').checked = '';
     tempWindow.querySelector('#course_product_pack_id').value = ''; // id привязанной подписки
     tempWindow.querySelector('#course_producer_id').value = '1867'; // Катя Афиногенова
-    tempWindow.querySelector('#course_mini_group_landing_feature_attributes_free_lesson').checked = 'false';
+    tempWindow.querySelector('#course_mini_group_landing_feature_attributes_free_lesson').checked = '';
     tempWindow.querySelector('#course_name').closest('form').querySelector('[type="submit"]').click();
     await tempWindow.waitForSuccess();
 }
