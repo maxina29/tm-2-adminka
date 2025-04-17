@@ -12,8 +12,10 @@
 
 const NO_LIVE_TEACHER_IDS = [2169, 2014, 1932, 1100, 1769, 1655, 1196, 2397, 2398, 557, 2399, 2401, 1571, 1387, 1875];
 const CANCEL_GALINA_ID = 2363;
-const SLAG_ID_SET = [5, 1, 27];
-const MINI_GROUPS_ID_SET = [8, 1, 60];
+const SLAG_ID_SET = [5, 1, 27, ''];
+const MINI_GROUPS_ID_SET = [8, 1, 60, ''];
+const HOME_ID_SET = [4, 1, 1, ''];
+const SSM_ID_SET = [4, 6, 1, 4789];
 
 // global variables;
 let currentWindow;
@@ -2340,7 +2342,9 @@ const pagePatterns = {
                             document.getElementById('week_day_webinars_settings_studio_id').value = MINI_GROUPS_ID_SET[2];
                             document.getElementById('week_day_webinars_settings_studio_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_studio_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_admin_id').value = '';
+                            document.getElementById('week_day_webinars_settings_admin_id').value = MINI_GROUPS_ID_SET[3];
+                            document.getElementById('week_day_webinars_settings_admin_id').style = '';
+                            document.getElementById('s2id_week_day_webinars_settings_admin_id').style = 'display:none;';
                             log('Локация Мини-группы');
                         }
                         catch (e) { log(e); }
@@ -2357,7 +2361,9 @@ const pagePatterns = {
                             document.getElementById('week_day_webinars_settings_studio_id').value = SLAG_ID_SET[2];
                             document.getElementById('week_day_webinars_settings_studio_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_studio_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_admin_id').value = '';
+                            document.getElementById('week_day_webinars_settings_admin_id').value = SLAG_ID_SET[3];
+                            document.getElementById('week_day_webinars_settings_admin_id').style = '';
+                            document.getElementById('s2id_week_day_webinars_settings_admin_id').style = 'display:none;';
                             log('Локация Шлак');
                         }
                         catch (e) { log(e); }
@@ -2365,16 +2371,18 @@ const pagePatterns = {
                     btn3.onclick = function () {
                         try {
                             document.getElementById('week_day_webinars_settings_all_days').checked = 'checked';
-                            document.getElementById('week_day_webinars_settings_location_id').value = 4;
+                            document.getElementById('week_day_webinars_settings_location_id').value = HOME_ID_SET[0];
                             document.getElementById('week_day_webinars_settings_location_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_location_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_format_id').value = 1;
+                            document.getElementById('week_day_webinars_settings_format_id').value = HOME_ID_SET[1];
                             document.getElementById('week_day_webinars_settings_format_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_format_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_studio_id').value = 1;
+                            document.getElementById('week_day_webinars_settings_studio_id').value = HOME_ID_SET[2];
                             document.getElementById('week_day_webinars_settings_studio_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_studio_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_admin_id').value = '';
+                            document.getElementById('week_day_webinars_settings_admin_id').value = HOME_ID_SET[3];
+                            document.getElementById('week_day_webinars_settings_admin_id').style = '';
+                            document.getElementById('s2id_week_day_webinars_settings_admin_id').style = 'display:none;';
                             log('Локация Дом');
                         }
                         catch (e) { log(e); }
@@ -2382,16 +2390,16 @@ const pagePatterns = {
                     btn4.onclick = function () {
                         try {
                             document.getElementById('week_day_webinars_settings_all_days').checked = 'checked';
-                            document.getElementById('week_day_webinars_settings_location_id').value = 4;
+                            document.getElementById('week_day_webinars_settings_location_id').value = SSM_ID_SET[0];
                             document.getElementById('week_day_webinars_settings_location_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_location_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_format_id').value = 6;
+                            document.getElementById('week_day_webinars_settings_format_id').value = SSM_ID_SET[1];
                             document.getElementById('week_day_webinars_settings_format_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_format_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_studio_id').value = 1;
+                            document.getElementById('week_day_webinars_settings_studio_id').value = SSM_ID_SET[2];
                             document.getElementById('week_day_webinars_settings_studio_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_studio_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_admin_id').value = 4789;
+                            document.getElementById('week_day_webinars_settings_admin_id').value = SSM_ID_SET[3];
                             document.getElementById('week_day_webinars_settings_admin_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_admin_id').style = 'display:none;';
                             log('Локация ССМ');

@@ -1,9 +1,9 @@
-// Проставляем локацию «Мини-группа» в первых параллелях курсов
+// Проставляем локацию «Шлак» в первых параллелях курсов
 // Для проставления локации в занятия через дев-сервисы используйте dev_services_mass_mini_location.js
 clear();
 let courseIds = `10609
 12345`.split('\n');
-let locationSet = MINI_GROUPS_ID_SET; // можно указать SLAG_ID_SET, HOME_ID_SET, SSM_ID_SET
+let locationSet = SLAG_ID_SET; // можно указать MINI_GROUPS_ID_SET, HOME_ID_SET, SSM_ID_SET
 let tempWindow = await createWindow();
 for (let courseId of courseIds) {
     log(courseId)
