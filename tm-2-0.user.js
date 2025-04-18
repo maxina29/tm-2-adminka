@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://u.foxford.ngcdn.ru/
-// @version      0.2.0.1
+// @version      0.2.0.2
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -80,10 +80,10 @@ class ManagedWindow {
             this.location.href = url;
             await sleep(100);
             await this.waitForElement('.loaded');
+            this.jsCodeArea = this.querySelector('#js_code');
+            this.jsLoggingConsole = this.querySelector('#js_console');
+            this.log('Эта страница была открыта скриптом, будьте осторожны)');
         }
-        this.jsCodeArea = this.querySelector('#js_code');
-        this.jsLoggingConsole = this.querySelector('#js_console');
-        this.log('Эта страница была открыта скриптом, будьте осторожны)');
 
         return this;
     }
@@ -530,6 +530,7 @@ const pagePatterns = {
     miniGroupsEdit: /admin\/mini_groups\/\d*\/edit/, /* пока не используется */
     lessons: /lessons[#$]?$/,
     lessonsOrder: /lessons_order$/,
+    lessonTasks: /admin\/lessons\/\d*\/lesson_tasks/,
     groups: /groups([?#]|$)/,
     newDuplicates: /course_duplicates\/new$/,
     pdfCreate: /\/course_plans\/new/,
@@ -1062,7 +1063,7 @@ const pagePatterns = {
                 else {
                     log('Процесс окончен, страница обновится через 5 секунд')
                     await sleep(5000);
-                    currentWindow.reload();
+                    await currentWindow.reload();
                 }
             }
         }
@@ -1254,6 +1255,31 @@ const pagePatterns = {
         let x = document.getElementsByClassName('lessons-order-page')[0];
         x.insertBefore(div, x.childNodes[2]);
         log('Страница модифицирована');
+    }
+    // на странице с домашними заданиями урока
+    if (currentWindow.checkPath(pagePatterns.lessonTasks)) {
+        let removeButton = createButton('Отвязать все задачи', async () => { }, 'remove-all-tasks btn-danger');
+        let toolbar = currentWindow.querySelector('.lesson_tasks_page .toolbar')
+        toolbar.appendChild(removeButton);
+        let taskRows = currentWindow.querySelectorAll('.task_first .task_table tbody tr');
+        removeButton.onclick = async () => {
+            let tempWindow = await createWindow('adminka-hw-tmp');
+            for (let num = 0; num < taskRows.length; num++) {
+                log(num + 1);
+                let taskRow = taskRows[num];
+                let deleteButton = taskRow.querySelector('[data-method="delete"]');
+                deleteButton.removeAttribute('data-confirm');
+                deleteButton.target = 'adminka-hw-tmp';
+                deleteButton.click();
+                await tempWindow.waitForSuccess();
+                await tempWindow.openPage('about:blank');
+            }
+            await tempWindow.close();
+            await currentWindow.reload();
+        };
+        if (taskRows.length == 0) {
+            removeButton.disabled = true;
+        }
     }
 
     // на странице с расписанием
@@ -2593,7 +2619,7 @@ const pagePatterns = {
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.1 от 17 апреля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.2 от 18 апреля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
         currentWindow.log('Страница модифицирована');
     }
 })();
