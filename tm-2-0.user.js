@@ -526,8 +526,9 @@ const pagePatterns = {
     // обучение - курсы
     courses: /admin\/courses($|\?|utf|q)/,
     coursesEdit: /admin\/courses\/\d*\/edit/,
-    newCoursesEdit: /admin\/new_courses\/\d*\/edit/,
+    coursesNew: /admin\/courses\/new/,
     miniGroupsEdit: /admin\/mini_groups\/\d*\/edit/, /* пока не используется */
+    miniGroupsNew: /admin\/mini_groups\/new/,
     lessons: /lessons[#$]?$/,
     lessonsOrder: /lessons_order$/,
     lessonTasks: /admin\/lessons\/\d*\/lesson_tasks/,
@@ -607,9 +608,8 @@ const pagePatterns = {
         currentWindow.querySelector('.q_id_eq').appendChild(idSearchButton);
         log('Страница модифицирована')
     }
-    // на странице редактирования курса (новый вариант или старый)
-    if (currentWindow.checkPath(pagePatterns.coursesEdit) ||
-        currentWindow.checkPath(pagePatterns.newCoursesEdit)) {
+    // на странице редактирования курса
+    if (currentWindow.checkPath(pagePatterns.coursesEdit)) {
         let asyncElement = currentWindow.querySelector('#course_asynchronous');
         let teachersElement = currentWindow.querySelector('#course_merged_teacher_ids');
         let purchaseModeElement = currentWindow.querySelector('#course_purchase_mode');
@@ -755,30 +755,15 @@ const pagePatterns = {
             }
         }
         checkCanceledCourse();
-        if (currentWindow.checkPath(pagePatterns.coursesEdit)) {
-            log('Страница модифицирована');
-        }
-    }
-    // на странице редактирования курса (новый вариант)
-    if (currentWindow.checkPath(pagePatterns.newCoursesEdit)) {
         let buttonArea = createElement('div');
-        let showButton = createButton('Продвинутые возможности', async () => { });
-        let hideButton = createButton('Скрыть продвинутые возможности', async () => { });
-        hideButton.hidden = true;
         let copyLandingButton = createButton('Скопировать данные для лендинга из другого курса (кроме цен)', async () => { });
-        copyLandingButton.hidden = true;
-        showButton.onclick = function () {
-            showButton.hidden = true; copyLandingButton.hidden = false; hideButton.hidden = false;
-        }
-        hideButton.onclick = function () {
-            showButton.hidden = false; copyLandingButton.hidden = true; hideButton.hidden = true;
-        }
+        copyLandingButton.hidden = false;
         // по хорошему обновить эту функцию или убрать совсем
         copyLandingButton.onclick = async () => {
             try {
                 let isConfirmed = true;
                 let hasBotApproval = checkBotApprove();
-                if (!hasBotApproval()) {
+                if (!hasBotApproval) {
                     isConfirmed = confirm('Внимание! Данные подставятся, но не будут сохранены автоматически. Проверьте правильность переноса, а потом нажмите «Сохранить»\n' +
                         'Перенесутся названия, подзаголовок, описание, экспресс-надпись, теги для каталога, адрес для редиректа, 3 буллита и 3 смысловых блока (не сработает на тренажерных курсах и курсах Ф.Учителю)\n' +
                         'НЕ переносятся цены, галочки, FAQ и PDF - программа');
@@ -803,9 +788,49 @@ const pagePatterns = {
             }
             catch (err) { displayError(err); }
         }
-        buttonArea.appendChild(showButton); buttonArea.appendChild(copyLandingButton); buttonArea.appendChild(hideButton);
+        buttonArea.appendChild(copyLandingButton);
         let titleArea = currentWindow.querySelector('.courses');
         titleArea.insertBefore(buttonArea, titleArea.childNodes[1]);
+        if (currentWindow.checkPath(pagePatterns.coursesEdit)) {
+            log('Страница модифицирована');
+        }
+    }
+    // на странице создания курса
+    if (currentWindow.checkPath(pagePatterns.coursesNew) ||
+        currentWindow.checkPath(pagePatterns.miniGroupsNew)) {
+        let mainDiv = createElement('div', 'form-group boolean optional create-course-tm-options');
+        let col12Div = createElement('div', 'col-sm-12');
+        let checkboxDiv = createElement('div', 'checkbox');
+        let labelElement = createElement('label');
+        let checkboxInput = createElement('input');
+        let checkboxSpan = createElement('span');
+        let helpBlock = createElement('div', 'help-block', 'display:none;');
+        checkboxInput.type = 'checkbox';
+        checkboxSpan.innerHTML = 'Создать несколько одинаковых курсов';
+        helpBlock.innerHTML = 'Чтобы создать несколько одинаковых курсов, нажимай на «Создать курс» с зажатой клавишей Cmd(Mac) / Ctrl(Win) нужное количество раз. Форма выше не очистится, в нее можно будет внести правки и затем создать еще несколько курсов таким же способом';
+        mainDiv.appendChild(col12Div);
+        col12Div.appendChild(checkboxDiv);
+        checkboxDiv.appendChild(labelElement);
+        labelElement.appendChild(checkboxInput);
+        labelElement.appendChild(checkboxSpan);
+        col12Div.appendChild(helpBlock);
+        let saveButtons = document.querySelectorAll('[data-disable-with]');
+        checkboxInput.addEventListener('change', async () => {
+            if (checkboxInput.checked) {
+                helpBlock.style = '';
+                for (let saveButton of saveButtons) {
+                    saveButton.removeAttribute('data-disable-with');
+                }
+            }
+            else {
+                helpBlock.style = 'display:none;';
+                for (let saveButton of saveButtons) {
+                    saveButton.setAttribute('data-disable-with','Курс создается');
+                }
+            }
+        });
+        let formActionArea = currentWindow.querySelector('.form_actions');
+        formActionArea.parentNode.insertBefore(mainDiv, formActionArea);
         log('Страница модифицирована');
     }
 
@@ -938,7 +963,7 @@ const pagePatterns = {
         clearExtraTicksButton.onclick = async () => {
             let isConfirmed = true
             let hasBotApproval = checkBotApprove();
-            if (!hasBotApproval()) {
+            if (!hasBotApproval) {
                 isConfirmed = confirm('Галки у пустых домашек и конспектов в указанных занятиях будут удалены');
             }
             if (isConfirmed) {
@@ -984,7 +1009,7 @@ const pagePatterns = {
         checkMissTicksButton.onclick = async () => {
             let isConfirmed = true;
             let hasBotApproval = checkBotApprove();
-            if (!hasBotApproval()) {
+            if (!hasBotApproval) {
                 isConfirmed = confirm('Галки у непустых домашек и конспектов в указанных занятиях будут проставлены');
             }
             if (isConfirmed) {
