@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.4
+// @version      0.2.0.5
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -336,6 +336,14 @@ function createFormElement(form, elementTag, elementText, elementID, placeholder
         form.appendChild(div);
     }
     return element;
+}
+
+function createFileInput(format = 'text/csv') {
+    let inp = createElement('input');
+    inp.type = 'file';
+    inp.accept = format;
+    inp.required = true;
+    return inp;
 }
 
 // Создание окна
@@ -1124,7 +1132,7 @@ const pagePatterns = {
             let todo = confirm('Галочка «Бесплатный» будет снята на выбранных занятиях');
             if (todo) {
                 let sleeptime;
-                if (-document.getElementById('tm_from_lesson').value + document.getElementById('tm_last_lesson').value < 150) { sleeptime = 100; }
+                if (-currentWindow.firstLessonNumber + currentWindow.lastLessonNumber < 150) { sleeptime = 100; }
                 else { sleeptime = parseInt(prompt('Укажите время задержки между сохранениями в милисекундах', 100)); }
                 async function free() {
                     log('Запущено удаление галок «Бесплатный»');
@@ -1134,8 +1142,8 @@ const pagePatterns = {
                         a[2 * i + 1].className += ' lesson_free_checkbox';
                     }
                     let b = document.querySelectorAll('[id^="edit_lesson_"]');
-                    for (let j = Number(document.getElementById('tm_from_lesson').value); j <= document.getElementById('tm_last_lesson').value; j++) {
-                        let i = b[j];
+                    for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonNumber; num++) {
+                        let i = b[num];
                         let c = i.getElementsByClassName('lesson_free_checkbox');
                         if (c.length) {
                             c[0].checked = false;
@@ -1155,11 +1163,9 @@ const pagePatterns = {
             x.insertBefore(div, x.childNodes[2]);
         }
         lessonsFromCsvButton.onclick = async () => {
-            //showButton.hidden = true; hideButton.hidden = true;
             adminkaFeatures.hidden = true; contentFeatures.hidden = true;
-            // programm ////////
-            let inp = document.createElement('input'); inp.type = 'file'; inp.accept = "text/csv"; inp.required = 'required';
-            let btn = createButton('Готово', async () => { });
+            let inp = createFileInput('text/csv');
+            let btn = createButton('Готово');
             btn.onclick = async function () {
                 let todo = true;
                 let hasBotApproval = checkBotApprove();
@@ -1170,52 +1176,45 @@ const pagePatterns = {
                 let reader = new FileReader();
                 reader.onload = async function () {
                     let allRows = CSVToArray(reader.result);
-                    let k = Number(selectFirstLesson.value);
-                    let n = Number(selectLastLesson.value);
-                    let a = document.querySelectorAll('.row.lesson');
-                    let b = _.toArray(a).slice(1);
+                    let k = currentWindow.firstLessonNumber;
+                    let n = currentWindow.lastLessonNumber;
+                    let lessonRows = currentWindow.querySelectorAll('.row.lesson');
+                    let lessons = _.toArray(lessonRows).slice(1);
                     let z = -1;
                     for (var singleRow = 0; singleRow < Math.min(allRows.length, n - k + 1); singleRow++) {
                         let i = singleRow + k;
                         let rowCells = allRows[singleRow];
                         for (var rowCell = 0; rowCell < rowCells.length; rowCell++) {
-                            // log(rowCells[rowCell]);
                             if (rowCell == 0 && rowCells[rowCell]) {
-                                document.getElementsByName('lesson[name]')[i + 1].value = rowCells[rowCell];
+                                currentWindow.querySelectorAll('[name="lesson[name]"]')[i + 1].value = rowCells[rowCell];
                             }
                             if (rowCell == 1 && rowCells[rowCell]) {
-                                document.getElementsByName('lesson[themes_as_text]')[i + 1].value = rowCells[rowCell];
+                                currentWindow.querySelectorAll('[name="lesson[themes_as_text]"]')[i + 1].value = rowCells[rowCell];
                             }
-                            // /*
                             if (rowCell == 2 && rowCells[rowCell]) {
                                 try {
-                                    //document.getElementsByName('lesson[video_url]')[i+1].value=rowCells[rowCell];
-                                    document.getElementsByName('lesson[name]')[i + 1].parentNode.parentNode.parentNode.parentNode.querySelectorAll('[name="lesson[video_url]"]')[0].value = rowCells[rowCell];
+                                    currentWindow.querySelectorAll('[name="lesson[name]"]')[i + 1].parentNode.parentNode.parentNode.parentNode.querySelectorAll('[name="lesson[video_url]"]')[0].value = rowCells[rowCell];
                                 }
                                 catch (e) {
-                                    //log(e);
-                                    //
                                 }
                             }
-                            // */
                         }
-                        if (b[i].innerHTML.match(/Нулевое/)) { z = i }
+                        if (lessons[i].innerHTML.match(/Нулевое/)) { z = i }
                         else {
-                            document.getElementsByClassName('btn-success')[i + 3].style = '';
-                            document.getElementsByClassName('btn-success')[i + 3].click();
+                            currentWindow.querySelectorAll('.btn-success')[i + 3].style = '';
+                            currentWindow.querySelectorAll('.btn-success')[i + 3].click();
                         }
                         log(i + 1);
                         await sleep(100);
                     }
                     if (z != -1) {
-                        document.getElementsByClassName('btn-success')[z + 3].style = '';
-                        document.getElementsByClassName('btn-success')[z + 3].click();
+                        currentWindow.querySelectorAll('.btn-success')[z + 3].style = '';
+                        currentWindow.querySelectorAll('.btn-success')[z + 3].click();
                     }
-                    log('Готово')
-                    alert('Готово')
+                    displayLog('Готово');
                 };
                 reader.onerror = function () {
-                    alert(reader.error);
+                    displayError(reader.error);
                 };
                 reader.readAsText(inp.files[0])
 
@@ -2644,7 +2643,7 @@ const pagePatterns = {
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.4 от 22 апреля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.5 от 23 апреля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
         currentWindow.log('Страница модифицирована');
     }
 })();
