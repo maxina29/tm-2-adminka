@@ -2175,8 +2175,8 @@ const pagePatterns = {
     if (currentWindow.checkPath(pagePatterns.taskPreviewAnswers)) {
         await currentWindow.waitForElement('button[tabindex="2"] span');
         currentWindow.querySelector('button[tabindex="2"] span').click();
-        while (!currentWindow.evaluate("//button[contains(., 'Посмотреть ответ')]", currentWindow.document, null, XPathResult.ANY_TYPE, null).iterateNext()) { await sleep(100); }
-        currentWindow.evaluate("//button[contains(., 'Посмотреть ответ')]", currentWindow.document, null, XPathResult.ANY_TYPE, null).iterateNext().click();
+        while (!currentWindow.document.evaluate("//button[contains(., 'Посмотреть ответ')]", currentWindow.document, null, XPathResult.ANY_TYPE, null).iterateNext()) { await sleep(100); }
+        currentWindow.document.evaluate("//button[contains(., 'Посмотреть ответ')]", currentWindow.document, null, XPathResult.ANY_TYPE, null).iterateNext().click();
     }
     if (currentWindow.checkPath(pagePatterns.trainingsTaskTemplates)) {
         let previewLinks = currentWindow.querySelectorAll('a[href$="preview"]');
