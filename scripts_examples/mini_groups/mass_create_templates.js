@@ -62,7 +62,6 @@ try {
     displayLog('Готово ;)');
 }
 catch (err) {
-    clear()
     displayError(err);
 }
 finally {
