@@ -32,5 +32,6 @@ for (let lessonId in data) {
         num++;
     }
 }
+displayLog('Готово');
 await tempWindow.close();
 await lessonTasksWindow.close();
