@@ -1,5 +1,6 @@
 // Очищаем всю домашку из курса 
 // (из выбранных занятий в поле «Массовые правки вносятся с Занятие N по Занятие M (включительно)»)
+// Запускать на странице /lessons
 clear();
 let homeworkWindow = await createWindow('adminka-lt');
 let lessonsList = currentWindow.querySelectorAll('[id^="edit_lesson_"]');
