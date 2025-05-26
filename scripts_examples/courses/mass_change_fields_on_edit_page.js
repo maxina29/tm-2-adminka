@@ -26,6 +26,7 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('#course_published').checked = true;
     tempWindow.querySelector('#course_timing_title').value = '';
     tempWindow.querySelector('#course_timing_description').value = '';
+    tempWindow.querySelector('#course_published').checked = true;
     tempWindow.querySelector('#course_pin_top').checked = false;
     tempWindow.querySelector('#course_visible_in_list').checked = false;
     tempWindow.querySelector('#course_visible_in_calendar').checked = false;

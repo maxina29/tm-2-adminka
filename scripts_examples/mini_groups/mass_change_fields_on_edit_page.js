@@ -11,6 +11,7 @@ for (let courseId of courseIds) {
     await tempWindow.openPage(`https://foxford.ru/admin/courses/${courseId}/edit`);
     let tempStr = tempWindow.querySelector('#course_name').value;
     tempWindow.querySelector('#course_name').value = tempStr.substring(0, tempStr.length - 4); // убираем (д) из названия
+    tempWindow.querySelector('#course_landing_url').value = '';
     tempWindow.querySelector('#course_school_year_id').value = '14'; // 2025 - 26
     tempWindow.querySelector('#course_group_duration').value = '40';
     tempWindow.querySelector('#course_purchase_mode').value = 'enabled';
