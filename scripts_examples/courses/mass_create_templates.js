@@ -5,9 +5,9 @@
 clear();
 let newTempalatesData = [
     // вставить параллели сюда
-    { id: 10609, day: [1], time: ['15:00'], start: '01.09.2024', teacher: 1932, hidden: false, users: 100 },
-    { id: 10609, day: [1, 3], time: ['15:00', '16:00'], start: '01.09.2024', teacher: 1932, hidden: false, users: 200 },
-    { id: 10609, day: [1, 3], time: ['15:00'], start: '07.09.2024', from: 3, teacher: 1875, hidden: false, users: 300 },
+    { id: 10609, day: [1], time: ['15:00'], start: '01.09.2025', teacher: 1932, hidden: false, users: 100 },
+    { id: 10609, day: [1, 3], time: ['15:00', '16:00'], start: '01.09.2025', teacher: 1932, hidden: false, users: 200 },
+    { id: 10609, day: [1, 3], time: ['15:00'], start: '07.09.2025', from: 3, teacher: 1875, hidden: false, users: 300 },
 ];
 let groupsWindow = await createWindow('adminka_groups');
 let finalOutput = '';
