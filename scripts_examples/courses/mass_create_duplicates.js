@@ -6,8 +6,8 @@
 // - массово проставить локацию МГ в занятиях через дев-сервисы (dev_services_mass_location.js)
 // - массово перестроить параллели (mass_reset_schedule.js)
 clear();
-let courseIds = `10609
-12345`.split('\n');
+let courseIds = splitString(`10609
+12345`);
 let tempWindow = await createWindow();
 for (let courseId of courseIds) {
     log(courseId);

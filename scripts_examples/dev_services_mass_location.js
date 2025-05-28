@@ -2,8 +2,8 @@
 // Для проставления локации в настройки параллели используйте groups_set_location.js
 // Проверьте результат работы скрипта по отчету
 clear();
-let groupTemplateIds = `234567
-345678`.split('\n');
+let groupTemplateIds = splitString(`234567
+345678`);
 let location = 'slag' // можно поменять на home, ssm или mini
 let win = await createWindow();
 for (let groupTemplateId of groupTemplateIds) {

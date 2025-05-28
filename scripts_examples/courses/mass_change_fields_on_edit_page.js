@@ -3,8 +3,8 @@
 // Если нужно заполнять некоторые поля по-разному для разных курсов (например, полное название курса) - см. mass_different_change.js
 // Если изменяется только одно поле, то можно использовать быстрый вариант - см. mass_easy_changes_on_courses_page.js
 clear();
-let courseIds = `10609
-12345`.split('\n');
+let courseIds = splitString(`10609
+12345`);
 let tempWindow = await createWindow();
 for (let courseId of courseIds) {
     log(courseId)

@@ -2,8 +2,8 @@
 // Убедитесь, что в курсе стоит правильное расписание
 // почему-то иногда пропускает код, разобраться
 clear();
-let courseIds = `10609
-12345`.split('\n');
+let courseIds = splitString(`10609
+12345`);
 let tempWindow = await createWindow();
 for (let courseId of courseIds) {
     log(courseId);

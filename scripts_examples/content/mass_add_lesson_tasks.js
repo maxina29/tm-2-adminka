@@ -14,7 +14,7 @@ for (let lessonId in data) {
     log(`Начинаю урок ${lessonId}`)
     await lessonTasksWindow.openPage(`https://foxford.ru/admin/lessons/${lessonId}/lesson_tasks?q%5Bdisciplines_id_in%5D=`);
     let tbody = lessonTasksWindow.querySelector('.task_table tbody:not(.sortable)');
-    let tasks = new Set(data[lessonId].split(/\s+/));
+    let tasks = new Set(splitString(data[lessonId]));
     for (let num = 25; num < tasks.length; num++) {
         let tr = tbody.firstChild.cloneNode(true);
         tbody.appendChild(tr);

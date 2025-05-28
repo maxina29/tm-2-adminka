@@ -3,8 +3,8 @@
 // запускать на странице https://foxford.ru/admin/courses
 // могут поддерживаться не все основные tag, перед массовым запуском проверить на нескольких курсах
 // Проверить по выгрузке, что все изменения подтянулись 
-let courseIds = `10609
-12345`.split('\n');
+let courseIds = splitString(`10609
+12345`);
 let tag = 'visible_in_list'; //         or 'school_year_id'
 let newValue = 'true'; // or 'false'    or '14' for 2025-2026
 for (let courseId of courseIds) {
