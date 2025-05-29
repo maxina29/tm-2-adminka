@@ -16,6 +16,7 @@ for (let courseId of courseIds) {
     tempStr = tempWindow.querySelector('#course_full_name').value;
     tempWindow.querySelector('#course_full_name').value = tempStr.replace('2025', '2026');
     tempWindow.querySelector('#course_course_type_id').value = '2' // тип курса - экспресс
+    tempWindow.querySelector('#course_product_segment_tag_id').value = '1112'; // курсы за младший класс ДШ
     tempWindow.querySelector('#course_creation_with_master_course').checked = true; // галочка «Такого продукта раньше не было»
     tempWindow.querySelector('#course_promo_label').value = '';
     tempWindow.querySelector('#course_school_year_id').value = '14'; // 2025 - 26
