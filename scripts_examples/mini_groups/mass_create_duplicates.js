@@ -17,6 +17,7 @@ for (let courseId of courseIds) {
     await tempWindow.waitForElement('.my-btn.get-data');
     tempWindow.querySelector('.my-btn.get-data').classList.add('bot-approve');
     tempWindow.querySelector('.my-btn.get-data').click();
+    while (!tempWindow.querySelector('#course_duplicate_group_templates_attributes_0_teacher_id').value) { await sleep(100); }
     tempWindow.querySelector('#course_duplicate_group_templates_attributes_0_week_days_attributes_0_slot_week_day').value = 1; // 1-пн, 2-вт, и т.д., 0-вс
     tempWindow.querySelector('#course_duplicate_group_templates_attributes_0_week_days_attributes_0_slot_time').value = '01:00'
     tempWindow.querySelector('#course_duplicate_group_templates_attributes_0_starts_at').value = '08.09.2025';
@@ -24,7 +25,6 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('#course_duplicate_copy_groups').checked = false; // копировать прошедшие материалы 
     tempWindow.querySelector('#course_duplicate_video_available_on_schedule').checked = false; // сбросить стейт вебинаров 
     tempWindow.querySelector('#course_duplicate_asynchronous_access').checked = false; // асинхронный доступ
-    while (!tempWindow.querySelector('#course_duplicate_group_templates_attributes_0_teacher_id').value) { await sleep(100); }
     tempWindow.querySelector('.btn.btn-default.btn-primary').click();
     await tempWindow.waitForSuccess();
 }
