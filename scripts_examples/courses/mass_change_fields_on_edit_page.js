@@ -23,7 +23,6 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('#course_predefined_full_price').value = '31490';
     tempWindow.querySelector('#course_standard_price').value = '31490';
     tempWindow.querySelector('#course_has_essay').checked = true;
-    tempWindow.querySelector('#course_published').checked = true;
     tempWindow.querySelector('#course_timing_title').value = '';
     tempWindow.querySelector('#course_timing_description').value = '';
     tempWindow.querySelector('#course_published').checked = true;
