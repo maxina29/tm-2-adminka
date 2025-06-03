@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.10
+// @version      0.2.0.11
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2670,6 +2670,7 @@ let win = await createWindow('adminka123');
 let form = currentWindow.querySelector('form');
 form.target = "adminka123";
 for (let taskId of taskIds) {
+    log(taskId);
     form.action = \`https://foxford.ru/admin/tasks/$\{taskId}\`;
     const fields = {
         '_method': 'patch',
@@ -2687,7 +2688,8 @@ for (let taskId of taskIds) {
     await win.waitForSuccess();
     await win.openPage('about:blank');
 }
-await win.close();`;
+await win.close();
+displayLog('Готово');`;
         }
         tariffButton.onclick = async () => {
             currentWindow.jsCodeArea.value = `clear();
@@ -2699,6 +2701,7 @@ let win = await createWindow('adminka123');
 let form = currentWindow.querySelector('form');
 form.target = "adminka123";
 for (const [course_id, resource_id] of pairs) {
+    log(\`$\{course_id} -> $\{resource_id}\`);
     form.action = \`https://foxford.ru/admin/courses/$\{course_id}/connections/tariffs\`;
     const fields = {
         'courses_connection_tariff[resource_type]': 'ProductPack',
@@ -2718,14 +2721,14 @@ for (const [course_id, resource_id] of pairs) {
     await win.openPage('about:blank');
 }
 await win.close();
-`
+displayLog('Готово');`
         }
         form.appendChild(repButton);
         form.appendChild(tariffButton);
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.10 от 3 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.11 от 3 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
         currentWindow.log('Страница модифицирована');
     }
 })();
