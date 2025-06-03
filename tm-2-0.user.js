@@ -2678,10 +2678,13 @@ for (let taskId of taskIds) {
         'ctask[paper_trail_event]': 'minor_update'
     };
     for (const [name, value] of Object.entries(fields)) {
-        let input = win.document.createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        form.appendChild(input);
+        let input = form.querySelector(`[name="${name}"]`);
+        if (!input) {
+            input = win.document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            form.appendChild(input);
+        }
         input.value = value;
     }
     form.submit();
@@ -2710,10 +2713,13 @@ for (const [course_id, resource_id] of pairs) {
         'commit': 'Сохранить'
     };
     for (const [name, value] of Object.entries(fields)) {
-        let input = win.document.createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        form.appendChild(input);
+        let input = form.querySelector(`[name="${name}"]`);
+        if (!input) {
+            input = win.document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            form.appendChild(input);
+        }
         input.value = value;
     }
     form.submit();
