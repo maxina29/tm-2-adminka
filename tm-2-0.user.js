@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.9
+// @version      0.2.0.10
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -568,6 +568,7 @@ const pagePatterns = {
     devServices: /admin\/dev_services([?#]|$)/,
     webinar: /admin\/courses\/\d*\/groups\/\d*$/,
     massChange: 'https://foxford.ru/admin/mass_change',
+    secretPage: 'https://foxford.ru/admin/courses/15005/lesson_packs/new',
     index: 'https://foxford.ru/admin',
     hasAnchor: /#/
 };
@@ -836,7 +837,7 @@ const pagePatterns = {
             else {
                 helpBlock.style = 'display:none;';
                 for (let saveButton of saveButtons) {
-                    saveButton.setAttribute('data-disable-with','Курс создается');
+                    saveButton.setAttribute('data-disable-with', 'Курс создается');
                 }
             }
         });
@@ -1291,7 +1292,7 @@ const pagePatterns = {
         let taskRows = currentWindow.querySelectorAll('.task_first .task_table tbody tr');
         removeButton.onclick = async () => {
             let tempWindow = await createWindow('adminka-hw-tmp');
-            for (let num = taskRows.length-1; num >=0; num--) {
+            for (let num = taskRows.length - 1; num >= 0; num--) {
                 // обратный порядок, чтобы сначала удалились необязательные задачи, потом обязательные, иначе ошибка
                 log(num + 1);
                 let taskRow = taskRows[num];
@@ -2645,9 +2646,86 @@ const pagePatterns = {
         currentWindow.body.appendChild(form);
         currentWindow.log('Страница создана');
     }
+    // на секретной странице
+    if (currentWindow.checkPath(pagePatterns.secretPage)) {
+        currentWindow.querySelector('h3').innerHTML = 'Секретная страница';
+        let div = createElement('div');
+        let form = currentWindow.querySelector('form');
+        form.id = 'form';
+        div.innerHTML = 'На этой странице возможны чудеса)';
+        currentWindow.querySelector('.course_lesson_packs_page').insertBefore(div, form);
+        currentWindow.querySelector('.courses_lesson_pack_lesson_count').remove();
+        currentWindow.querySelector('.courses_lesson_pack_price').remove();
+        let btn = form.querySelector('[type="submit"]');
+        btn.removeAttribute('data-disable-with');
+        btn.style = 'display: none;';
+        let repButton = createButton('Проставление галки «Репетиторская»', () => { }, 'btn btn-default', false);
+        let tariffButton = createButton('Добавление связанных продуктов в курсы', () => { }, 'btn btn-default', false);
+        repButton.onclick = async () => {
+            currentWindow.jsCodeArea.value = `clear();
+let taskIds = splitString(\`392219
+391517
+391516\`);
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+for (let taskId of taskIds) {
+    form.action = \`https://foxford.ru/admin/tasks/$\{taskId}\`;
+    const fields = {
+        '_method': 'patch',
+        'task[coach]': true,
+        'ctask[paper_trail_event]': 'minor_update'
+    };
+    for (const [name, value] of Object.entries(fields)) {
+        let input = win.document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        form.appendChild(input);
+        input.value = value;
+    }
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+}
+await win.close();`;
+        }
+        tariffButton.onclick = async () => {
+            currentWindow.jsCodeArea.value = `clear();
+const pairs = [
+    [10609, 12480],
+    // ... другие пары
+];
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+for (const [course_id, resource_id] of pairs) {
+    form.action = \`https://foxford.ru/admin/courses/$\{course_id}/connections/tariffs\`;
+    const fields = {
+        'courses_connection_tariff[resource_type]': 'ProductPack',
+        'courses_connection_tariff[resource_id]': resource_id,
+        'courses_connection_tariff[tariff_type]': 'premium',
+        'commit': 'Сохранить'
+    };
+    for (const [name, value] of Object.entries(fields)) {
+        let input = win.document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        form.appendChild(input);
+        input.value = value;
+    }
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+}
+await win.close();
+`
+        }
+        form.appendChild(repButton);
+        form.appendChild(tariffButton);
+    }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.9 от 28 мая 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.10 от 3 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
         currentWindow.log('Страница модифицирована');
     }
 })();
