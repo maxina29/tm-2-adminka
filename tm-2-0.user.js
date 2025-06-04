@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.19
+// @version      0.2.0.20
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2859,7 +2859,27 @@ displayLog('Готово');`
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.19 от 4 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
+        let mainPage = currentWindow.querySelector('.main-page');
+        let loopButton = mainPage.querySelector('.btn-default');
+        let yonoteButton = loopButton.cloneNode(true);
+        let foxButton = loopButton.cloneNode(true);
+        let fvsButton = loopButton.cloneNode(true);
+        loopButton.className += ' loop';
+        yonoteButton.className += ' yonote';
+        fvsButton.className += ' fvs';
+        foxButton.className += ' fox';
+        loopButton.href = 'https://foxford.loop.ru/foxford/channels/c04um2g2h6e';
+        yonoteButton.href = 'https://foxford.yonote.ru/doc/adminy-uchebnoj-platformy-WH5s3sfbLA';
+        fvsButton.href = 'https://next.fvs.foxford.ru/id/hub';
+        foxButton.href = 'https://foxford.ru/admin/courses/15005/lesson_packs/new';
+        loopButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287601/loop.png';
+        yonoteButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287609/yonote.png';
+        fvsButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287608/fvs.png';
+        foxButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287602/fox.png';
+        mainPage.appendChild(yonoteButton);
+        mainPage.appendChild(fvsButton);
+        mainPage.appendChild(foxButton);
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.20 от 4 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
