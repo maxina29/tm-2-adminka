@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.16
+// @version      0.2.0.17
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -553,6 +553,7 @@ const pagePatterns = {
     trainingsIndividualTasks: /trainings\/task_templates\/\d*\/individual_tasks/,
     // практика - задачи
     taskPreviewAnswers: /admin\/tasks\/\d*\/preview#ans/,
+    tasksEdit: /admin\/tasks\/\d*\/edit/,
     // обучение - мероприятия
     eventsNew: /admin\/events\/new/,
     eventsEdit: /admin\/events\/\d*\/edit/,
@@ -2177,6 +2178,10 @@ const pagePatterns = {
 
     /************************* Обучение - тесты *************************/
 
+    if (currentWindow.checkPath(pagePatterns.tasksEdit)) {
+        await currentWindow.waitForElement('#task_paper_trail_event_minor_update');
+        currentWindow.querySelector('#task_paper_trail_event_minor_update').click();
+    }
     if (currentWindow.checkPath(pagePatterns.taskPreviewAnswers)) {
         await currentWindow.waitForElement('button[tabindex="2"] span');
         currentWindow.querySelector('button[tabindex="2"] span').click();
@@ -2852,7 +2857,7 @@ displayLog('Готово');`
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.16 от 4 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.17 от 4 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
         currentWindow.log('Страница модифицирована');
     }
 })();
