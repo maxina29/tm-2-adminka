@@ -2661,7 +2661,8 @@ const pagePatterns = {
         btn.style = 'display: none;';
         let repButton = createButton('Проставление галки «Репетиторская»', () => { }, 'btn btn-default', false);
         let tariffButton = createButton('Добавление связанных продуктов в курсы', () => { }, 'btn btn-default', false);
-        let createTaskButton = createButton('Создать задачу',()=>{}, 'btn btn-default',false);
+        let createTaskButton = createButton('Создать задачу (поле ввода)',()=>{}, 'btn btn-default',false);
+        let createSelfTaskButton = createButton('Создать задачу (самооценка)',()=>{}, 'btn btn-default',false);
         repButton.onclick = async () => {
             currentWindow.jsCodeArea.value = `clear();
 let taskIds = splitString(\`392219
@@ -2746,7 +2747,6 @@ const fields = {
     'task[author_id]': '1236', 
     'task[published]': true,
     'task[content]': \`<p>Текст задачи</p>\`,
-    // 1 - поле ввода, 10 - самооценка, 3 - несколько из нескольких, 4 - пересечение множеств,
     'task[text_questions_attributes][0][question_type_id]': '1', 
     // ответ
     'task[text_questions_attributes][0][text_answers_attributes][0][content]': '0' 
@@ -2766,9 +2766,47 @@ await win.waitForSuccess();
 await win.close();
 displayLog('Готово');`
         }
+        createSelfTaskButton.onclick = async () => {
+            currentWindow.jsCodeArea.value=`clear();
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+form.action = \`https://foxford.ru/admin/tasks\`;
+const fields = {
+    'task[name]': 'Вопрос №1',
+    // сложность 3
+    'task[task_difficulty_id]': '8', 
+    // физика
+    'task[discipline_ids][]': ['3'], 
+    // краюшкина
+    'task[author_id]': '1236', 
+    'task[published]': true,
+    'task[content]': \`<p>Текст задачи</p>\`,
+    'task[self_rate_questions_attributes][0][question_type_id]': '10',
+    'task[self_rate_questions_attributes][0][self_rate_answers_attributes][0][content]': 'Все верно',
+    'task[self_rate_questions_attributes][0][self_rate_answers_attributes][0][correct_ratio]': '100',
+    'task[self_rate_questions_attributes][0][self_rate_answers_attributes][1][content]': 'Ничего не верно',
+    'task[self_rate_questions_attributes][0][self_rate_answers_attributes][1][correct_ratio]': '0'
+};
+for (const [name, value] of Object.entries(fields)) {
+    let input = form.querySelector(\`[name="$\{name}"]\`);
+    if (!input) {
+        input = createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        form.appendChild(input);
+    }
+    input.value = value;
+}
+form.submit();
+await win.waitForSuccess();
+await win.close();
+displayLog('Готово');`
+        }
         form.appendChild(repButton);
         form.appendChild(tariffButton);
         form.appendChild(createTaskButton);
+        form.appendChild(createSelfTaskButton);
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
