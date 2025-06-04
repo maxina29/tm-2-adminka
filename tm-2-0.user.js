@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.15
+// @version      0.2.0.16
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2663,6 +2663,7 @@ const pagePatterns = {
         let tariffButton = createButton('Добавление связанных продуктов в курсы', () => { }, 'btn btn-default', false);
         let createTaskButton = createButton('Создать задачу (поле ввода)',()=>{}, 'btn btn-default',false);
         let createSelfTaskButton = createButton('Создать задачу (самооценка)',()=>{}, 'btn btn-default',false);
+        let createSetTaskButton = createButton('Создать задачу (пересечение множеств)',()=>{}, 'btn btn-default',false);
         repButton.onclick = async () => {
             currentWindow.jsCodeArea.value = `clear();
 let taskIds = splitString(\`392219
@@ -2803,14 +2804,55 @@ await win.waitForSuccess();
 await win.close();
 displayLog('Готово');`
         }
+        createSetTaskButton.onclick = async () => {
+            currentWindow.jsCodeArea.value=`clear();
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+form.action = \`https://foxford.ru/admin/tasks\`;
+const fields = {
+    'task[name]': 'Вопрос №1',
+    // сложность 3
+    'task[task_difficulty_id]': '8', 
+    // физика
+    'task[discipline_ids][]': ['3'], 
+    // краюшкина
+    'task[author_id]': '1236', 
+    'task[published]': true,
+    'task[content]': \`<p>Текст задачи</p>\`,
+    'task[links_questions_attributes][0][question_type_id]': '4',
+    // A1 <-> Б1 и так далее
+    'task[links_questions_attributes][0][linked_answers_attributes][0][content]': 'A1',
+    'task[links_questions_attributes][0][linked_answers_attributes][0][simple_answer_attributes][content]': 'Б1',
+    'task[links_questions_attributes][0][linked_answers_attributes][1][content]': 'A2',
+    'task[links_questions_attributes][0][linked_answers_attributes][1][simple_answer_attributes][content]': 'Б2',
+    'task[links_questions_attributes][0][linked_answers_attributes][2][content]': 'A3',
+    'task[links_questions_attributes][0][linked_answers_attributes][2][simple_answer_attributes][content]': 'Б3',
+};
+for (const [name, value] of Object.entries(fields)) {
+    let input = form.querySelector(\`[name="$\{name}"]\`);
+    if (!input) {
+        input = createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        form.appendChild(input);
+    }
+    input.value = value;
+}
+form.submit();
+await win.waitForSuccess();
+await win.close();
+displayLog('Готово');`
+        }
         form.appendChild(repButton);
         form.appendChild(tariffButton);
         form.appendChild(createTaskButton);
         form.appendChild(createSelfTaskButton);
+        form.appendChild(createSetTaskButton);
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.15 от 4 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.16 от 4 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
         currentWindow.log('Страница модифицирована');
     }
 })();
