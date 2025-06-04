@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.18
+// @version      0.2.0.19
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2833,6 +2833,8 @@ const fields = {
     'task[links_questions_attributes][0][linked_answers_attributes][1][simple_answer_attributes][content]': 'Б2',
     'task[links_questions_attributes][0][linked_answers_attributes][2][content]': 'A3',
     'task[links_questions_attributes][0][linked_answers_attributes][2][simple_answer_attributes][content]': 'Б3',
+    'task[links_questions_attributes][0][linked_answers_attributes][3][content]': 'A4',
+    'task[links_questions_attributes][0][linked_answers_attributes][3][simple_answer_attributes][content]': 'Б4',
 };
 for (const [name, value] of Object.entries(fields)) {
     let input = form.querySelector(\`[name="$\{name}"]\`);
@@ -2857,7 +2859,7 @@ displayLog('Готово');`
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
-        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.18 от 4 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
+        document.querySelector('.main-page').childNodes[1].innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.19 от 4 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>'
         currentWindow.log('Страница модифицирована');
     }
 })();
