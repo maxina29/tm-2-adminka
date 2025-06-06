@@ -2351,7 +2351,6 @@ for (const [groupType, disciplines] of Object.entries(groups)) {
         const disElem = groupElem.querySelector('.fields:last-of-type');
         const disSelect = disElem.querySelector('select[id$="_discipline_id"]');
         disSelect.value = disId;
-        //await sleep(miniTimeSleep);
 
         for (const [courseId, courseData] of Object.entries(courses)) {
             for (const mathType of courseData.maths) {
@@ -2380,7 +2379,6 @@ for (const [groupType, disciplines] of Object.entries(groups)) {
                 }
                 courseRow.querySelector(\`#s2id_$\{tplSelect.id}\`).style = 'display:none';
                 tplSelect.style = '';
-                // await sleep(miniTimeSleep);
             }
         }
     }
