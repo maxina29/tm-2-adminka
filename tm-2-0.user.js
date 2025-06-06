@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.20
+// @version      0.2.0.21
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2281,12 +2281,118 @@ const pagePatterns = {
     /*********************** ЭДШ - типы продуктов ***********************/
 
     // сетки расписания
-    if (currentWindow.checkPath(pagePatterns.gridsCreate) ||
-        currentWindow.checkPath(pagePatterns.gridsEdit)) {
-        displayLog(`Скрипты для сеток расписания отключены, так как:
-        1) Гугл украл нашу табличку;
-        2) Изменился внешний вид сетки расписния в админке.
-Будем делать заново в следующем сезоне(`, 'danger', 10000)
+    if (currentWindow.checkPath(pagePatterns.gridsCreate) /*||
+        currentWindow.checkPath(pagePatterns.gridsEdit)*/) {
+        let gridCodeButton = createButton('Внести параллели',()=>{},"btn btn-default",false);
+        gridCodeButton.onclick = ()=>{
+            currentWindow.jsCodeArea.value = `let data = [
+    // Строки из таблицы в формате
+    // [ID предмета, ID курса, ID параллели, Набор base/additional, 
+    //     Автор образовательной методики default/peterson, 
+    //     Тип курса default/flipped/mini_class, Уникальный ID]
+
+];
+
+const miniTimeSleep = 0; // на случай если нужна задержка, можно поставить 100, но, кажется, работает и без нее
+const groups = {};
+for (const row of data) {
+    const [disId, couId, templId, group, math, type, uniqId] = row;
+    const disProId = \`$\{disId}_$\{uniqId}\`;
+    if (!groups[group]) groups[group] = {};
+    if (!groups[group][disProId]) groups[group][disProId] = {};
+    if (!groups[group][disProId][couId]) groups[group][disProId][couId] = {
+        templates: [],
+        type,
+        maths: math === 'both' ? ['default', 'peterson'] : [math]
+    };
+    groups[group][disProId][couId].templates.push(templId);
+}
+
+// переключение вкладок
+async function switchTab(tabName) {
+    try {
+        currentWindow.querySelector(\`.nav-tabs a[href="#$\{tabName}"]\`).click();
+        await currentWindow.waitForElement(\`.nav-tabs .active a[href="#$\{tabName}"]\`)
+    }
+    catch {
+        displayError(\`Не могу переключиться на вкладку $\{tabName}\`)
+    }
+}
+async function addSomething(selector, name) {
+    try {
+        currentWindow.querySelector(selector).click();
+        await sleep(miniTimeSleep);
+    }
+    catch {
+        displayError(\`Не могу добавить $\{name}\`)
+    }
+}
+async function addGroup() {
+    await addSomething('.tab-pane.active .add_nested_fields[data-association="groups"]', 'группу');
+}
+async function addDiscipline() {
+    await addSomething('.tab-pane.active .group:last-child .add_nested_fields[data-association="discipline_groups"]', 'дисциплину');
+}
+async function addCourse() {
+    await addSomething('.tab-pane.active .group:last-child .fields:last-of-type .add_nested_fields[data-association="items"]', 'курс');
+}
+
+for (const [groupType, disciplines] of Object.entries(groups)) {
+    // Набор
+    await switchTab(groupType);
+    await addGroup();
+    const groupElem = currentWindow.querySelector('.tab-pane.active .group:last-child');
+    groupElem.querySelector('input[id$="_title"]').value = groupType === 'base' ? 'Базовый набор' : 'Дополнительный набор';
+
+    for (const [disProId, courses] of Object.entries(disciplines)) {
+        // Дисциплина
+        await addDiscipline();
+        const disId = disProId.split('_')[0];
+        const disElem = groupElem.querySelector('.fields:last-of-type');
+        const disSelect = disElem.querySelector('select[id$="_discipline_id"]');
+        disSelect.value = disId;
+        //await sleep(miniTimeSleep);
+
+        for (const [courseId, courseData] of Object.entries(courses)) {
+            for (const mathType of courseData.maths) {
+                await addCourse();
+                const courseRows = disElem.querySelectorAll('tr.fields');
+                const courseRow = courseRows[courseRows.length - 1];
+                console.log(courseRow);
+                // ID курса
+                const courseInput = courseRow.querySelector('input[id$="_resource_id"]');
+                courseInput.value = courseId;
+                courseRow.querySelector(\`#s2id_$\{courseInput.id}\`).style = 'display:none';
+                courseInput.style = '';
+                // Автор методики
+                courseRow.querySelector('select[id$="_author_type"]').value = mathType;
+                // Тип курса
+                courseRow.querySelector('select[id$="_course_type"]').value = courseData.type;
+
+                // Параллели
+                const tplSelect = courseRow.querySelector('select[id$="_group_template_ids"]');
+                for (const tplId of courseData.templates) {
+                    const option = document.createElement('option');
+                    option.value = tplId;
+                    option.text = tplId;
+                    option.selected = true;
+                    tplSelect.appendChild(option);
+                }
+                courseRow.querySelector(\`#s2id_$\{tplSelect.id}\`).style = 'display:none';
+                tplSelect.style = '';
+                // await sleep(miniTimeSleep);
+            }
+        }
+    }
+}
+
+log('Готово! Проверьте данные и сохраните');`
+        };
+        const container = document.createElement('div');
+        let a = document.querySelector('.externship_schedule_grids_page');
+        a.insertBefore(container,a.firstChild);
+        container.appendChild(gridCodeButton);
+        log('Страница модифицирована');
     }
     // индивидуальные траектории ДШ
     if (currentWindow.checkPath(pagePatterns.individualItems)) {
@@ -2879,7 +2985,7 @@ displayLog('Готово');`
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.20 от 4 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.21 от 6 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
