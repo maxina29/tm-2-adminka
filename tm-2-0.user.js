@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.24
+// @version      0.2.0.25
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2763,35 +2763,34 @@ log('Готово! Проверьте данные и сохраните');`
     }
     // на секретной странице
     if (currentWindow.checkPath(pagePatterns.secretPage)) {
+        const appendCollapsibleElement = (form, text) => {
+            const collapsibleButton = createButton(text, () => { }, 'collapsible', true);
+            collapsibleButton.type = 'button';
+            collapsibleButton.style = '';
+            const collapsibleData = createElement('div', 'content');
+            form.appendChild(collapsibleButton);
+            form.appendChild(collapsibleData);
+            return collapsibleData;
+        }
         currentWindow.querySelector('h3').innerHTML = 'Секретная страница';
-        let div = createElement('div');
-        let form = currentWindow.querySelector('form');
+        const div = createElement('div');
+        const form = currentWindow.querySelector('form');
         form.id = 'form';
         div.innerHTML = 'На этой странице возможны чудеса)';
-        let collapseAdminButton = createButton('Коды для админов админки', () => { }, 'collapsible', true);
-        collapseAdminButton.type = 'button';
-        collapseAdminButton.style = '';
-        let collapseAdminData = createElement('div', 'content');
-        form.appendChild(collapseAdminButton);
-        form.appendChild(collapseAdminData)
-        let collapseContentButton = createButton('Коды для админов контента', () => { }, 'collapsible', true);
-        collapseContentButton.type = 'button';
-        collapseContentButton.style = '';
-        let collapseContentData = createElement('div', 'content');
-        form.appendChild(collapseContentButton);
-        form.appendChild(collapseContentData);
         currentWindow.querySelector('.course_lesson_packs_page').insertBefore(div, form);
         currentWindow.querySelector('.courses_lesson_pack_lesson_count').remove();
         currentWindow.querySelector('.courses_lesson_pack_price').remove();
-        let btn = form.querySelector('[type="submit"]');
-        btn.removeAttribute('data-disable-with');
-        btn.style = 'display: none;';
-        let repButton = createButton('Проставление галки «Репетиторская»', () => { }, 'btn btn-default', false);
-        let tariffButton = createButton('Добавление связанных продуктов в курсы', () => { }, 'btn btn-default', false);
-        let createTaskButton = createButton('Создать задачу (поле ввода)', () => { }, 'btn btn-default', false);
-        let createSelfTaskButton = createButton('Создать задачу (самооценка)', () => { }, 'btn btn-default', false);
-        let createSetTaskButton = createButton('Создать задачу (пересечение множеств)', () => { }, 'btn btn-default', false);
-        let teachersButton = createButton('Поправить карточки преподавателей', () => { }, 'btn btn-default', false);
+        const originalButton = form.querySelector('[type="submit"]');
+        originalButton.removeAttribute('data-disable-with');
+        originalButton.style = 'display: none;';
+        const adminSection = appendCollapsibleElement(form, 'Коды для админов админки');
+        const contentSection = appendCollapsibleElement(form, 'Коды для админов контента');
+        const repButton = createButton('Проставление галки «Репетиторская»', () => { }, 'btn btn-default', false);
+        const tariffButton = createButton('Добавление связанных продуктов в курсы', () => { }, 'btn btn-default', false);
+        const createTaskButton = createButton('Создать задачу (поле ввода)', () => { }, 'btn btn-default', false);
+        const createSelfTaskButton = createButton('Создать задачу (самооценка)', () => { }, 'btn btn-default', false);
+        const createSetTaskButton = createButton('Создать задачу (пересечение множеств)', () => { }, 'btn btn-default', false);
+        const teachersButton = createButton('Поправить карточки преподавателей', () => { }, 'btn btn-default', false);
         repButton.onclick = async () => {
             currentWindow.jsCodeArea.value = `clear();
 let taskIds = splitString(\`392219
@@ -3013,32 +3012,12 @@ for (const teacherId in teachersData) {
 await win.close();
 displayLog('Готово');`;
         };
-        collapseContentData.appendChild(repButton);
-        collapseAdminData.appendChild(tariffButton);
-        collapseContentData.appendChild(createTaskButton);
-        collapseContentData.appendChild(createSelfTaskButton);
-        collapseContentData.appendChild(createSetTaskButton);
-        collapseAdminData.appendChild(teachersButton);
-        currentWindow.addStyle(`
-        .collapsible {
-            background-color: #eef;
-            color: #444;
-            cursor: pointer;
-            padding: 12px;
-            margin: 12px 0px;
-            width: 100%;
-            border: none;
-            //text-align: left;
-            outline: none;
-            font-size: 15px;
-        }`);
-        currentWindow.addStyle(`
-        .content {
-            padding: 0 18px;
-            display: block;
-            overflow: hidden;
-            background-color: #fff;
-        }`);
+        contentSection.appendChild(repButton);
+        adminSection.appendChild(tariffButton);
+        contentSection.appendChild(createTaskButton);
+        contentSection.appendChild(createSelfTaskButton);
+        contentSection.appendChild(createSetTaskButton);
+        adminSection.appendChild(teachersButton);
         for (let col of currentWindow.querySelectorAll(".collapsible")) {
             col.addEventListener("click", () => {
                 col.classList.toggle("active");
@@ -3050,6 +3029,25 @@ displayLog('Готово');`;
                 }
             });
         }
+        currentWindow.addStyle(`
+        .collapsible {
+            background-color: #eef;
+            color: #444;
+            cursor: pointer;
+            padding: 12px;
+            margin: 12px 0px;
+            width: 100%;
+            border: none;
+            outline: none;
+            font-size: 15px;
+        }`);
+        currentWindow.addStyle(`
+        .content {
+            padding: 0 18px;
+            display: block;
+            overflow: hidden;
+            background-color: #fff;
+        }`);
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
@@ -3073,7 +3071,7 @@ displayLog('Готово');`;
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.24 от 9 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.25 от 10 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
