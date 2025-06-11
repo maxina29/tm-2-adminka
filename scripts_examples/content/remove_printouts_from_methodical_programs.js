@@ -43,6 +43,5 @@ try {
 } catch (error) {
     displayError(error);
 } finally {
-    await tempWindow.close();
     await currentWindow.reload();
 }

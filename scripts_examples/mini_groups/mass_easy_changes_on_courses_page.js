@@ -24,4 +24,3 @@ for (let courseId of courseIds) {
     submitButton.click();
     await sleep(900);
 }
-log('done');

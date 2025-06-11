@@ -1,7 +1,6 @@
 // Очищаем всю домашку из курса 
 // (из выбранных занятий в поле «Массовые правки вносятся с Занятие N по Занятие M (включительно)»)
 // Запускать на странице /lessons
-clear();
 let homeworkWindow = await createWindow('adminka-lt');
 let lessonsList = currentWindow.querySelectorAll('[id^="edit_lesson_"]');
 for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonNumber; num++) {
@@ -17,5 +16,4 @@ for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonN
         await homeworkWindow.openPage('about:blank');
     }
 }
-await homeworkWindow.close();
 await currentWindow.reload();

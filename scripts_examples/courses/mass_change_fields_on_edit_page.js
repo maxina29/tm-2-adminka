@@ -2,7 +2,6 @@
 // Оставьте только нужные строки или добавьте по аналогии свои
 // Если нужно заполнять некоторые поля по-разному для разных курсов (например, полное название курса) - см. mass_different_change.js
 // Если изменяется только одно поле, то можно использовать быстрый вариант - см. mass_easy_changes_on_courses_page.js
-clear();
 let courseIds = splitString(`10609
 12345`);
 let tempWindow = await createWindow();
@@ -34,4 +33,3 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('#course_name').closest('form').querySelector('[type="submit"]').click();
     await tempWindow.waitForSuccess();
 }
-await tempWindow.close();

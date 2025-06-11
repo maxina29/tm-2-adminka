@@ -7,7 +7,6 @@ let data = {
     327201: `213222 205531  290653 290653 290662 290663`,
     327202: `72241 374566 374567`,
 }
-clear();
 let lessonTasksWindow = await createWindow();
 let tempWindow = await createWindow('adminka_tmp');
 for (let lessonId in data) {
@@ -32,6 +31,3 @@ for (let lessonId in data) {
         num++;
     }
 }
-displayLog('Готово');
-await tempWindow.close();
-await lessonTasksWindow.close();

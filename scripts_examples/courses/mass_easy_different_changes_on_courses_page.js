@@ -26,4 +26,3 @@ for (let courseId in data) {
     submitButton.click();
     await sleep(900);
 }
-log('done');

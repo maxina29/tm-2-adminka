@@ -1,7 +1,6 @@
 // Массовое перестроение расписания первых параллелей курса с определенной даты
 // Убедитесь, что в курсе стоит правильное расписание
 // почему-то иногда пропускает код, разобраться
-clear();
 let courseIds = splitString(`10609
 12345`);
 let tempWindow = await createWindow();
@@ -13,4 +12,3 @@ for (let courseId of courseIds) {
     tempWindow.querySelectorAll('.btn-primary')[2].click();
     await tempWindow.waitForSuccess();
 }
-await tempWindow.close();

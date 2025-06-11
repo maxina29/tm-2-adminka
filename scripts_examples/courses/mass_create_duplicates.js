@@ -5,7 +5,6 @@
 // - массово проставить локацию МГ на странице groups (groups_set_location.js)
 // - массово проставить локацию МГ в занятиях через дев-сервисы (dev_services_mass_location.js)
 // - массово перестроить параллели (mass_reset_schedule.js)
-clear();
 let courseIds = splitString(`10609
 12345`);
 let tempWindow = await createWindow();
@@ -27,4 +26,3 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('.btn.btn-default.btn-primary').click();
     await tempWindow.waitForSuccess();
 }
-await tempWindow.close();

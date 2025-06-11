@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.25
+// @version      0.2.0.26
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -30,12 +30,18 @@ class ManagedWindow {
         this.lastLessonNumber = null;
         this.jsLoggingConsole = this.createElement('textarea');
         this.jsCodeArea = this.createElement('textarea');
+        this.isRunningScript = false;
+        this.subwindows = [];
         return this.#setupProxy();
     }
 
     #getWindow(parent) {
         if (parent === null) return window;
-        if (typeof parent === 'string') return window.open('about:blank', parent);
+        if (typeof parent === 'string') {
+            currentWindow.subwindows.push(this);
+            return window.open('about:blank', parent);
+        }
+        parent.subwindows.push(this);
         return parent.open('about:blank');
     }
 
@@ -98,11 +104,15 @@ class ManagedWindow {
 
     // Дополнительные методы
     async close() {
-        this._nativeWindow.close();
-        log(`Окно закрыто: ${this.location.href}`);
+        if (!this._nativeWindow.closed) {
+            this._nativeWindow.close();
+            if (this.location) log(`Окно закрыто: ${this.location.href}`);
+            else log(`Окно закрыто`);
+        }
     }
 
     async reload() {
+        await this.closeSubwindows();
         this.document.querySelector('.loaded').className = '';
         this.location.href = this.location.href;
     }
@@ -161,11 +171,19 @@ class ManagedWindow {
         }, maxRetries);
     }
 
-    async waitForSuccess() {
-        await this.waitForElement('.alert-success');
-        let alertCloseButton = this.querySelector('.alert-success .close');
-        alertCloseButton.click();
-        await this.waitForElementDisappear('.alert-success');
+    async waitForSuccess(skipDangerAlert = false) {
+        await this.waitForElement('.alert');
+        if (this.querySelector('.alert-success')) {
+            let alertCloseButton = this.querySelector('.alert-success .close');
+            alertCloseButton.click();
+            await this.waitForElementDisappear('.alert-success');
+        }
+        else if (skipDangerAlert == false) {
+            let errorMessage = this.querySelector('.alert-danger').innerHTML;
+            if (errorMessage.search('</button>') != -1)
+                errorMessage = errorMessage.substring(errorMessage.search('</button>') + 9);
+            throw new Error(`${errorMessage}`);
+        }
     }
 
     async log(s) {
@@ -207,6 +225,27 @@ class ManagedWindow {
         const sheet = new CSSStyleSheet();
         sheet.insertRule(style);
         this.document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    }
+
+    updateFormFields(form, fields) {
+        for (const input of form.querySelectorAll('input:not(.protected)')) {
+            input.remove();
+        }
+        for (const [name, value] of Object.entries(fields)) {
+            let input = form.querySelector(`[name="${name}"]`);
+            input = createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            form.appendChild(input);
+            input.value = value;
+        }
+    }
+
+    async closeSubwindows() {
+        for (let win of this.subwindows) {
+            await win.close();
+        }
+        this.subwindows = [];
     }
 
 }
@@ -281,6 +320,7 @@ function checkBotApprove() {
 
 async function displayError(err, comment = '', time = 3000) {
     console.error(err);
+    currentWindow.lastError = err;
     displayLog(`Ошибка ${comment}: ${err.message}`, 'danger', time);
 }
 
@@ -495,13 +535,27 @@ async function createJsConsoles() {
     currentWindow.jsCodeArea.placeholder = 'Место для JS-кода';
 
     function run_script() {
+        if (currentWindow.isRunningScript == true) {
+            displayLog('Скрипт уже запущен, если хотите запустить другой, обновите страницу', 'danger');
+            return
+        }
         function clear() {
             currentWindow.jsLoggingConsole.value = '';
         }
         try {
-            // Wrap the code in a block that returns a value if log is called.
-            const codeToExecute = `(async () => { ${currentWindow.jsCodeArea.value}
-            })();`;
+            clear();
+            const codeToExecute = `
+                (async () => {
+                    try {
+                        currentWindow.isRunningScript = true;
+                        ${currentWindow.jsCodeArea.value}
+                        displayLog('Выполнение скрипта завершено', 'success', 1000);
+                    } catch (e) { displayError(e, 'при выполнении скрипта'); } 
+                    finally {
+                        (async () => await currentWindow.closeSubwindows())();
+                        currentWindow.isRunningScript = false; 
+                    }
+                })();`;
             const result = eval(codeToExecute);
             result.then(val => {
                 if (val !== undefined) currentWindow.log(String(val));
@@ -1752,7 +1806,7 @@ const pagePatterns = {
         //
         let set_all_duration_at_ = async function (x = 40) {
             let a = document.getElementsByClassName('groups_table')[0].getElementsByTagName('tr');
-            let code = `<div class="form-group integer optional group_duration"><label class="col-sm-3 control-label integer optional" for="group_duration">Длительность</label><div class="col-sm-9"><input class="form-control numeric integer optional" type="number" step="1" value="` + x + `" name="group[duration]" id="group_duration"><p class="help-block">мин.</p></div></div>`
+            let code = `<div class="form-group integer optional group_duration"><label class="col-sm-3 control-label integer optional" for="group_duration">Длительность</label><div class="col-sm-9"><input class="form-control numeric integer optional" type="number" step="1" value="${x}" name="group[duration]" id="group_duration"><p class="help-block">мин.</p></div></div>`
             for (let i = 3; i < a.length - 2; i++) {
                 if (a[i].querySelectorAll('.form-group.group_duration').length) {
                     a[i].querySelector('.form-group.group_duration').outerHTML = code;
@@ -2222,7 +2276,6 @@ const pagePatterns = {
         await trainingsWindow.waitForSuccess();
         await trainingsWindow.openPage('about:blank');
     }
-    trainingsWindow.close();
     displayLog('Задачи привязаны, обновите страницу');`;
         }
         let massTasksButton = createButton('Привязать задачи массово', massTasksButtonOnClick, 'btn-default', false);
@@ -2321,7 +2374,7 @@ async function switchTab(tabName) {
         await currentWindow.waitForElement(\`.nav-tabs .active a[href="#$\{tabName}"]\`)
     }
     catch {
-        displayError(\`Не могу переключиться на вкладку $\{tabName}\`)
+        displayLog(\`Не могу переключиться на вкладку $\{tabName}\`, 'danger')
     }
 }
 async function addSomething(selector, name) {
@@ -2330,7 +2383,7 @@ async function addSomething(selector, name) {
         await sleep(miniTimeSleep);
     }
     catch {
-        displayError(\`Не могу добавить $\{name}\`)
+        displayLog(\`Не могу добавить $\{name}\`, 'danger')
     }
 }
 async function addGroup() {
@@ -2388,9 +2441,7 @@ for (const [groupType, disciplines] of Object.entries(groups)) {
             }
         }
     }
-}
-
-log('Готово! Проверьте данные и сохраните');`
+}`
         };
         const container = document.createElement('div');
         let a = document.querySelector('.externship_schedule_grids_page');
@@ -2763,37 +2814,47 @@ log('Готово! Проверьте данные и сохраните');`
     }
     // на секретной странице
     if (currentWindow.checkPath(pagePatterns.secretPage)) {
-        const appendCollapsibleElement = (form, text) => {
-            const collapsibleButton = createButton(text, () => { }, 'collapsible', true);
-            collapsibleButton.type = 'button';
-            collapsibleButton.style = '';
-            const collapsibleData = createElement('div', 'content');
-            form.appendChild(collapsibleButton);
-            form.appendChild(collapsibleData);
-            return collapsibleData;
+        function createCollapsibleSection(parent, title) {
+            const button = createButton(title, () => { }, 'collapsible', true);
+            button.type = 'button';
+            button.style = '';
+            const content = createElement('div', 'inside-collapsible');
+            parent.appendChild(button);
+            parent.appendChild(content);
+            button.addEventListener('click', () => {
+                button.classList.toggle('active');
+                content.style.display = content.style.display === 'none' ? 'block' : 'none';
+            });
+            return content;
         }
+        function createActionButton(parent, text, scriptContent) {
+            const button = createButton(text, () => {
+                currentWindow.jsCodeArea.value = scriptContent;
+            }, 'btn btn-default', false);
+            parent.appendChild(button);
+            return button;
+        }
+        ['.courses_lesson_pack_lesson_count', '.courses_lesson_pack_price'].forEach(selector => {
+            currentWindow.querySelector(selector)?.remove();
+        });
+        ['utf8', 'authenticity_token'].forEach(name => {
+            currentWindow.querySelector(`[name = "${name}"]`)?.classList.add('protected');
+        });
         currentWindow.querySelector('h3').innerHTML = 'Секретная страница';
-        const div = createElement('div');
         const form = currentWindow.querySelector('form');
         form.id = 'form';
+        const div = createElement('div');
         div.innerHTML = 'На этой странице возможны чудеса)';
         currentWindow.querySelector('.course_lesson_packs_page').insertBefore(div, form);
-        currentWindow.querySelector('.courses_lesson_pack_lesson_count').remove();
-        currentWindow.querySelector('.courses_lesson_pack_price').remove();
         const originalButton = form.querySelector('[type="submit"]');
         originalButton.removeAttribute('data-disable-with');
         originalButton.style = 'display: none;';
-        const adminSection = appendCollapsibleElement(form, 'Коды для админов админки');
-        const contentSection = appendCollapsibleElement(form, 'Коды для админов контента');
-        const repButton = createButton('Проставление галки «Репетиторская»', () => { }, 'btn btn-default', false);
-        const tariffButton = createButton('Добавление связанных продуктов в курсы', () => { }, 'btn btn-default', false);
-        const createTaskButton = createButton('Создать задачу (поле ввода)', () => { }, 'btn btn-default', false);
-        const createSelfTaskButton = createButton('Создать задачу (самооценка)', () => { }, 'btn btn-default', false);
-        const createSetTaskButton = createButton('Создать задачу (пересечение множеств)', () => { }, 'btn btn-default', false);
-        const teachersButton = createButton('Поправить карточки преподавателей', () => { }, 'btn btn-default', false);
-        repButton.onclick = async () => {
-            currentWindow.jsCodeArea.value = `clear();
-let taskIds = splitString(\`392219
+        originalButton.classList.add('protected');
+        const adminSection = createCollapsibleSection(form, 'Коды для админов админки');
+        const contentSection = createCollapsibleSection(form, 'Коды для админов контента');
+
+        const SCRIPTS = {
+            REP: `let taskIds = splitString(\`392219
 391517
 391516\`);
 let win = await createWindow('adminka123');
@@ -2807,26 +2868,12 @@ for (let taskId of taskIds) {
         'task[coach]': true,
         'ctask[paper_trail_event]': 'minor_update'
     };
-    for (const [name, value] of Object.entries(fields)) {
-        let input = form.querySelector(\`[name="$\{name}"]\`);
-        if (!input) {
-            input = win.document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            form.appendChild(input);
-        }
-        input.value = value;
-    }
+    currentWindow.updateFormFields(form, fields);
     form.submit();
     await win.waitForSuccess();
     await win.openPage('about:blank');
-}
-await win.close();
-displayLog('Готово');`;
-        }
-        tariffButton.onclick = async () => {
-            currentWindow.jsCodeArea.value = `clear();
-const pairs = [
+}`,
+            TARIFF: `const pairs = [
     [10609, 12480],
     // ... другие пары
 ];
@@ -2842,26 +2889,12 @@ for (const [course_id, resource_id] of pairs) {
         'courses_connection_tariff[tariff_type]': 'premium',
         'commit': 'Сохранить'
     };
-    for (const [name, value] of Object.entries(fields)) {
-        let input = form.querySelector(\`[name="$\{name}"]\`);
-        if (!input) {
-            input = win.document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            form.appendChild(input);
-        }
-        input.value = value;
-    }
+    currentWindow.updateFormFields(form, fields);
     form.submit();
     await win.waitForSuccess();
     await win.openPage('about:blank');
-}
-await win.close();
-displayLog('Готово');`
-        }
-        createTaskButton.onclick = async () => {
-            currentWindow.jsCodeArea.value = `clear();
-let win = await createWindow('adminka123');
+}`,
+            TASK_INPUT: `let win = await createWindow('adminka123');
 let form = currentWindow.querySelector('form');
 form.target = "adminka123";
 form.action = \`https://foxford.ru/admin/tasks\`;
@@ -2879,24 +2912,10 @@ const fields = {
     // ответ
     'task[text_questions_attributes][0][text_answers_attributes][0][content]': '0' 
 };
-for (const [name, value] of Object.entries(fields)) {
-    let input = form.querySelector(\`[name="$\{name}"]\`);
-    if (!input) {
-        input = createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        form.appendChild(input);
-    }
-    input.value = value;
-}
+currentWindow.updateFormFields(form, fields);
 form.submit();
-await win.waitForSuccess();
-await win.close();
-displayLog('Готово');`
-        }
-        createSelfTaskButton.onclick = async () => {
-            currentWindow.jsCodeArea.value = `clear();
-let win = await createWindow('adminka123');
+await win.waitForSuccess();`,
+            TASK_SELF: `let win = await createWindow('adminka123');
 let form = currentWindow.querySelector('form');
 form.target = "adminka123";
 form.action = \`https://foxford.ru/admin/tasks\`;
@@ -2927,13 +2946,8 @@ for (const [name, value] of Object.entries(fields)) {
     input.value = value;
 }
 form.submit();
-await win.waitForSuccess();
-await win.close();
-displayLog('Готово');`
-        }
-        createSetTaskButton.onclick = async () => {
-            currentWindow.jsCodeArea.value = `clear();
-let win = await createWindow('adminka123');
+await win.waitForSuccess();`,
+            TASK_SET: `let win = await createWindow('adminka123');
 let form = currentWindow.querySelector('form');
 form.target = "adminka123";
 form.action = \`https://foxford.ru/admin/tasks\`;
@@ -2958,24 +2972,10 @@ const fields = {
     'task[links_questions_attributes][0][linked_answers_attributes][3][content]': 'A4',
     'task[links_questions_attributes][0][linked_answers_attributes][3][simple_answer_attributes][content]': 'Б4',
 };
-for (const [name, value] of Object.entries(fields)) {
-    let input = form.querySelector(\`[name="$\{name}"]\`);
-    if (!input) {
-        input = createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        form.appendChild(input);
-    }
-    input.value = value;
-}
+currentWindow.updateFormFields(form, fields);
 form.submit();
-await win.waitForSuccess();
-await win.close();
-displayLog('Готово');`
-        }
-        teachersButton.onclick = async () => {
-            currentWindow.jsCodeArea.value = `clear();
-const teachersData = {
+await win.waitForSuccess();`,
+            TEACHERS:`const teachersData = {
     2043: {
         'teacher[description]': 'Описание',
         'teacher[pdf_description]': 'Подробное описание',
@@ -2995,40 +2995,18 @@ for (const teacherId in teachersData) {
     log(teacherId);
     form.action = \`https://foxford.ru/admin/teachers/$\{teacherId}\`;
     const fields = Object.assign(teachersData[teacherId], basicFields)
-    for (const [name, value] of Object.entries(fields)) {
-        let input = form.querySelector(\`[name="$\{name}"]\`);
-        if (!input) {
-            input = win.document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            form.appendChild(input);
-        }
-        input.value = value;
-    }
+    currentWindow.updateFormFields(form, fields);
     form.submit();
     await win.waitForSuccess();
     await win.openPage('about:blank');
-}
-await win.close();
-displayLog('Готово');`;
-        };
-        contentSection.appendChild(repButton);
-        adminSection.appendChild(tariffButton);
-        contentSection.appendChild(createTaskButton);
-        contentSection.appendChild(createSelfTaskButton);
-        contentSection.appendChild(createSetTaskButton);
-        adminSection.appendChild(teachersButton);
-        for (let col of currentWindow.querySelectorAll(".collapsible")) {
-            col.addEventListener("click", () => {
-                col.classList.toggle("active");
-                var content = col.nextElementSibling;
-                if (content.style.display === "none") {
-                    content.style.display = "block";
-                } else {
-                    content.style.display = "none";
-                }
-            });
+}`,
         }
+        createActionButton(contentSection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
+        createActionButton(adminSection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
+        createActionButton(contentSection, 'Создать задачу (поле ввода)', SCRIPTS.TASK_INPUT);
+        createActionButton(contentSection, 'Создать задачу (самооценка)', SCRIPTS.TASK_SELF);
+        createActionButton(contentSection, 'Создать задачу (пересечение множеств)', SCRIPTS.TASK_SET);
+        createActionButton(adminSection, 'Поправить карточки преподавателей', SCRIPTS.TEACHERS);
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -3040,13 +3018,10 @@ displayLog('Готово');`;
             border: none;
             outline: none;
             font-size: 15px;
-        }`);
-        currentWindow.addStyle(`
-        .content {
+        .inside-collapsible {
             padding: 0 18px;
             display: block;
             overflow: hidden;
-            background-color: #fff;
         }`);
     }
     // на главной странице админки
@@ -3071,7 +3046,7 @@ displayLog('Готово');`;
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.25 от 10 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.26 от 11 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();

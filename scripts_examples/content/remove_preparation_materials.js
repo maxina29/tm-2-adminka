@@ -1,6 +1,5 @@
 // Удаляет все подготовительные материалы из курса
 // (из выбранных занятий в поле «Массовые правки вносятся с Занятие N по Занятие M (включительно)»)
-clear();
 let preparationWindow = await createWindow('adminka_podg');
 let lessonsList = currentWindow.querySelectorAll('[id^="edit_lesson_"]');
 for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonNumber; num++) {
@@ -25,5 +24,3 @@ for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonN
         //log('no podg_materials in lesson')
     }
 }
-await preparationWindow.close();
-displayLog('Готово');

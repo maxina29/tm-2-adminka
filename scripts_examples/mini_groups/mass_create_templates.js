@@ -1,7 +1,6 @@
 // массовое заведение параллелей МГ с проставлением локации МГ
 // рабочая таблица - https://disk.360.yandex.ru/i/qRDgjjgrOLaoQA 
 // (вкладка Мини-группы)
-clear();
 let newTempalatesData = [
     // вставить параллели сюда
     { id: 15005, day: [2], time: ['18:00'], start: '10.09.2025', agent: 1620064, hidden: false, users: 12, active: false },
@@ -59,13 +58,11 @@ try {
         finalOutput += `${templateInfo}\n`;
     }
     clear()
-    displayLog('Готово ;)');
 }
 catch (err) {
     displayError(err);
 }
 finally {
-    await devServicesWindow.close();
     log('Все заведенные параллели:')
     log(finalOutput)
 }

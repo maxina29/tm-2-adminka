@@ -2,7 +2,6 @@
 // массовое заведение параллелей классических курсов
 // рабочая таблица - https://disk.360.yandex.ru/i/qRDgjjgrOLaoQA 
 // (вкладка Курсы)
-clear();
 let newTempalatesData = [
     // вставить параллели сюда
     { id: 10609, day: [1], time: ['15:00'], start: '01.09.2025', teacher: 1932, hidden: false, users: 100 },
@@ -39,7 +38,6 @@ try {
         finalOutput += `${templateInfo}\n`;
     }
     clear()
-    displayLog('Готово ;)');
 }
 catch (err) {
     displayError(err);

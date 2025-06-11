@@ -1,7 +1,6 @@
 // Удаляет все тесты из курса
 // Как из занятий типа «Тест», так и из занятий типа «Перевернутое»
 // (из выбранных занятий в поле «Массовые правки вносятся с Занятие N по Занятие M (включительно)»)
-clear();
 let trainingWindow = await createWindow('adminka-tr');
 let lessonsList = currentWindow.querySelectorAll('[id^="edit_lesson_"]');
 for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonNumber; num++) {
@@ -18,5 +17,4 @@ for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonN
         await trainingWindow.openPage('about:blank');
     }
 }
-await trainingWindow.close();
 await currentWindow.reload();
