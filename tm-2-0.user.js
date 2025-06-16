@@ -2987,7 +2987,7 @@ await win.waitForSuccess();`,
 const basicFields = {
     '_method': 'patch',
     'commit': 'Сохранить',
-}
+};
 let win = await createWindow('adminka123');
 let form = currentWindow.querySelector('form');
 form.target = "adminka123";
@@ -3007,7 +3007,7 @@ for (const teacherId in teachersData) {
 const basicFields = {
     '_method': 'patch',
     'commit': 'Сохранить',
-}
+};
 let win = await createWindow('adminka123');
 let form = currentWindow.querySelector('form');
 form.target = "adminka123";
