@@ -3000,7 +3000,7 @@ for (const teacherId in teachersData) {
     await win.waitForSuccess();
     await win.openPage('about:blank');
 }`,
-            USERS_TEACHERS: `const userTeachers = [
+            USERS_TEACHERS: `const usersTeachers = [
     // [userId, teacherId],
     [12345678, 2043],
 ];
@@ -3011,7 +3011,7 @@ const basicFields = {
 let win = await createWindow('adminka123');
 let form = currentWindow.querySelector('form');
 form.target = "adminka123";
-for (const [userId, teacherId] of userTeachers) {
+for (const [userId, teacherId] of usersTeachers) {
     log(\`$\{userId} <- $\{teacherId}\`);
     form.action = \`https://foxford.ru/admin/users/$\{userId}\`;
     const customFields = {
