@@ -628,6 +628,7 @@ const pagePatterns = {
     // прочее
     devServices: /admin\/dev_services([?#]|$)/,
     webinar: /admin\/courses\/\d*\/groups\/\d*$/,
+    eventWebinar: /admin\/events\/\d*/,
     massChange: 'https://foxford.ru/admin/mass_change',
     secretPage: 'https://foxford.ru/admin/courses/15005/lesson_packs/new',
     index: 'https://foxford.ru/admin',
@@ -642,7 +643,8 @@ const pagePatterns = {
 
     // создаем поле для js-кода, кнопку запуска и нашу консоль
     if (!currentWindow.checkPath(pagePatterns.taskPreviewAnswers) &&
-        !currentWindow.checkPath(pagePatterns.webinar)) {
+        !currentWindow.checkPath(pagePatterns.webinar) &&
+        !currentWindow.checkPath(pagePatterns.eventWebinar)) {
         createJsConsoles();
         if (currentWindow.checkPath(pagePatterns.hasAnchor)) {
             let anchorElement;
