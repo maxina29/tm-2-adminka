@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.26
+// @version      0.2.0.27
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2827,10 +2827,10 @@ for (const [groupType, disciplines] of Object.entries(groups)) {
             });
             return content;
         }
-        function createActionButton(parent, text, scriptContent) {
+        function createActionButton(parent, text, scriptContent, className = '') {
             const button = createButton(text, () => {
                 currentWindow.jsCodeArea.value = scriptContent;
-            }, 'btn btn-default', false);
+            }, `btn btn-default ${className}`, false);
             parent.appendChild(button);
             return button;
         }
@@ -2975,7 +2975,7 @@ const fields = {
 currentWindow.updateFormFields(form, fields);
 form.submit();
 await win.waitForSuccess();`,
-            TEACHERS:`const teachersData = {
+            TEACHERS: `const teachersData = {
     2043: {
         'teacher[description]': 'Описание',
         'teacher[pdf_description]': 'Подробное описание',
@@ -3000,6 +3000,29 @@ for (const teacherId in teachersData) {
     await win.waitForSuccess();
     await win.openPage('about:blank');
 }`,
+            USERS_TEACHERS: `const userTeachers = [
+    // [userId, teacherId],
+    [12345678, 2043],
+];
+const basicFields = {
+    '_method': 'patch',
+    'commit': 'Сохранить',
+}
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+for (const [userId, teacherId] of userTeachers) {
+    log(\`$\{userId} <- $\{teacherId}\`);
+    form.action = \`https://foxford.ru/admin/users/$\{userId}\`;
+    const customFields = {
+        'user[teacher_id]': teacherId
+    };
+    const fields = Object.assign(customFields, basicFields)
+    currentWindow.updateFormFields(form, fields);
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+}`,
         }
         createActionButton(contentSection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
         createActionButton(adminSection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
@@ -3007,6 +3030,7 @@ for (const teacherId in teachersData) {
         createActionButton(contentSection, 'Создать задачу (самооценка)', SCRIPTS.TASK_SELF);
         createActionButton(contentSection, 'Создать задачу (пересечение множеств)', SCRIPTS.TASK_SET);
         createActionButton(adminSection, 'Поправить карточки преподавателей', SCRIPTS.TEACHERS);
+        createActionButton(adminSection, 'Связать аккаунт агента и карточку преподавателя', SCRIPTS.USERS_TEACHERS);
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -3046,7 +3070,7 @@ for (const teacherId in teachersData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.26 от 11 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.27 от 16 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
