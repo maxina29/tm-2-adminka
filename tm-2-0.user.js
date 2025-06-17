@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.30
+// @version      0.2.0.31
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -24,7 +24,7 @@ let currentWindow;
 class ManagedWindow {
     _nativeWindow = null;
 
-    constructor(parent = window) {
+    constructor(parent = currentWindow) {
         this._nativeWindow = this.#getWindow(parent);
         this.firstLessonNumber = 0;
         this.lastLessonNumber = null;
@@ -38,8 +38,14 @@ class ManagedWindow {
     #getWindow(parent) {
         if (parent === null) return window;
         if (typeof parent === 'string') {
+            if (!currentWindow.subwindows) {
+                currentWindow.subwindows = [];
+            }
             currentWindow.subwindows.push(this);
             return window.open('about:blank', parent);
+        }
+        if (!parent.subwindows) {
+            parent.subwindows = [];
         }
         parent.subwindows.push(this);
         return parent.open('about:blank');
@@ -178,11 +184,15 @@ class ManagedWindow {
             alertCloseButton.click();
             await this.waitForElementDisappear('.alert-success');
         }
-        else if (skipDangerAlert == false) {
+        else if (this.querySelector('.alert-danger') && skipDangerAlert == false) {
             let errorMessage = this.querySelector('.alert-danger').innerHTML;
             if (errorMessage.search('</button>') != -1)
                 errorMessage = errorMessage.substring(errorMessage.search('</button>') + 9);
             throw new Error(`${errorMessage}`);
+        }
+        else if (!this.querySelector('.alert-danger')) {
+            await sleep(500);
+            await this.waitForSuccess(skipDangerAlert = skipDangerAlert);
         }
     }
 
@@ -3097,7 +3107,7 @@ for (const teacherFullName of teachersData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.30 от 16 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.31 от 17 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
