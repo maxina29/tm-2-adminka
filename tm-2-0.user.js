@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.34
+// @version      0.2.0.35
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2352,8 +2352,8 @@ const pagePatterns = {
     /*********************** ЭДШ - типы продуктов ***********************/
 
     // сетки расписания
-    if (currentWindow.checkPath(pagePatterns.gridsCreate) /*||
-        currentWindow.checkPath(pagePatterns.gridsEdit)*/) {
+    if (currentWindow.checkPath(pagePatterns.gridsCreate) ||
+        currentWindow.checkPath(pagePatterns.gridsEdit)) {
         let gridCodeButton = createButton('Внести параллели', () => { }, "btn btn-info", false);
         gridCodeButton.onclick = () => {
             currentWindow.jsCodeArea.value = `let data = [
@@ -2420,17 +2420,20 @@ async function addGroup() {
     await addSomething('.tab-pane.active .add_nested_fields[data-association="groups"]', 'группу');
 }
 async function addDiscipline() {
-    await addSomething('.tab-pane.active .group:last-child .add_nested_fields[data-association="discipline_groups"]', 'дисциплину');
+    await addSomething('.tab-pane.active .group:last-of-type .add_nested_fields[data-association="discipline_groups"]', 'дисциплину');
 }
 async function addCourse() {
-    await addSomething('.tab-pane.active .group:last-child .fields:last-of-type .add_nested_fields[data-association="items"]', 'курс');
+    await addSomething('.tab-pane.active .group:last-of-type .fields:last-of-type .add_nested_fields[data-association="items"]', 'курс');
 }
 
 for (const [groupType, disciplines] of Object.entries(groups)) {
     // Набор
     await switchTab(groupType);
-    await addGroup();
-    const groupElem = currentWindow.querySelector('.tab-pane.active .group:last-child');
+    let groupElem = currentWindow.querySelector('.tab-pane.active .group:last-of-type');
+    if (!groupElem) {
+        await addGroup();
+        groupElem = currentWindow.querySelector('.tab-pane.active .group:last-of-type');
+    }
     groupElem.querySelector('input[id$="_title"]').value = groupType === 'base' ? 'Базовый набор' : 'Дополнительный набор';
 
     for (const [disProId, courses] of Object.entries(disciplines)) {
@@ -3210,7 +3213,7 @@ for (const [courseId, lessonId, videoUrl] of pairs) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.34 от 18 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.35 от 18 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
