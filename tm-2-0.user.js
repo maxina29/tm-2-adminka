@@ -2358,15 +2358,33 @@ const pagePatterns = {
         gridCodeButton.onclick = () => {
             currentWindow.jsCodeArea.value = `let data = [
     // Строки из таблицы в формате
-    // [ID предмета, ID курса, ID параллели, Набор base/additional, 
-    //     Автор образовательной методики default/peterson, 
-    //     Тип курса default/flipped/mini_class, Уникальный ID]
+    // [ID предмета, ID курса, ID параллели, Набор 'base'/'additional', 
+    //     Автор образовательной методики 'default'/'peterson', 
+    //     Тип курса 'default'/'flipped'/'mini_class', Уникальный ID]
 
 ];
 
-const miniTimeSleep = 0; // на случай если нужна задержка, можно поставить 100, но, кажется, работает и без нее
-const groups = {};
+const miniTimeSleep = 0; // на случай если нужна задержка, можно поставить 100
+let lastValues = {};
+const filledData = [];
 for (const row of data) {
+    const filledRow = [];
+    for (let i = 0; i < 7; i++) {
+        if (row[i] !== undefined && row[i] !== '') {
+            lastValues[i] = row[i];
+        }
+        else if (i == 2) {
+            throw Error(\`ID параллели обязателен для заполнения\`);
+        }
+        else if (lastValues[i] === undefined || lastValues[i] === '') {
+            throw Error(\`Для первой строки обязательны для заполнения все поля\`);
+        }
+        filledRow[i] = lastValues[i];
+    }
+    filledData.push(filledRow);
+}
+const groups = {};
+for (const row of filledData) {
     const [disId, couId, templId, group, math, type, uniqId] = row;
     const disProId = \`$\{disId}_$\{uniqId}\`;
     if (!groups[group]) groups[group] = {};
@@ -2453,7 +2471,8 @@ for (const [groupType, disciplines] of Object.entries(groups)) {
             }
         }
     }
-}`
+}
+displayLog('Готово! Проверьте данные и сохраните');`
         };
         const container = document.createElement('div');
         let a = document.querySelector('.externship_schedule_grids_page');
