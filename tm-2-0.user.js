@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.32
+// @version      0.2.0.33
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -3097,7 +3097,48 @@ for (const [courseId, lessonId] of pairs) {
     form.submit();
     await win.waitForSuccess();
     await win.openPage('about:blank');
-}`
+}`,
+            LESSONS_REORDER: `// переносим урок на 10000 место для последующего удаления
+const pairs = [
+    // [course_id, lesson_id],
+    [10609, 338032],
+];
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+for (const [courseId, lessonId] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    form.action = \`https://foxford.ru/admin/courses/$\{courseId}/lessons/$\{lessonId}/reorder\`;
+    const fields = {
+        'new_index': '10000',
+        'reorganize_dates': 'false',
+    };
+    currentWindow.updateFormFields(form, fields);
+    form.submit();
+    await sleep(100);
+    await win.waitForLoad();
+    await win.openPage('about:blank');
+}`,
+            LESSONS_DELETE: `// удаление уроков - должны быть будущей датой и желательно в конце курса 
+// (можно перенести в конец другим скриптом)
+const pairs = [
+    // [course_id, lesson_id],
+    [10609, 338032],
+];
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+for (const [courseId, lessonId] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    form.action = \`https://foxford.ru/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    const fields = {
+        '_method': 'delete',
+    };
+    currentWindow.updateFormFields(form, fields);
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+}`,
         }
         createActionButton(contentSection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
         createActionButton(adminSection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
@@ -3108,6 +3149,8 @@ for (const [courseId, lessonId] of pairs) {
         createActionButton(adminSection, 'Связать аккаунты агентов и карточки преподавателей', SCRIPTS.USERS_TEACHERS);
         createActionButton(adminSection, 'Создать карточки преподавателей', SCRIPTS.TEACHERS_CREATE);
         createActionButton(adminSection, 'Сделать уроки бесплатными', SCRIPTS.LESSONS_FREE);
+        createActionButton(adminSection, 'Переместить уроки в конец курса (для удаления)', SCRIPTS.LESSONS_REORDER);
+        createActionButton(adminSection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -3147,7 +3190,7 @@ for (const [courseId, lessonId] of pairs) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.32 от 18 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.33 от 18 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
