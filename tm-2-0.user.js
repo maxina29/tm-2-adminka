@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.35
+// @version      0.2.0.36
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2848,15 +2848,30 @@ displayLog('Готово! Проверьте данные и сохраните'
     }
     // на секретной странице
     if (currentWindow.checkPath(pagePatterns.secretPage)) {
-        function createCollapsibleSection(parent, title) {
-            const button = createButton(title, () => { }, 'collapsible', true);
+        function createCollapsibleSection(parent, title, level = 0) {
+            const button = createButton(`▼ ${title}`, () => { }, 'collapsible active', true);
             button.type = 'button';
-            button.style = '';
+            button.style = `margin-left: ${3 * level}%; width: ${100 - 6 * level}%;`;
+            if (level != 0) {
+                button.style.padding = '8pt';
+                button.style.backgroundColor = '#f4f4ff';
+            }
+            else if (level == 0) {
+                button.style.marginTop = '18pt';
+            }
             const content = createElement('div', 'inside-collapsible');
             parent.appendChild(button);
             parent.appendChild(content);
             button.addEventListener('click', () => {
                 button.classList.toggle('active');
+                if (button.classList.contains('active')) {
+                    button.innerHTML = `▼ ${title}`;
+                    button.style.color = '#000';
+                }
+                else {
+                    button.innerHTML = `▶ ${title}`;
+                    button.style.color = '#777';
+                }
                 content.style.display = content.style.display === 'none' ? 'block' : 'none';
             });
             return content;
@@ -2884,8 +2899,13 @@ displayLog('Готово! Проверьте данные и сохраните'
         originalButton.removeAttribute('data-disable-with');
         originalButton.style = 'display: none;';
         originalButton.classList.add('protected');
-        const adminSection = createCollapsibleSection(form, 'Коды для админов админки');
-        const contentSection = createCollapsibleSection(form, 'Коды для админов контента');
+        const adminSection = createCollapsibleSection(form, 'Коды для админов админки', 0);
+        const coursesSubsection = createCollapsibleSection(adminSection, 'Курсы / courses', 1);
+        const adminLessonsSubsection = createCollapsibleSection(adminSection, 'Уроки / lessons', 1);
+        const teachersSubsection = createCollapsibleSection(adminSection, 'Преподаватели / teachers', 1);
+        const contentSection = createCollapsibleSection(form, 'Коды для админов контента', 0);
+        const contentLessonsSubsection = createCollapsibleSection(contentSection, 'Уроки / lessons', 1);
+        const tasksSubsection = createCollapsibleSection(contentSection, 'Задачи / tasks', 1);
 
         const SCRIPTS = {
             REP: `let taskIds = splitString(\`392219
@@ -3162,25 +3182,25 @@ for (const [courseId, lessonId, videoUrl] of pairs) {
     await win.openPage('about:blank');
 }`,
         }
-        createActionButton(contentSection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
-        createActionButton(adminSection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
-        createActionButton(contentSection, 'Создать задачу (поле ввода)', SCRIPTS.TASK_INPUT);
-        createActionButton(contentSection, 'Создать задачу (самооценка)', SCRIPTS.TASK_SELF);
-        createActionButton(contentSection, 'Создать задачу (пересечение множеств)', SCRIPTS.TASK_SET);
-        createActionButton(adminSection, 'Поправить карточки преподавателей', SCRIPTS.TEACHERS_EDIT);
-        createActionButton(adminSection, 'Связать аккаунты агентов и карточки преподавателей', SCRIPTS.USERS_TEACHERS);
-        createActionButton(adminSection, 'Создать карточки преподавателей', SCRIPTS.TEACHERS_CREATE);
-        createActionButton(adminSection, 'Сделать уроки бесплатными', SCRIPTS.LESSONS_FREE);
-        createActionButton(adminSection, 'Переместить уроки в конец курса (для удаления)', SCRIPTS.LESSONS_REORDER);
-        createActionButton(adminSection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
-        createActionButton(contentSection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
+        createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
+        createActionButton(coursesSubsection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
+        createActionButton(tasksSubsection, 'Создать задачу (поле ввода)', SCRIPTS.TASK_INPUT);
+        createActionButton(tasksSubsection, 'Создать задачу (самооценка)', SCRIPTS.TASK_SELF);
+        createActionButton(tasksSubsection, 'Создать задачу (пересечение множеств)', SCRIPTS.TASK_SET);
+        createActionButton(teachersSubsection, 'Поправить карточки преподавателей', SCRIPTS.TEACHERS_EDIT);
+        createActionButton(teachersSubsection, 'Связать аккаунты агентов и карточки преподавателей', SCRIPTS.USERS_TEACHERS);
+        createActionButton(teachersSubsection, 'Создать карточки преподавателей', SCRIPTS.TEACHERS_CREATE);
+        createActionButton(adminLessonsSubsection, 'Сделать уроки бесплатными', SCRIPTS.LESSONS_FREE);
+        createActionButton(adminLessonsSubsection, 'Переместить уроки в конец курса (для удаления)', SCRIPTS.LESSONS_REORDER);
+        createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
+        createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
             color: #444;
             cursor: pointer;
             padding: 12px;
-            margin: 12px 0px;
+            margin: 4px 0px 4px 0px;
             width: 100%;
             border: none;
             outline: none;
@@ -3213,7 +3233,7 @@ for (const [courseId, lessonId, videoUrl] of pairs) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.35 от 18 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.36 от 23 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
