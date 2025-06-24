@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.36
+// @version      0.2.0.37
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2878,7 +2878,8 @@ displayLog('Готово! Проверьте данные и сохраните'
         }
         function createActionButton(parent, text, scriptContent, className = '') {
             const button = createButton(text, () => {
-                currentWindow.jsCodeArea.value = scriptContent;
+                currentWindow.jsCodeArea.value = `// ${text}
+${scriptContent}`;
             }, `btn btn-default ${className}`, false);
             parent.appendChild(button);
             return button;
@@ -2901,10 +2902,11 @@ displayLog('Готово! Проверьте данные и сохраните'
         originalButton.classList.add('protected');
         const adminSection = createCollapsibleSection(form, 'Коды для админов админки', 0);
         const coursesSubsection = createCollapsibleSection(adminSection, 'Курсы / courses', 1);
-        const adminLessonsSubsection = createCollapsibleSection(adminSection, 'Уроки / lessons', 1);
+        const adminLessonsSubsection = createCollapsibleSection(adminSection, 'Программа / lessons', 1);
+        const groupsSubsection = createCollapsibleSection(adminSection, 'Расписание / groups', 1);
         const teachersSubsection = createCollapsibleSection(adminSection, 'Преподаватели / teachers', 1);
         const contentSection = createCollapsibleSection(form, 'Коды для админов контента', 0);
-        const contentLessonsSubsection = createCollapsibleSection(contentSection, 'Уроки / lessons', 1);
+        const contentLessonsSubsection = createCollapsibleSection(contentSection, 'Программа / lessons', 1);
         const tasksSubsection = createCollapsibleSection(contentSection, 'Задачи / tasks', 1);
 
         const SCRIPTS = {
@@ -2928,18 +2930,18 @@ for (let taskId of taskIds) {
     await win.openPage('about:blank');
 }`,
             TARIFF: `const pairs = [
+    // [course_id, resource_id],
     [10609, 12480],
-    // ... другие пары
 ];
 let win = await createWindow('adminka123');
 let form = currentWindow.querySelector('form');
 form.target = "adminka123";
-for (const [course_id, resource_id] of pairs) {
-    log(\`$\{course_id} -> $\{resource_id}\`);
-    form.action = \`https://foxford.ru/admin/courses/$\{course_id}/connections/tariffs\`;
+for (const [courseId, resourceId] of pairs) {
+    log(\`$\{courseId} -> $\{resourceId}\`);
+    form.action = \`https://foxford.ru/admin/courses/$\{courseId}/connections/tariffs\`;
     const fields = {
         'courses_connection_tariff[resource_type]': 'ProductPack',
-        'courses_connection_tariff[resource_id]': resource_id,
+        'courses_connection_tariff[resource_id]': resourceId,
         'courses_connection_tariff[tariff_type]': 'premium',
         'commit': 'Сохранить'
     };
@@ -2954,12 +2956,9 @@ form.target = "adminka123";
 form.action = \`https://foxford.ru/admin/tasks\`;
 const fields = {
     'task[name]': 'Вопрос №1',
-    // сложность 3
-    'task[task_difficulty_id]': '8', 
-    // физика
-    'task[discipline_ids][]': ['3'], 
-    // краюшкина
-    'task[author_id]': '1236', 
+    'task[task_difficulty_id]': '8', // сложность 3
+    'task[discipline_ids][]': ['3'], // физика
+    'task[author_id]': '1236', // Краюшкина
     'task[published]': true,
     'task[content]': \`<p><strong>Текст задачи</strong></p>\`,
     'task[text_questions_attributes][0][question_type_id]': '1', 
@@ -2975,12 +2974,9 @@ form.target = "adminka123";
 form.action = \`https://foxford.ru/admin/tasks\`;
 const fields = {
     'task[name]': 'Вопрос №1',
-    // сложность 3
-    'task[task_difficulty_id]': '8', 
-    // физика
-    'task[discipline_ids][]': ['3'], 
-    // краюшкина
-    'task[author_id]': '1236', 
+    'task[task_difficulty_id]': '8', // сложность 3 
+    'task[discipline_ids][]': ['3'], // физика
+    'task[author_id]': '1236', // Краюшкина
     'task[published]': true,
     'task[content]': \`<p><strong>Текст задачи</strong></p>\`,
     'task[self_rate_questions_attributes][0][question_type_id]': '10',
@@ -3007,12 +3003,9 @@ form.target = "adminka123";
 form.action = \`https://foxford.ru/admin/tasks\`;
 const fields = {
     'task[name]': 'Вопрос №1',
-    // сложность 3
-    'task[task_difficulty_id]': '8', 
-    // физика
-    'task[discipline_ids][]': ['3'], 
-    // краюшкина
-    'task[author_id]': '1236', 
+    'task[task_difficulty_id]': '8', // сложность 3
+    'task[discipline_ids][]': ['3'], // физика
+    'task[author_id]': '1236', // Краюшкина
     'task[published]': true,
     'task[content]': \`<p><strong>Текст задачи</strong></p>\`,
     'task[links_questions_attributes][0][question_type_id]': '4',
@@ -3055,7 +3048,7 @@ for (const teacherId in teachersData) {
     await win.openPage('about:blank');
 }`,
             USERS_TEACHERS: `const usersTeachers = [
-    // [userId, teacherId],
+    // [user_id, teacher_id],
     [12345678, 2043],
 ];
 const basicFields = {
@@ -3121,7 +3114,7 @@ for (const [courseId, lessonId] of pairs) {
     await win.waitForSuccess();
     await win.openPage('about:blank');
 }`,
-            LESSONS_REORDER: `// переносим урок на 10000 место для последующего удаления
+            LESSONS_REORDER: `// Урок перенесется на 10000 место
 const pairs = [
     // [course_id, lesson_id],
     [10609, 338032],
@@ -3142,7 +3135,7 @@ for (const [courseId, lessonId] of pairs) {
     await win.waitForLoad();
     await win.openPage('about:blank');
 }`,
-            LESSONS_DELETE: `// удаление уроков - должны быть будущей датой и желательно в конце курса 
+            LESSONS_DELETE: `// Должны быть будущей датой и желательно в конце курса 
 // (можно перенести в конец другим скриптом)
 const pairs = [
     // [course_id, lesson_id],
@@ -3181,6 +3174,29 @@ for (const [courseId, lessonId, videoUrl] of pairs) {
     await win.waitForSuccess();
     await win.openPage('about:blank');
 }`,
+            RESET_SCHEDULE: `// Получить данные можно из отчета 
+// https://metabase.foxford.ru/question/46579
+const pairs = [
+    // [group_template_id, from_lesson_number, start_from_date],
+    [28917, 1, '08.09.2025'],
+    [28965, 1, '01.09.2025'],
+];
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+for (const [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
+    log(\`$\{groupTemplateId}, $\{fromLessonNumber} <- $\{startFromDate}\`);
+    form.action = \`https://foxford.ru/admin/group_templates/$\{groupTemplateId}/reset_schedule\`;
+    const fields = {
+        'commit': 'Перестроить',
+        'from_lesson_number': fromLessonNumber,
+        'start_from_date': startFromDate
+    };
+    currentWindow.updateFormFields(form, fields);
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+}`
         }
         createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
         createActionButton(coursesSubsection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
@@ -3194,6 +3210,7 @@ for (const [courseId, lessonId, videoUrl] of pairs) {
         createActionButton(adminLessonsSubsection, 'Переместить уроки в конец курса (для удаления)', SCRIPTS.LESSONS_REORDER);
         createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
         createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
+        createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -3233,7 +3250,7 @@ for (const [courseId, lessonId, videoUrl] of pairs) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.36 от 23 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.37 от 24 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
