@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.37
+// @version      0.2.0.38
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2268,9 +2268,9 @@ const pagePatterns = {
         let createTaskButton = currentWindow.querySelector('.btn-success[href$="task_templates"]');
         const massTasksButtonOnClick = async () => {
             currentWindow.jsCodeArea.value = `// поменяйте id на нужные ниже
-    let taskIds = \`1
+    let taskIds = splitString(\`1
     2
-    3\`.split('\\n');
+    3\`);
     let trainingsWindow = await createWindow('adminka_trainings');
     let createButton = currentWindow.querySelector('.btn-success[href$="task_templates"]');
     createButton.target = 'adminka_trainings';
@@ -3250,7 +3250,7 @@ for (const [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.37 от 24 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.38 от 24 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
