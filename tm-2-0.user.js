@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.39
+// @version      0.2.0.40
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -178,19 +178,19 @@ class ManagedWindow {
     }
 
     async waitForSuccess(skipDangerAlert = false) {
-        await this.waitForElement('.alert');
-        if (this.querySelector('.alert-success')) {
-            let alertCloseButton = this.querySelector('.alert-success .close');
+        await this.waitForElement('.alert:not(.alert-dismissible)');
+        if (this.querySelector('.alert-success:not(.alert-dismissible)')) {
+            let alertCloseButton = this.querySelector('.alert-success:not(.alert-dismissible) .close');
             alertCloseButton.click();
-            await this.waitForElementDisappear('.alert-success');
+            await this.waitForElementDisappear('.alert-success:not(.alert-dismissible)');
         }
-        else if (this.querySelector('.alert-danger') && skipDangerAlert == false) {
-            let errorMessage = this.querySelector('.alert-danger').innerHTML;
+        else if (this.querySelector('.alert-danger:not(.alert-dismissible)') && skipDangerAlert == false) {
+            let errorMessage = this.querySelector('.alert-danger:not(.alert-dismissible)').innerHTML;
             if (errorMessage.search('</button>') != -1)
                 errorMessage = errorMessage.substring(errorMessage.search('</button>') + 9);
             throw new Error(`${errorMessage}`);
         }
-        else if (!this.querySelector('.alert-danger')) {
+        else if (!this.querySelector('.alert-danger:not(.alert-dismissible)')) {
             await sleep(500);
             await this.waitForSuccess(skipDangerAlert = skipDangerAlert);
         }
@@ -2288,9 +2288,28 @@ const pagePatterns = {
         await trainingsWindow.waitForSuccess();
         await trainingsWindow.openPage('about:blank');
     }
-    displayLog('Задачи привязаны, обновите страницу');`;
+    await currentWindow.reload();`;
+        }
+        const massDeleteButtonOnClick = async () => {
+            let todo = confirm('Точно удалить все задачи?');
+            if (todo) {
+                let tempWindow = await createWindow('remove-tasks-from-training');
+                let deleteButtons = currentWindow.querySelectorAll('a.btn-danger[href^="/admin/trainings/"][href*="/task_templates/"]');
+                for (let button of deleteButtons) {
+                    button.removeAttribute('data-confirm');
+                    button.target = 'remove-tasks-from-training';
+                    button.click();
+                    await tempWindow.waitForSuccess();
+                    await tempWindow.openPage('about:blank');
+                }
+                await tempWindow.close();
+                await currentWindow.reload();
+            }
+            else log('Операция отменена');
         }
         let massTasksButton = createButton('Привязать задачи массово', massTasksButtonOnClick, 'btn-default', false);
+        let massDeleteButton = createButton('Отвязать все задачи', massDeleteButtonOnClick, 'btn-danger', false);
+        createTaskButton.parentNode.insertBefore(massDeleteButton, createTaskButton.nextSibling);
         createTaskButton.parentNode.insertBefore(massTasksButton, createTaskButton.nextSibling);
     }
 
@@ -3250,7 +3269,7 @@ for (const [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.39 от 26 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.40 от 26 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
