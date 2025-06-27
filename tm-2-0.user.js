@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.41
+// @version      0.2.0.42
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -3229,7 +3229,8 @@ const templatesData = [
     //     'agent_id': 12345,
     //     'users_limit': 150,
     //     'destroy': [1234, 2345],
-    //     'destroy_info': ['(1,08:00)', '(3,05:00)']
+    //     'destroy_info': ['(1,08:00)', '(3,05:00)'],
+    //     'location':[5, 1, 27]
     // },
 
 ];
@@ -3331,6 +3332,19 @@ for (const templateData of templatesData) {
     if (templateData.users_limit) {
         dynamicFields['group_template[users_limit]'] = templateData.users_limit;
     }
+    if (template.location) {
+        const locationFields = {
+            0: 'group_template[default_location_id]',
+            1: 'group_template[default_format_id]',
+            2: 'group_template[default_studio_id]',
+            3: 'group_template[default_admin_id]'
+        };
+        for (let i = 0; i < template.location.length; i++) {
+            if (i < 4) {
+                dynamicFields[locationFields[i]] = template.location[i];
+            }
+        }
+    }
     currentWindow.updateFormFields(form, Object.assign(basicFields, dynamicFields));
     form.submit();
     await win.waitForSuccess();
@@ -3350,7 +3364,7 @@ for (const templateData of templatesData) {
         createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
         createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
         createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
-        createActionButton(groupsSubsection, 'Изменить настройки параллели (кроме локации)', SCRIPTS.GROUP_TEMPLATES_EDIT)
+        createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT)
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -3390,7 +3404,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.41 от 27 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.42 от 27 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
