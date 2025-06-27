@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.40
+// @version      0.2.0.41
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -3215,7 +3215,127 @@ for (const [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
     form.submit();
     await win.waitForSuccess();
     await win.openPage('about:blank');
-}`
+}`,
+            GROUP_TEMPLATES_EDIT: `// данные можно взять из таблицы
+// https://disk.360.yandex.ru/i/MPt5jaaU-LXpDw
+const templatesData = [
+    // {
+    //     'course_id': 10609,
+    //     'group_template_id': 18068,
+    //     'week_day_slots': [2, 3],
+    //     'time_slots': ['8:00:00', '9:00'],
+    //     'starts_at': '02.09.2025',
+    //     'teacher_id': 2063,
+    //     'agent_id': 12345,
+    //     'users_limit': 150,
+    //     'destroy': [1234, 2345],
+    //     'destroy_info': ['(1,08:00)', '(3,05:00)']
+    // },
+
+];
+const basicFields = {
+    '_method': 'patch',
+    'commit': 'Сохранить',
+    'reset_schedule_reason': 'other',
+    'group_template[schedule_hidden]': '0'
+};
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+
+function normalizeTime(timeStr) { // убираем секунды
+    return timeStr.split(':').slice(0, 2).join(':');
+}
+function parseDestroyInfo(str) {
+    const match = str.match(/\((\d+),(\d{1,2}:\d{2})(:\d{2})?\)/);
+    if (!match) return null;
+    return {
+        day: parseInt(match[1]),
+        time: normalizeTime(match[2])
+    };
+}
+function add3HoursWithDay(day, timeStr) {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    let totalMinutes = hours * 60 + minutes + 180;
+    let daysToAdd = Math.floor(totalMinutes / (24 * 60));
+    totalMinutes %= 24 * 60;
+    const newHours = Math.floor(totalMinutes / 60);
+    const newMinutes = totalMinutes % 60;
+    let newDay = (day + daysToAdd) % 7;
+    return {
+        day: newDay,
+        time: \`$\{String(newHours)}:$\{String(newMinutes).padStart(2, '0')}\`
+    };
+}
+
+for (const templateData of templatesData) {
+    log(\`$\{templateData.course_id}, $\{templateData.group_template_id}\`);
+    form.action = \`https://foxford.ru/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
+    const slotsMap = new Map();
+    if (templateData.week_day_slots) {
+        for (let i = 0; i < templateData.week_day_slots.length; i++) {
+            const day = templateData.week_day_slots[i];
+            const time = normalizeTime(
+                templateData.time_slots[Math.min(i, templateData.time_slots.length - 1)]
+            );
+            const key = \`$\{day}-$\{time}\`;
+            slotsMap.set(key, { type: 'active', day, time });
+        }
+    }
+    const destroySlots = [];
+    if (templateData.destroy && templateData.destroy_info) {
+        for (let i = 0; i < templateData.destroy.length; i++) {
+            const id = templateData.destroy[i];
+            const info = parseDestroyInfo(templateData.destroy_info[i]);
+            if (!info) continue;
+            const adjusted = add3HoursWithDay(info.day, info.time);
+            const key = \`$\{adjusted.day}-$\{adjusted.time}\`;
+            if (slotsMap.has(key)) {
+                slotsMap.get(key).id = id;
+            } else {
+                destroySlots.push({ id, day: adjusted.day, time: adjusted.time });
+            }
+        }
+    }
+    const dynamicFields = {};
+    let slotIndex = 0;
+    for (const [key, slot] of slotsMap.entries()) {
+        dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][slot][week_day]\`] = slot.day;
+        dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][slot][time]\`] = slot.time;
+        if (slot.id) { // если слот с таким временем уже есть, сохраняем его через id
+            dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][id]\`] = slot.id;
+        }
+        slotIndex++;
+    }
+    for (const slot of destroySlots) {
+        dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][_destroy]\`] = '1';
+        dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][id]\`] = slot.id;
+        slotIndex++;
+    }
+    if (templateData.destroy && !templateData.destroy_info) {
+        for (const id of templateData.destroy) {
+            dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][_destroy]\`] = '1';
+            dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][id]\`] = id;
+            slotIndex++;
+        }
+    }
+    if (templateData.starts_at) {
+        dynamicFields['group_template[starts_at]'] = templateData.starts_at;
+    }
+    if (templateData.teacher_id) {
+        dynamicFields['group_template[teacher_id]'] = templateData.teacher_id;
+    }
+    if (templateData.agent_id) {
+        dynamicFields['group_template[agent_id]'] = templateData.agent_id;
+    }
+    if (templateData.users_limit) {
+        dynamicFields['group_template[users_limit]'] = templateData.users_limit;
+    }
+    currentWindow.updateFormFields(form, Object.assign(basicFields, dynamicFields));
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+}`,
         }
         createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
         createActionButton(coursesSubsection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
@@ -3230,6 +3350,7 @@ for (const [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
         createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
         createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
         createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
+        createActionButton(groupsSubsection, 'Изменить настройки параллели (кроме локации)', SCRIPTS.GROUP_TEMPLATES_EDIT)
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -3269,7 +3390,7 @@ for (const [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.40 от 26 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.41 от 27 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
