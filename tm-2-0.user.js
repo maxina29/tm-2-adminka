@@ -178,14 +178,14 @@ class ManagedWindow {
     }
 
     async waitForSuccess(skipDangerAlert = false) {
-        await this.waitForElement('.alert:not(.alert-dismissible)');
-        if (this.querySelector('.alert-success:not(.alert-dismissible)')) {
-            let alertCloseButton = this.querySelector('.alert-success:not(.alert-dismissible) .close');
+        await this.waitForElement('.alert:not(.alert-dismissible):not(.alert-warning)');
+        if (this.querySelector('.alert-success:not(.alert-dismissible):not(.alert-warning)')) {
+            let alertCloseButton = this.querySelector('.alert-success:not(.alert-dismissible):not(.alert-warning) .close');
             alertCloseButton.click();
-            await this.waitForElementDisappear('.alert-success:not(.alert-dismissible)');
+            await this.waitForElementDisappear('.alert-success:not(.alert-dismissible):not(.alert-warning)');
         }
-        else if (this.querySelector('.alert-danger:not(.alert-dismissible)') && skipDangerAlert == false) {
-            let errorMessage = this.querySelector('.alert-danger:not(.alert-dismissible)').innerHTML;
+        else if (this.querySelector('.alert-danger:not(.alert-dismissible):not(.alert-warning)') && skipDangerAlert == false) {
+            let errorMessage = this.querySelector('.alert-danger:not(.alert-dismissible):not(.alert-warning)').innerHTML;
             if (errorMessage.search('</button>') != -1)
                 errorMessage = errorMessage.substring(errorMessage.search('</button>') + 9);
             throw new Error(`${errorMessage}`);
