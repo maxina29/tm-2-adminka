@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.42
+// @version      0.2.0.43
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2868,9 +2868,9 @@ displayLog('Готово! Проверьте данные и сохраните'
     // на секретной странице
     if (currentWindow.checkPath(pagePatterns.secretPage)) {
         function createCollapsibleSection(parent, title, level = 0) {
-            const button = createButton(`▼ ${title}`, () => { }, 'collapsible active', true);
+            const button = createButton(`▼ ${title}`, () => { }, `collapsible active section-header section-level-${level}`, true);
             button.type = 'button';
-            button.style = `margin-left: ${3 * level}%; width: ${100 - 6 * level}%;`;
+            button.style = `margin-left: 0; width: ${98 - 6 * level}vw;`;
             if (level != 0) {
                 button.style.padding = '8pt';
                 button.style.backgroundColor = '#f4f4ff';
@@ -2878,9 +2878,11 @@ displayLog('Готово! Проверьте данные и сохраните'
             else if (level == 0) {
                 button.style.marginTop = '18pt';
             }
-            const content = createElement('div', 'inside-collapsible');
-            parent.appendChild(button);
-            parent.appendChild(content);
+            const outside = createElement('div', `outside-collapsible section-outside section-level-${level}`);
+            const content = createElement('div', `inside-collapsible section-content section-level-${level}`);
+            parent.append(outside)
+            outside.append(button);
+            outside.append(content);
             button.addEventListener('click', () => {
                 button.classList.toggle('active');
                 if (button.classList.contains('active')) {
@@ -2899,7 +2901,7 @@ displayLog('Готово! Проверьте данные и сохраните'
             const button = createButton(text, () => {
                 currentWindow.jsCodeArea.value = `// ${text}
 ${scriptContent}`;
-            }, `btn btn-default ${className}`, false);
+            }, `btn btn-default script-btn ${className}`, false);
             parent.appendChild(button);
             return button;
         }
@@ -2914,7 +2916,40 @@ ${scriptContent}`;
         form.id = 'form';
         const div = createElement('div');
         div.innerHTML = 'На этой странице возможны чудеса)';
-        currentWindow.querySelector('.course_lesson_packs_page').insertBefore(div, form);
+        const searchInput = createElement('input', 'form-control', 'margin: 10px 0; padding: 5px;');
+        searchInput.placeholder = 'Поиск скриптов...';
+        function hideorShowAll(toShow) {
+            document.querySelectorAll('.my-btn, .outside-collapsible').forEach(btn => btn.style.display = toShow ? 'inline-block' : 'none');
+        }
+        function showParentElements(node) {
+            if (!node) return;
+            node.style.display = 'inline-block';
+            if (node.firstElementChild) node.firstElementChild.style.display = 'inline-block';
+            showParentElements(node.parentElement.closest('.outside-collapsible'));
+        }
+        function showChildElements(node) {
+            if (node.classList.contains('script-btn')) return;
+            const elems = node.parentElement.querySelectorAll('.outside-collapsible, .my-btn');
+            console.log(elems);
+            elems.forEach(elem => {
+                elem.style.display = 'inline-block';
+            })
+        }
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            if (term) hideorShowAll(false);
+            else hideorShowAll(true);
+            document.querySelectorAll('.my-btn').forEach(btn => {
+                console.log(btn.textContent, '123', term)
+                if (btn.textContent.toLowerCase().includes(term)) {
+                    btn.style.display = 'inline-block';
+                    showParentElements(btn);
+                    showChildElements(btn);
+                }
+            });
+        });
+        form.before(searchInput);
+        form.prepend(div);
         const originalButton = form.querySelector('[type="submit"]');
         originalButton.removeAttribute('data-disable-with');
         originalButton.style = 'display: none;';
@@ -3376,11 +3411,17 @@ for (const templateData of templatesData) {
             border: none;
             outline: none;
             font-size: 15px;
+        }`)
+        currentWindow.addStyle(`
         .inside-collapsible {
-            padding: 0 18px;
+            padding: 0 3vw;
             display: block;
             overflow: hidden;
-        }`);
+        }`)
+        currentWindow.addStyle(`
+        .outside-collapsible {
+            padding: 0;
+        }`)
     }
     // на главной странице админки
     if (currentWindow.checkPath(pagePatterns.index)) {
@@ -3404,7 +3445,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.42 от 27 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.43 от 30 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
