@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.43
+// @version      0.2.0.44
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -3367,16 +3367,16 @@ for (const templateData of templatesData) {
     if (templateData.users_limit) {
         dynamicFields['group_template[users_limit]'] = templateData.users_limit;
     }
-    if (template.location) {
+    if (templateData.location) {
         const locationFields = {
             0: 'group_template[default_location_id]',
             1: 'group_template[default_format_id]',
             2: 'group_template[default_studio_id]',
             3: 'group_template[default_admin_id]'
         };
-        for (let i = 0; i < template.location.length; i++) {
+        for (let i = 0; i < templateData.location.length; i++) {
             if (i < 4) {
-                dynamicFields[locationFields[i]] = template.location[i];
+                dynamicFields[locationFields[i]] = templateData.location[i];
             }
         }
     }
@@ -3445,7 +3445,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.43 от 30 июня 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.44 от 1 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
