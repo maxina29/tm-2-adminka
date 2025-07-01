@@ -196,6 +196,22 @@ class ManagedWindow {
         }
     }
 
+    async waitForAnyElement(selectors, timeout = 30000) {
+        //return executeWithRetry(async () => {
+            const start = Date.now();
+            while (Date.now() - start < timeout) {
+                for (const selector of selectors) {
+                    const element = this.querySelector(selector);
+                    if (element) {
+                        return { element, selector };
+                    }
+                }
+                await sleep(100);
+            }
+            throw new Error(`Ни один из элементов не найден за ${timeout} мс`);
+        //});
+    }
+
     async log(s) {
         if (s && s !== '[object Promise]') {
             this.jsLoggingConsole.value += s + '\n';
@@ -640,7 +656,7 @@ const pagePatterns = {
     webinar: /admin\/courses\/\d*\/groups\/\d*$/,
     eventWebinar: /admin\/events\/\d*/,
     massChange: 'https://foxford.ru/admin/mass_change',
-    secretPage: 'https://foxford.ru/admin/courses/15005/lesson_packs/new',
+    secretPage: /https:\/\/foxford.ru\/admin\/courses\/15005\/lesson_packs\/new/,
     index: 'https://foxford.ru/admin',
     hasAnchor: /#/
 };
@@ -3384,6 +3400,7 @@ for (const templateData of templatesData) {
     form.submit();
     await win.waitForSuccess();
     await win.openPage('about:blank');
+    await sleep(1500);
 }`,
         }
         createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
