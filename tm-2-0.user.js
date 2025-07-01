@@ -179,13 +179,13 @@ class ManagedWindow {
 
     async waitForSuccess(skipDangerAlert = false) {
         await this.waitForElement('.alert:not(.alert-dismissible):not(.alert-warning)');
-        if (this.querySelector('.alert-success:not(.alert-dismissible):not(.alert-warning)')) {
-            let alertCloseButton = this.querySelector('.alert-success:not(.alert-dismissible):not(.alert-warning) .close');
+        if (this.querySelector('.alert-success:not(.alert-dismissible)')) {
+            let alertCloseButton = this.querySelector('.alert-success:not(.alert-dismissible) .close');
             alertCloseButton.click();
-            await this.waitForElementDisappear('.alert-success:not(.alert-dismissible):not(.alert-warning)');
+            await this.waitForElementDisappear('.alert-success:not(.alert-dismissible)');
         }
-        else if (this.querySelector('.alert-danger:not(.alert-dismissible):not(.alert-warning)') && skipDangerAlert == false) {
-            let errorMessage = this.querySelector('.alert-danger:not(.alert-dismissible):not(.alert-warning)').innerHTML;
+        else if (this.querySelector('.alert-danger:not(.alert-dismissible)') && skipDangerAlert == false) {
+            let errorMessage = this.querySelector('.alert-danger:not(.alert-dismissible)').innerHTML;
             if (errorMessage.search('</button>') != -1)
                 errorMessage = errorMessage.substring(errorMessage.search('</button>') + 9);
             throw new Error(`${errorMessage}`);
