@@ -198,17 +198,17 @@ class ManagedWindow {
 
     async waitForAnyElement(selectors, timeout = 30000) {
         //return executeWithRetry(async () => {
-            const start = Date.now();
-            while (Date.now() - start < timeout) {
-                for (const selector of selectors) {
-                    const element = this.querySelector(selector);
-                    if (element) {
-                        return { element, selector };
-                    }
+        const start = Date.now();
+        while (Date.now() - start < timeout) {
+            for (const selector of selectors) {
+                const element = this.querySelector(selector);
+                if (element) {
+                    return { element, selector };
                 }
-                await sleep(100);
             }
-            throw new Error(`Ни один из элементов не найден за ${timeout} мс`);
+            await sleep(100);
+        }
+        throw new Error(`Ни один из элементов не найден за ${timeout} мс`);
         //});
     }
 
@@ -1829,6 +1829,246 @@ const pagePatterns = {
             document.body.firstChild.className += ' rasp_checked';
         }
         no_rasp_groups();
+
+        function initDateChecker() {
+            console.log('DateChecker: Starting');
+
+            const SELECTORS = {
+                PARALLEL_DATE: 'input[name="group_template[starts_at]"]',
+                LESSON_ROW: 'tr:has(td.first_column)',
+                LESSON_NUMBER: '.lesson_number a',
+                LESSON_DATE: 'input[name="group[starts_at]"]'
+            };
+
+            // Логирование только в режиме разработки
+            const debug = false;
+            const log = debug ? console.log : () => { };
+
+            // Основная функция проверки
+            function checkDates() {
+                try {
+                    // Поиск даты параллели
+                    const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
+                    if (!parallelInput) return;
+                    const parallelDate = parallelInput.value.trim();
+
+                    // Поиск даты занятия №1
+                    const lessonRow = [...document.querySelectorAll(SELECTORS.LESSON_ROW)].find(row => {
+                        const numEl = row.querySelector(SELECTORS.LESSON_NUMBER);
+                        return numEl?.textContent.includes('(№1)');
+                    });
+
+                    if (!lessonRow) return;
+                    const lessonInput = lessonRow.querySelector(SELECTORS.LESSON_DATE);
+                    if (!lessonInput) return;
+                    const lessonDate = lessonInput.value.trim();
+
+                    if (!parallelDate || !lessonDate) return;
+
+                    // Парсинг и сравнение дат
+                    const parse = str => {
+                        const [d, m, y] = str.split(' ')[0].split('.').map(Number);
+                        return new Date(y, m - 1, d);
+                    };
+
+                    const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();
+
+                    // Управление предупреждением
+                    const warning = document.getElementById('date-mismatch-warning');
+
+                    if (showWarning && !warning) {
+                        const el = document.createElement('div');
+                        el.id = 'date-mismatch-warning';
+                        el.style.cssText = `
+                    background:#ffebee; padding:12px 15px; margin:0;
+                    border-left:4px solid #f44336; font-family:sans-serif;
+                    position:fixed; top:20px; right:20px; z-index:99999;
+                    max-width:300px; box-shadow:0 2px 10px rgba(0,0,0,0.2);
+                    border-radius:4px;
+                `;
+                        el.innerHTML = `
+                    <div style="font-weight:bold; margin-bottom:8px;">
+                        <span style="font-size:18px;">⚠️</span> Даты не совпадают!
+                    </div>
+                    <div style="font-size:14px;">
+                        <div>Старт параллели: <b>${parallelDate.split(' ')[0]}</b></div>
+                        <div>Первое занятие: <b>${lessonDate.split(' ')[0]}</b></div>
+                    </div>
+                `;
+                        document.body.appendChild(el);
+                    } else if (!showWarning && warning) {
+                        warning.remove();
+                    }
+                } catch (e) {
+                    debug && console.error('DateChecker error:', e);
+                }
+            }
+
+            // Инициализация наблюдателя и событий
+            function init() {
+                // Наблюдатель для динамического контента
+                const observer = new MutationObserver(checkDates);
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+
+                // Слушатели изменений дат
+                document.addEventListener('change', e => {
+                    if (e.target.matches(`${SELECTORS.PARALLEL_DATE}, ${SELECTORS.LESSON_DATE}`)) {
+                        checkDates();
+                    }
+                });
+
+                // Периодическая проверка
+                setInterval(checkDates, 2000);
+                checkDates();
+            }
+
+            // Запуск
+            window.dateCheckerInitialized || (window.dateCheckerInitialized = true, setTimeout(init, 500));
+        }
+
+        // Автозапуск
+        initDateChecker();
+
+        async function changeVebinarLocations() {
+            // Конфигурация кнопок
+            const BUTTONS = [
+                { text: 'Мини-группы', location: 'mini' },
+                { text: 'Шлак', location: 'slag' },
+                { text: 'Дом', location: 'home' },
+                { text: 'ССМ', location: 'ssm' }
+            ];
+
+            // Основные элементы интерфейса
+            const container = document.querySelector('button.reset-btn')?.parentNode;
+            if (!container) {
+                console.error('Контейнер для кнопок не найден');
+            } else {
+                initButtons();
+                addStyles();
+            }
+
+            // Инициализация кнопок
+            function initButtons() {
+                BUTTONS.forEach(config => {
+                    const btn = createButton(config);
+                    container.insertBefore(btn, container.querySelector('.reset-btn'));
+                });
+            }
+
+            // Создание кнопки
+            function createButton({ text, location }) {
+                const btn = document.createElement('button');
+                btn.className = 'my-btn btn';
+                btn.textContent = text;
+                btn.style.margin = '2px';
+                btn.dataset.location = location;
+                btn.addEventListener('click', handleButtonClick);
+                return btn;
+            }
+
+            // Обработчик клика
+            function handleButtonClick({ target }) {
+                const location = target.dataset.location;
+                const groupId = getGroupId();
+
+                if (!groupId) {
+                    alert('Не удалось получить ID параллели!');
+                    return;
+                }
+
+                const url = buildUrl(groupId, location);
+                openNewTab(url);
+            }
+
+            // Получение ID группы
+            function getGroupId() {
+                // 1. Пробуем получить из скрытого select элемента
+                const groupSelect = document.querySelector('#select_group_template');
+                if (groupSelect?.value) return groupSelect.value;
+
+                // 2. Пробуем получить из активного элемента Select2
+                const activeOption = document.querySelector('.select2-results .select2-highlighted');
+                if (activeOption) {
+                    const id = parseIdFromText(activeOption.textContent);
+                    if (id) return id;
+                }
+
+                // 3. Пробуем получить из основного поля
+                const mainField = document.querySelector('.select2-choice .select2-chosen');
+                if (mainField) return parseIdFromText(mainField.textContent);
+
+                // 4. Пробуем получить из заголовка таблицы
+                const header = document.querySelector('th.groups_list');
+                if (header) return parseIdFromText(header.textContent);
+
+                return null;
+            }
+
+            // Парсинг ID из текста
+            function parseIdFromText(text) {
+                const match = text.match(/\[(\d+)\]/) || text.match(/\((\d+)\)/);
+                return match ? match[1] : null;
+            }
+
+            // Формирование URL
+            function buildUrl(groupId, location) {
+                const baseUrl = 'https://foxford.ru/admin/dev_services';
+                const params = new URLSearchParams({
+                    only_week_day_webinars_settings: true,
+                    select_group_template: groupId,
+                    location: location,
+                    auto_validate: true
+                });
+                console.log(`${baseUrl}?${params}`)
+                return `${baseUrl}?${params}`;
+            }
+
+            // Открытие новой вкладки
+            async function openNewTab(url) {
+                let win = await createWindow();
+                await win.openPage(url, '_blank');
+                await win.waitForSuccess();
+
+                if (!win) {
+                    alert('Разрешите всплывающие окна для работы скрипта');
+                    return;
+                }
+
+                // Автозакрытие через 2 секунды
+                setTimeout(() => {
+                    if (!win.closed) win.close();
+                    alert('Операция выполнена успешно!');
+                }, 2000);
+            }
+
+            // Добавление стилей
+            function addStyles() {
+                const style = document.createElement('style');
+                style.textContent = `
+                    .my-btn {
+                      border: none;
+                      color: black;
+                      padding: 8px 16px;
+                      text-align: center;
+                      text-decoration: none;
+                      display: inline-block;
+                      font-size: 14px;
+                      margin: 2px;
+                      cursor: pointer;
+                      border-radius: 4px;
+                      transition: background-color 0.3s;
+                    }
+
+                  `;
+                document.head.appendChild(style);
+            }
+        }
+
+        changeVebinarLocations();
+
         let all_save_btns = document.querySelectorAll('.btn-default[value="Сохранить"]');
         for (let save_btn of all_save_btns) { save_btn.addEventListener('click', no_rasp_groups); }
         //
