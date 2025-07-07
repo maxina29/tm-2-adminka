@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.49
+// @version      0.2.0.50
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2772,9 +2772,9 @@ displayLog('Готово! Проверьте данные и сохраните'
         await secondaryWindow.openPage(currentWindow.location.href.substring(0, currentWindow.location.href.length - 5)); //, 'adminka_mass_new_ind_items_temp')
         currentWindow.clearAll();
         let form = createElement('form', 'simple_form form-horizontal inputs-sm', 'margin:20px')
-        let gradeElement = createFormElement(form, 'select', 'Класс <abbr class="astr" title="Обязательное поле">*</abbr>', 'mass_externship_product_type_grade_course_product_type_grade_id');
-        let typeElement = createFormElement(form, 'select', 'Тип элемента <abbr class="astr" title="Обязательное поле">*</abbr>', 'mass_externship_product_type_grade_course_resource_type');
-        let idsElement = createFormElement(form, 'textarea', 'ID курсов <abbr class="astr" title="Обязательное поле">*', 'mass_course_input', 'Можно указать через пробел, запятую или в столбик');
+        let gradeElement = createFormElement(form, 'select', 'Класс *', 'mass_externship_product_type_grade_course_product_type_grade_id');
+        let typeElement = createFormElement(form, 'select', 'Тип элемента *', 'mass_externship_product_type_grade_course_resource_type');
+        let idsElement = createFormElement(form, 'textarea', 'ID курсов *', 'mass_course_input', 'Можно указать через пробел, запятую или в столбик');
         let massAppendButton = createButton('Запустить массовое добавление', async () => { }, 'btn-default btn-primary form-control', false);
         let hugeConsole = createElement('div', 'textarea', 'border: 2px solid #eee; border-radius: 15px; padding: 10px; margin-top: 20px; margin-bottom: 20px;')
         function huge_log(s) {
@@ -3701,7 +3701,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.49 от 3 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.50 от 7 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
