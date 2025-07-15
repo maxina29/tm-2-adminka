@@ -423,31 +423,63 @@ async function createWindow(parent = window) {
     return new ManagedWindow(parent);
 }
 
-async function copyFormData(sourceForm, targetForm, ignoreList = null) {
+async function copyFormData(sourceForm, targetForm, ignoreList = null, params = null) {
     if (!ignoreList) {
         ignoreList = [];
+    }  
+    
+    // params = {'replaceRules': {'task': 'tasks_code'} }
+    let replaceRules;
+    const applyReplaceRules = (str) => {
+        let result = str;
+        for (const [key, value] of Object.entries(replaceRules)) {
+            result = result.replace(key, value);
+        }
+        return result;
+    };
+
+    if (params) {
+        replaceRules = params['replaceRules'];
     }
-    // Копирование простых полей
+
     const elements = sourceForm.querySelectorAll('input, select, textarea');
     for (const element of elements) {
-        let targetElement = null;
-        try {
-            targetElement = targetForm.querySelector(`#${element.id}`);
+        if (ignoreList.indexOf(element.name) !== -1 || ignoreList.indexOf(element.id) !== -1) {
+            log(`Элемент ${element.name} пропущен из-за ignoreList`);
+            continue;
         }
-        catch (SyntaxError) { }
-        if (!targetElement) {
+
+        let targetElement = null;
+        
+        try {
+            if (element.id) targetElement = targetForm.querySelector(`#${element.id}`);
+        } catch (SyntaxError) {}
+        
+        if (!targetElement && element.name) {
             targetElement = targetForm.querySelector(`[name="${element.name}"]`);
         }
-        if (targetElement && element.name && ignoreList.indexOf(element.name) == -1 && ignoreList.indexOf(element.id) == -1 && targetElement.type != 'hidden' && targetElement.type != 'submit') {
+
+        if (!targetElement && replaceRules) {
+            const newId = applyReplaceRules(element.id);
+            const newName = applyReplaceRules(element.name);
+            
+            try {
+                if (newId) targetElement = targetForm.querySelector(`#${newId}`);
+            } catch (SyntaxError) {}
+            
+            if (!targetElement && newName) {
+                targetElement = targetForm.querySelector(`[name="${newName}"]`);
+            }
+        }
+
+        if (targetElement && element.name && targetElement.type != 'hidden' && targetElement.type != 'submit') {
             if (targetElement.type == 'checkbox') {
                 targetElement.checked = element.checked;
-            }
-            else {
+            } else {
                 targetElement.value = element.value;
             }
             log(`Скопировано поле: ${element.name}`);
-        }
-        else if (element.name) {
+        } else if (element.name) {
             log(`Элемент ${element.name} пропущен`);
         }
     }
@@ -455,10 +487,18 @@ async function copyFormData(sourceForm, targetForm, ignoreList = null) {
     // Копирование файлов
     const fileInputs = sourceForm.querySelectorAll('input[type="file"]');
     for (const input of fileInputs) {
-        const targetInput = targetForm.querySelector(`[name="${input.name}"]`);
+        let targetInput = targetForm.querySelector(`[name="${input.name}"]`);
+        
+        if (!targetInput && replaceRules) {
+            const newName = applyReplaceRules(input.name);
+            if (newName) targetInput = targetForm.querySelector(`[name="${newName}"]`);
+        }
+
         if (targetInput && input.files.length > 0) {
             const dt = new DataTransfer();
-            dt.items.add(input.files[0]);
+            for (const file of input.files) {
+                dt.items.add(file);
+            }
             targetInput.files = dt.files;
             log(`Скопирован файл: ${input.name}`);
         }
@@ -467,7 +507,20 @@ async function copyFormData(sourceForm, targetForm, ignoreList = null) {
     // Копирование iframe
     const iframes = sourceForm.querySelectorAll('iframe');
     for (const iframe of iframes) {
-        const targetIframe = targetForm.querySelector(`iframe#${iframe.id}`);
+        let targetIframe = null;
+        try {
+            if (iframe.id) targetIframe = targetForm.querySelector(`iframe#${iframe.id}`);
+        } catch (SyntaxError) {}
+        
+        if (!targetIframe && replaceRules) {
+            const newId = applyReplaceRules(iframe.id);
+            if (newId) {
+                try {
+                    targetIframe = targetForm.querySelector(`iframe#${newId}`);
+                } catch (SyntaxError) {}
+            }
+        }
+
         if (targetIframe) {
             await copyIframeContent(iframe, targetIframe);
             log(`Скопирован iframe: ${iframe.id}`);
