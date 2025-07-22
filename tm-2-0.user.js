@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.52
+// @version      0.2.0.53
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -200,9 +200,10 @@ class ManagedWindow {
         //return executeWithRetry(async () => {
         const start = Date.now();
         while (Date.now() - start < timeout) {
-            for (const selector of selectors) {
-                const element = this.querySelector(selector);
+            for (let selector of selectors) {
+                let element = this.querySelector(selector);
                 if (element) {
+                    log(`Найден элемент ${selector}`)
                     return { element, selector };
                 }
             }
@@ -423,13 +424,10 @@ async function createWindow(parent = window) {
     return new ManagedWindow(parent);
 }
 
-async function copyFormData(sourceForm, targetForm, ignoreList = null, params = null) {
-    if (!ignoreList) {
-        ignoreList = [];
-    }  
-    
-    // params = {'replaceRules': {'task': 'tasks_code'} }
-    let replaceRules;
+async function copyFormData(sourceForm, targetForm, params = null) {
+    // params = {'replaceRules': {'task': 'tasks_code'}, 'ignoreList': ['courses[name]', 'courses_id'] }
+    let ignoreList = params?.ignoreList || [];
+    let replaceRules = params?.replaceRules || {};
     const applyReplaceRules = (str) => {
         let result = str;
         for (const [key, value] of Object.entries(replaceRules)) {
@@ -437,10 +435,6 @@ async function copyFormData(sourceForm, targetForm, ignoreList = null, params = 
         }
         return result;
     };
-
-    if (params) {
-        replaceRules = params['replaceRules'];
-    }
 
     const elements = sourceForm.querySelectorAll('input, select, textarea');
     for (const element of elements) {
@@ -450,11 +444,11 @@ async function copyFormData(sourceForm, targetForm, ignoreList = null, params = 
         }
 
         let targetElement = null;
-        
+
         try {
             if (element.id) targetElement = targetForm.querySelector(`#${element.id}`);
-        } catch (SyntaxError) {}
-        
+        } catch (SyntaxError) { }
+
         if (!targetElement && element.name) {
             targetElement = targetForm.querySelector(`[name="${element.name}"]`);
         }
@@ -462,11 +456,11 @@ async function copyFormData(sourceForm, targetForm, ignoreList = null, params = 
         if (!targetElement && replaceRules) {
             const newId = applyReplaceRules(element.id);
             const newName = applyReplaceRules(element.name);
-            
+
             try {
                 if (newId) targetElement = targetForm.querySelector(`#${newId}`);
-            } catch (SyntaxError) {}
-            
+            } catch (SyntaxError) { }
+
             if (!targetElement && newName) {
                 targetElement = targetForm.querySelector(`[name="${newName}"]`);
             }
@@ -475,10 +469,46 @@ async function copyFormData(sourceForm, targetForm, ignoreList = null, params = 
         if (targetElement && element.name && targetElement.type != 'hidden' && targetElement.type != 'submit') {
             if (targetElement.type == 'checkbox') {
                 targetElement.checked = element.checked;
-            } else {
-                targetElement.value = element.value;
+                log(`Скопирована галочка: ${element.name}`);
             }
-            log(`Скопировано поле: ${element.name}`);
+            else if (element.tagName === 'SELECT' && element.multiple) {
+                if (targetElement.tagName === 'SELECT' && targetElement.multiple) {
+                    const selectedValues = new Set(
+                        Array.from(element.selectedOptions).map(opt => opt.value)
+                    );
+
+                    // Сброс предыдущих выборов
+                    Array.from(targetElement.options).forEach(opt => opt.selected = false);
+
+                    const existingOptions = new Map();
+                    Array.from(targetElement.options).forEach(opt => {
+                        existingOptions.set(opt.value, opt);
+                    });
+                    Array.from(element.options).forEach(sourceOption => {
+                        if (!existingOptions.has(sourceOption.value)) {
+                            const newOption = new Option(
+                                sourceOption.text,
+                                sourceOption.value
+                            );
+                            targetElement.add(newOption);
+                            existingOptions.set(sourceOption.value, newOption);
+                        }
+                    });
+                    Array.from(targetElement.options).forEach(opt => {
+                        if (selectedValues.has(opt.value)) {
+                            opt.selected = true;
+                        }
+                    });
+                    log(`Скопирован multiple select: ${element.name}`);
+                }
+                else {
+                    displayLog(`В новой форме не такой multiple select ${targetElement.id}`, 'danger');
+                }
+            }
+            else {
+                targetElement.value = element.value;
+                log(`Скопировано поле: ${element.name}`);
+            }
         } else if (element.name) {
             log(`Элемент ${element.name} пропущен`);
         }
@@ -488,7 +518,7 @@ async function copyFormData(sourceForm, targetForm, ignoreList = null, params = 
     const fileInputs = sourceForm.querySelectorAll('input[type="file"]');
     for (const input of fileInputs) {
         let targetInput = targetForm.querySelector(`[name="${input.name}"]`);
-        
+
         if (!targetInput && replaceRules) {
             const newName = applyReplaceRules(input.name);
             if (newName) targetInput = targetForm.querySelector(`[name="${newName}"]`);
@@ -510,14 +540,14 @@ async function copyFormData(sourceForm, targetForm, ignoreList = null, params = 
         let targetIframe = null;
         try {
             if (iframe.id) targetIframe = targetForm.querySelector(`iframe#${iframe.id}`);
-        } catch (SyntaxError) {}
-        
+        } catch (SyntaxError) { }
+
         if (!targetIframe && replaceRules) {
             const newId = applyReplaceRules(iframe.id);
             if (newId) {
                 try {
                     targetIframe = targetForm.querySelector(`iframe#${newId}`);
-                } catch (SyntaxError) {}
+                } catch (SyntaxError) { }
             }
         }
 
@@ -550,18 +580,19 @@ async function copyIframeContent(sourceIframe, targetIframe) {
     });
 }
 
-async function cloneResource(sourceWin, targetWin, editUrl, newUrl) {
+async function cloneResource(sourceWin, targetWin, editUrl, newUrl, params = null) {
+    // params = {'isNotFormSubmit': false},
     await sourceWin.openPage(editUrl);
     await targetWin.openPage(newUrl);
-
     const sourceForm = await sourceWin.waitForElement('form');
     const targetForm = await targetWin.waitForElement('form');
-
-    await copyFormData(sourceForm, targetForm);
-    await targetForm.querySelector('input[type="submit"]').click();
-
-    await targetWin.waitForSuccess();
-    log(`Ресурс успешно скопирован: ${newUrl}`);
+    await copyFormData(sourceForm, targetForm, params);
+    let isNotFormSubmit = params?.isNotFormSubmit || false;
+    if (!isNotFormSubmit) {
+        await targetForm.querySelector('input[type="submit"]').click();
+        await targetWin.waitForSuccess();
+    }
+    log(`Ресурс успешно скопирован из ${editUrl} в ${newUrl}`);
 }
 
 function CSVToArray(CSV_string, delimiter = ',') {
@@ -3754,7 +3785,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.52 от 17 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.53 от 22 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
