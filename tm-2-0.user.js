@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.53
+// @version      0.2.0.54
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -424,138 +424,224 @@ async function createWindow(parent = window) {
     return new ManagedWindow(parent);
 }
 
+function applyReplaceRules(str, replaceRules = []) {
+    let result = str;
+    for (const [key, value] of Object.entries(replaceRules)) {
+        result = result.replace(key, value);
+    }
+    return result;
+}
+
 async function copyFormData(sourceForm, targetForm, params = null) {
     // params = {'replaceRules': {'task': 'tasks_code'}, 'ignoreList': ['courses[name]', 'courses_id'] }
-    let ignoreList = params?.ignoreList || [];
-    let replaceRules = params?.replaceRules || {};
-    const applyReplaceRules = (str) => {
-        let result = str;
-        for (const [key, value] of Object.entries(replaceRules)) {
-            result = result.replace(key, value);
-        }
-        return result;
-    };
-
+    const ignoreList = params?.ignoreList || [];
+    const replaceRules = params?.replaceRules || {};
     const elements = sourceForm.querySelectorAll('input, select, textarea');
     for (const element of elements) {
-        if (ignoreList.indexOf(element.name) !== -1 || ignoreList.indexOf(element.id) !== -1) {
-            log(`Элемент ${element.name} пропущен из-за ignoreList`);
-            continue;
-        }
-
-        let targetElement = null;
-
-        try {
-            if (element.id) targetElement = targetForm.querySelector(`#${element.id}`);
-        } catch (SyntaxError) { }
-
-        if (!targetElement && element.name) {
-            targetElement = targetForm.querySelector(`[name="${element.name}"]`);
-        }
-
-        if (!targetElement && replaceRules) {
-            const newId = applyReplaceRules(element.id);
-            const newName = applyReplaceRules(element.name);
-
-            try {
-                if (newId) targetElement = targetForm.querySelector(`#${newId}`);
-            } catch (SyntaxError) { }
-
-            if (!targetElement && newName) {
-                targetElement = targetForm.querySelector(`[name="${newName}"]`);
-            }
-        }
-
-        if (targetElement && element.name && targetElement.type != 'hidden' && targetElement.type != 'submit') {
-            if (targetElement.type == 'checkbox') {
-                targetElement.checked = element.checked;
-                log(`Скопирована галочка: ${element.name}`);
-            }
-            else if (element.tagName === 'SELECT' && element.multiple) {
-                if (targetElement.tagName === 'SELECT' && targetElement.multiple) {
-                    const selectedValues = new Set(
-                        Array.from(element.selectedOptions).map(opt => opt.value)
-                    );
-
-                    // Сброс предыдущих выборов
-                    Array.from(targetElement.options).forEach(opt => opt.selected = false);
-
-                    const existingOptions = new Map();
-                    Array.from(targetElement.options).forEach(opt => {
-                        existingOptions.set(opt.value, opt);
-                    });
-                    Array.from(element.options).forEach(sourceOption => {
-                        if (!existingOptions.has(sourceOption.value)) {
-                            const newOption = new Option(
-                                sourceOption.text,
-                                sourceOption.value
-                            );
-                            targetElement.add(newOption);
-                            existingOptions.set(sourceOption.value, newOption);
-                        }
-                    });
-                    Array.from(targetElement.options).forEach(opt => {
-                        if (selectedValues.has(opt.value)) {
-                            opt.selected = true;
-                        }
-                    });
-                    log(`Скопирован multiple select: ${element.name}`);
-                }
-                else {
-                    displayLog(`В новой форме не такой multiple select ${targetElement.id}`, 'danger');
-                }
-            }
-            else {
-                targetElement.value = element.value;
-                log(`Скопировано поле: ${element.name}`);
-            }
-        } else if (element.name) {
-            log(`Элемент ${element.name} пропущен`);
+        if (shouldSkipElement(element, ignoreList)) continue;
+        const targetElement = findFormElement(targetForm, element, replaceRules);
+        if (targetElement) {
+            copyElementValue(element, targetElement);
+            log(`Скопировано поле: ${element.name}`);
         }
     }
-
-    // Копирование файлов
     const fileInputs = sourceForm.querySelectorAll('input[type="file"]');
     for (const input of fileInputs) {
-        let targetInput = targetForm.querySelector(`[name="${input.name}"]`);
-
-        if (!targetInput && replaceRules) {
-            const newName = applyReplaceRules(input.name);
-            if (newName) targetInput = targetForm.querySelector(`[name="${newName}"]`);
-        }
-
-        if (targetInput && input.files.length > 0) {
-            const dt = new DataTransfer();
-            for (const file of input.files) {
-                dt.items.add(file);
-            }
-            targetInput.files = dt.files;
-            log(`Скопирован файл: ${input.name}`);
-        }
+        const targetInput = findFormElement(targetForm, input, replaceRules);
+        if (targetInput) copyFileElement(input, targetInput);
     }
-
-    // Копирование iframe
     const iframes = sourceForm.querySelectorAll('iframe');
     for (const iframe of iframes) {
-        let targetIframe = null;
-        try {
-            if (iframe.id) targetIframe = targetForm.querySelector(`iframe#${iframe.id}`);
-        } catch (SyntaxError) { }
+        const targetIframe = findFormElement(targetForm, iframe, replaceRules);
+        if (targetIframe) await copyIframeContent(iframe, targetIframe);
+    }
+    await processDynamicFields(sourceForm, targetForm, params);
+}
 
-        if (!targetIframe && replaceRules) {
-            const newId = applyReplaceRules(iframe.id);
-            if (newId) {
-                try {
-                    targetIframe = targetForm.querySelector(`iframe#${newId}`);
-                } catch (SyntaxError) { }
+function shouldSkipElement(element, ignoreList) {
+    return ignoreList.includes(element.name) || 
+           ignoreList.includes(element.id) ||
+           element.classList.contains('protected');
+}
+
+async function processDynamicFields(sourceForm, targetForm, params = null) {
+    const ignoreList = params?.ignoreList || [];
+    const replaceRules = params?.replaceRules || {};
+    const associations = new Set();
+    const allFields = sourceForm.querySelectorAll('input, select, textarea, iframe');
+    for (const field of allFields) {
+        const fieldId = field.id;
+        if (!fieldId || ignoreList.includes(fieldId)) continue;
+        if (fieldId.includes('_attributes_')) {
+            const prefix = fieldId.split('_attributes_')[0];
+            // Разбиваем на части и берем последние 1-3 части как возможную ассоциацию
+            const parts = prefix.split('_');
+            for (let i = 1; i <= 3; i++) {
+                if (parts.length > i) {
+                    const candidate = parts.slice(-i).join('_');
+                    associations.add(candidate);
+                }
             }
         }
+    }
 
-        if (targetIframe) {
-            await copyIframeContent(iframe, targetIframe);
-            log(`Скопирован iframe: ${iframe.id}`);
+    // Для каждой возможной ассоциации
+    for (const association of associations) {
+        const sourceFields = {};
+        const fieldRegex = new RegExp(`${association}_attributes_(\\d+)_(.+)`);
+        for (const field of allFields) {
+            const fieldId = field.id;
+            const match = fieldId.match(fieldRegex);
+            if (match) {
+                const [, index, fieldName] = match;
+                if (!sourceFields[index]) sourceFields[index] = {};
+                sourceFields[index][fieldName] = field;
+            }
+        }
+        if (!Object.keys(sourceFields).length) continue;
+        const addButton = targetForm.querySelector(`.btn-success[data-association="${association}"]`);
+        if (!addButton) continue;
+        const indexes = Object.keys(sourceFields);
+        const createdGroups = [];
+        for (let i = 0; i < indexes.length; i++) {
+            addButton.click();
+            await waitForAddedNode({
+                parent: targetForm,
+                recursive: true,
+                includeIframes: true,
+                minWait: 300
+            });
+            const allGroups = targetForm.querySelectorAll(`[id*="${association}_attributes_"]`);
+            const newGroup = allGroups[allGroups.length - 1].closest('.fields');
+            if (newGroup && !createdGroups.includes(newGroup)) {
+                createdGroups.push(newGroup);
+            } else {
+                displayLog("Не удалось найти новую группу после клика",'warning');
+            }
+        }
+        for (let i = 0; i < indexes.length; i++) {
+            const sourceGroup = sourceFields[indexes[i]];
+            const targetGroup = createdGroups[i];
+            if (!targetGroup || !sourceGroup) continue;
+            for (const [fieldName, sourceElement] of Object.entries(sourceGroup)) {
+                const transformedFieldName = applyReplaceRules(fieldName, replaceRules);
+                const targetElement = findTargetElement(targetGroup, association, transformedFieldName);
+                if (!targetElement) {
+                    displayLog(`Не найден элемент для ${association} и ${fieldName}`,'warning');
+                    continue;
+                }
+                await copyFieldData(sourceElement, targetElement);
+            }
         }
     }
+}
+
+function findFormElement(form, sourceElement, replaceRules = {}) {
+    let targetElement = null;
+    if (sourceElement.id) {
+        try {
+            targetElement = form.querySelector(`#${applyReplaceRules(sourceElement.id, replaceRules)}`);
+        } catch {}
+    }
+    if (!targetElement && sourceElement.name) {
+        const newName = applyReplaceRules(sourceElement.name, replaceRules);
+        targetElement = form.querySelector(`[name="${newName}"]`);
+    }
+    return targetElement;
+}
+
+function findTargetElement(group, association, fieldName) {
+    return group.querySelector(`[id*="${association}_attributes_"][id$="${fieldName}"]`);
+}
+
+async function copyFieldData(sourceElement, targetElement) {
+    if (sourceElement.tagName !== targetElement.tagName || sourceElement.type !== targetElement.type) {
+        displayLog('Элементы разного типа', 'warning');
+        return;
+    }
+
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(sourceElement.tagName)) {
+        if (sourceElement.type === 'file') {
+            copyFileElement(sourceElement, targetElement);
+        } else {
+            copyElementValue(sourceElement, targetElement);
+        }
+    } else if (sourceElement.tagName === 'IFRAME') {
+        await copyIframeContent(sourceElement, targetElement);
+    }
+    else {
+        displayLog('Неизвестный вид элемента','warning');
+    }
+}
+
+function copyElementValue(source, target) {
+    if (target.type === 'checkbox' || target.type === 'radio') {
+        target.checked = source.checked;
+    } else if (source.tagName === 'SELECT' && source.multiple) {
+        if (target.tagName === 'SELECT' && target.multiple) {
+            const selectedValues = new Set(
+                Array.from(source.selectedOptions).map(opt => opt.value)
+            );
+            Array.from(target.options).forEach(opt => opt.selected = false);
+            Array.from(target.options).forEach(opt => {
+                if (selectedValues.has(opt.value)) opt.selected = true;
+            });
+        }
+    } else {
+        target.value = source.value;
+    }
+}
+
+function copyFileElement(sourceInput, targetInput) {
+    if (sourceInput.files.length > 0) {
+        const dt = new DataTransfer();
+        for (const file of sourceInput.files) dt.items.add(file);
+        targetInput.files = dt.files;
+    }
+}
+
+
+function waitForAddedNode({ parent = document, recursive = true, includeIframes = true, minWait = 300 }) {
+    return new Promise(resolve => {
+        const startTime = Date.now();
+        let observer;
+        const check = () => {
+            const elapsed = Date.now() - startTime;
+            if (elapsed >= minWait) {
+                if (observer) observer.disconnect();
+                resolve();
+            } else {
+                setTimeout(check, 50);
+            }
+        };
+        observer = new MutationObserver(mutations => {
+            for (const mutation of mutations) {
+                if (mutation.addedNodes.length > 0) {
+                    observer.disconnect();
+                    check();
+                    return;
+                }
+            }
+        });
+        observer.observe(parent, { childList: true, subtree: recursive });
+        if (includeIframes) {
+            const iframes = parent.querySelectorAll('iframe');
+            for (const iframe of iframes) {
+                try {
+                    if (iframe.contentDocument) {
+                        observer.observe(iframe.contentDocument.body, { childList: true, subtree: true });
+                    }
+                } catch (e) {
+                    // Игнорируем ошибки CORS
+                }
+            }
+        }
+        // Гарантированное завершение
+        setTimeout(() => {
+            observer.disconnect();
+            resolve();
+        }, Math.max(minWait, 1000));
+    });
 }
 
 async function copyIframeContent(sourceIframe, targetIframe) {
@@ -3785,7 +3871,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.53 от 22 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.54 от 23 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
