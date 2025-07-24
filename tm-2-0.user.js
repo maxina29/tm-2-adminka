@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.54
+// @version      0.2.0.55
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -831,6 +831,11 @@ const pagePatterns = {
     hasAnchor: /#/
 };
 
+function getBaseUrl(url) {
+    // Находим первое число в URL и оставляем все до него включительно
+    const match = url.match(/^(.*?\d+)/);
+    return match ? match[1] : url;
+}
 
 (async function () {
     'use strict';
@@ -2331,116 +2336,118 @@ const pagePatterns = {
 
     // на странице создания дубликата
     if (currentWindow.checkPath(pagePatterns.newDuplicates)) {
-        let div = document.createElement('div');
-        let my_btn;
-        let war = document.createElement('p');
-        war.style = 'color:orange';
+        let containerElement = createElement('div');
+        let myButton = createButton('Подтянуть данные из курса', async () => { }, 'get-data');
+        let warningElement = createElement('p', '', 'color:orange');
         const get_data_full = async () => {
+            let isConfirmed = true;
             let hasBotApproval = checkBotApprove();
-            my_btn.style = 'display:none';
-            //let todoshka;
-            //if (!document.querySelector('.bot-approve')){
-            let todoshka = true;
             if (!hasBotApproval) {
-                todoshka = confirm('Страницы курса будут открыты в новых вкладках, не закрывайте их заранее\nЕсли страницы не открываются, разрешите сайту работать со всплывающими окнами');
+                isConfirmed = confirm('Страницы курса будут открыты в новых вкладках, не закрывайте их заранее\nЕсли страницы не открываются, разрешите сайту работать со всплывающими окнами');
             }
-            //else{
-            //    todoshka = true;
-            //}
-            if (todoshka) {
-                async function get_data() {
-                    log('грузим данные');
-                    let href = window.location.href;
-                    let win = window.open('about:blank', 'adminka_groups');
-                    let has_webinars = false;
-                    let has_conv = false;
-                    win.blur(); window.focus();
-                    win.location.href = href.substring(0, href.length - 21) + '/groups';
-                    while (win.document.getElementsByName('from_lesson_number').length < 1) {
-                        await sleep(100);
+            if (isConfirmed) {
+                myButton.style = 'display:none';
+                log('Ищем данные');
+                let href = currentWindow.location.href;
+                let tempWindow = await createWindow('adminka_groups');
+                let hasWebinars = false;
+                let isConverting = false;
+                await tempWindow.openPage(`${getBaseUrl(href)}/groups`);
+                let groupToolbars = tempWindow.querySelectorAll('[id^="group_"][id$="_toolbar"]');
+                for (let toolbar of groupToolbars) {
+                    if (toolbar.firstChild.firstChild.innerHTML in ['Вебинар', 'Мини-группа']) {
+                        hasWebinars = true;
+                        break;
                     }
-                    let res = win.document.querySelectorAll('[id^="group_"][id$="_toolbar"]');
-                    for (let i = 0; i < res.length; i++) {
-                        if (res[i].firstChild.firstChild.innerHTML == 'Вебинар' || res[i].firstChild.firstChild.innerHTML == 'Мини-группа') { has_webinars = true; break; }
-                        if (res[i].firstChild.firstChild.innerHTML == 'Конвертируется') { has_conv = true; break; }
+                    if (toolbar.firstChild.firstChild.innerHTML == 'Конвертируется') {
+                        isConverting = true;
+                        break;
                     }
-                    let teacher = win.document.getElementsByName('group_template[teacher_id]')[1].value;
-                    let vmestim = win.document.getElementsByName('group_template[users_limit]')[1].value;
-                    win.location.href = href.substring(0, href.length - 21) + '/edit';
-                    while (!win.document.getElementById('course_product_pack_id') || !win.document.querySelector('#course_maternity_capital')) {
-                        await sleep(100);
-                    }
-                    if (win.document.getElementById('course_product_pack_id').value) { war.innerHTML += 'Привязана подписка! '; }
-                    if (win.document.getElementById('course_description').value.length > 260) { war.innerHTML += 'Описание длиннее 260 символов! '; }
-                    if (win.document.querySelector('#course_maternity_capital').checked) { war.innerHTML += 'Включена оплата маткапиталом! '; }
-                    if (war.innerHTML != '') { war.innerHTML = 'Может не получиться создать дубликат! ' + war.innerHTML; }
-                    if (has_webinars) { if (war.innerHTML != '') { war.innerHTML += '<br>' }; war.innerHTML += 'В курсе есть будущие занятия'; }
-                    if (has_conv) { if (war.innerHTML != '') { war.innerHTML += '<br>' }; war.innerHTML += 'В курсе есть несконвертированные занятия'; }
-                    document.getElementById('course_duplicate_group_templates_attributes_0_teacher_id').value = teacher;
-                    document.getElementById('course_duplicate_group_templates_attributes_0_users_limit').value = vmestim;
-                    win.close();
-                    log('готово)')
                 }
-                get_data();
+                let teacherIdInput = await tempWindow.waitForElement('#edit_group_template [name="group_template[teacher_id]"]');
+                let usersLimitInput = await tempWindow.waitForElement('#edit_group_template [name="group_template[users_limit]"]');
+                let teacherId = teacherIdInput.value;
+                let usersLimit = usersLimitInput.value;
+                await tempWindow.openPage(`${getBaseUrl(href)}/edit`);
+                if (tempWindow.querySelector('#course_product_pack_id').value) {
+                    warningElement.innerHTML += 'Привязана подписка! ';
+                }
+                if (tempWindow.querySelector('#course_description').value.length > 260) {
+                    warningElement.innerHTML += 'Описание длиннее 260 символов! ';
+                }
+                if (tempWindow.querySelector('#course_maternity_capital').checked) {
+                    warningElement.innerHTML += 'Включена оплата маткапиталом! ';
+                }
+                if (warningElement.innerHTML) {
+                    warningElement.innerHTML = `Может не получиться создать дубликат! ${warningElement.innerHTML}`;
+                }
+                if (hasWebinars) {
+                    if (warningElement.innerHTML) {
+                        warningElement.innerHTML += '<br>';
+                    }
+                    warningElement.innerHTML += 'В курсе есть будущие занятия';
+                }
+                if (isConverting) {
+                    if (warningElement.innerHTML) {
+                        warningElement.innerHTML += '<br>';
+                    }
+                    warningElement.innerHTML += 'В курсе есть несконвертированные занятия';
+                }
+                let teacherIdTarget = await currentWindow.waitForElement('#course_duplicate_group_templates_attributes_0_teacher_id');
+                let usersLimitTarget = await currentWindow.waitForElement('#course_duplicate_group_templates_attributes_0_users_limit');
+                teacherIdTarget.value = teacherId;
+                currentWindow.querySelector('#s2id_course_duplicate_group_templates_attributes_0_teacher_id').style.display = 'none';
+                currentWindow.querySelector('#course_duplicate_group_templates_attributes_0_teacher_id').style.display = '';
+                usersLimitTarget.value = usersLimit;
+                await tempWindow.close();
+                displayLog('Данные подгружены)');
             }
         }
-        my_btn = createButton('Подтянуть данные из курса', get_data_full, 'get-data');
-        div.appendChild(my_btn); div.appendChild(war);
-        let x = document.getElementsByTagName('h3')[0].parentNode;
-        x.insertBefore(div, x.childNodes[1]);
-        let form = document.createElement('form');
-        form.id = 'my_form';
-        let lbl = document.createElement('label');
-        lbl.innerHTML = 'Количество дубликатов';
-        lbl.for = 'my_counter';
-        let inp = document.createElement('input');
-        inp.id = 'my_counter';
-        inp.type = 'number';
-        //inp.placeholder = '1 ... 10';
-        inp.min = 1;
-        inp.max = 100;
-        form.appendChild(lbl);
-        form.appendChild(inp);
-        form.style = 'margin-top:15pt;';
-        inp.style = 'margin-left:15pt; margin-right: 15pt;';
-        document.querySelector('#new_course_duplicate').parentNode.appendChild(form);
-        let btn_mass_create = document.createElement('a');
-        btn_mass_create.className = 'btn btn-primary';
-        btn_mass_create.innerHTML = 'Создать пачку дубликатов';
-        btn_mass_create.onclick = create_pack_dubli;
-        form.onsubmit = create_pack_dubli;
-        async function create_pack_dubli() {
-            if (inp.value) {
-                if (inp.value < 1 || inp.value > 50) {
-                    alert('За один раз можно завести от 1 до 50 дубликатов')
-                }
-                else {
-                    let todo = confirm('Будет создано ' + inp.value + ' одинаковых дубликатов')
-                    if (todo) {
-                        let win = window.open('about:blank', 'adminka_tmp')
-                        let main_btn = document.getElementsByClassName('btn btn-default btn-primary')[0];
-                        main_btn.removeAttribute('data-disable-with');
-                        main_btn.target = 'adminka_tmp';
-                        document.querySelector('#new_course_duplicate').target = 'adminka_tmp';
-                        for (let i = 0; i < inp.value; i++) {
-                            log(i + 1);
-                            main_btn.click(); await sleep(100);
-                            while (!win.document.getElementsByClassName('alert alert-success').length) { await sleep(100); }
-                            win.location.href = 'about:blank';
-                            while (win.document.getElementsByClassName('alert alert-success').length) { await sleep(100); }
-                        }
-                        win.close();
-                        log('Курсы созданы')
-                        await sleep(5000);
-                        window.location.href = 'https://foxford.ru/admin/courses?q%5Bid_eq%5D=';
-                    }
-                }
+        myButton.onclick = get_data_full;
+        containerElement.append(myButton);
+        containerElement.append(warningElement);
+        let duplicateForm = currentWindow.querySelector('#new_course_duplicate');
+        duplicateForm.before(containerElement);
+        let myForm = createElement('form');
+        myForm.id = 'my_form';
+        let amountElement = createFormElement(myForm, 'input', 'Количество дубликатов', 'duplicates_amount');
+        amountElement.type = 'number';
+        amountElement.min = 1;
+        amountElement.max = 100;
+        myForm.style = 'margin-top:15pt;';
+        myForm.onsubmit = createDuplicates;
+        duplicateForm.after(myForm);
+        let massCreateButton = createButton('Создать пачку дубликатов', createDuplicates, 'btn-primary', false);
+        async function createDuplicates() {
+            let duplicatesAmount = Number(amountElement.value);
+            if (!duplicatesAmount) {
+                alert('Укажите количество задач');
+                return;
             }
-            else {
-                alert('Укажите количество курсов')
+            if (duplicatesAmount < 1 || duplicatesAmount > 50) {
+                alert('За один раз можно завести от 1 до 50 дубликатов');
+                return;
+            }
+            let isConfirmed = confirm(`Будет создано ${duplicatesAmount} одинаковых дубликатов`)
+            if (isConfirmed) {
+                let submitWindow = await createWindow('adminka_duplicates');
+                let submitButton = currentWindow.querySelector('.btn-primary[value="Создать дубликат курса"]');
+                submitButton.removeAttribute('data-disable-with');
+                submitButton.target = 'adminka_duplicates';
+                duplicateForm.target = 'adminka_duplicates';
+                for (let i = 0; i < duplicatesAmount; i++) {
+                    log(i + 1);
+                    submitButton.click(); await sleep(100);
+                    await submitWindow.waitForSuccess();
+                    await submitWindow.openPage('about:blank');
+                }
+                submitWindow.close();
+                log('Курсы созданы')
+                await sleep(5000);
+                currentWindow.openPage('https://foxford.ru/admin/courses?q%5Bid_eq%5D=');
             }
         }
-        form.appendChild(btn_mass_create);
+        myForm.append(massCreateButton);
         log('Страница модифицирована');
     }
 
@@ -3871,7 +3878,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.54 от 23 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.55 от 23 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
