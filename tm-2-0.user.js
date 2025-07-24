@@ -459,9 +459,9 @@ async function copyFormData(sourceForm, targetForm, params = null) {
 }
 
 function shouldSkipElement(element, ignoreList) {
-    return ignoreList.includes(element.name) || 
-           ignoreList.includes(element.id) ||
-           element.classList.contains('protected');
+    return ignoreList.includes(element.name) ||
+        ignoreList.includes(element.id) ||
+        element.classList.contains('protected');
 }
 
 async function processDynamicFields(sourceForm, targetForm, params = null) {
@@ -516,7 +516,7 @@ async function processDynamicFields(sourceForm, targetForm, params = null) {
             if (newGroup && !createdGroups.includes(newGroup)) {
                 createdGroups.push(newGroup);
             } else {
-                displayLog("Не удалось найти новую группу после клика",'warning');
+                displayLog("Не удалось найти новую группу после клика", 'warning');
             }
         }
         for (let i = 0; i < indexes.length; i++) {
@@ -527,7 +527,7 @@ async function processDynamicFields(sourceForm, targetForm, params = null) {
                 const transformedFieldName = applyReplaceRules(fieldName, replaceRules);
                 const targetElement = findTargetElement(targetGroup, association, transformedFieldName);
                 if (!targetElement) {
-                    displayLog(`Не найден элемент для ${association} и ${fieldName}`,'warning');
+                    displayLog(`Не найден элемент для ${association} и ${fieldName}`, 'warning');
                     continue;
                 }
                 await copyFieldData(sourceElement, targetElement);
@@ -541,7 +541,7 @@ function findFormElement(form, sourceElement, replaceRules = {}) {
     if (sourceElement.id) {
         try {
             targetElement = form.querySelector(`#${applyReplaceRules(sourceElement.id, replaceRules)}`);
-        } catch {}
+        } catch { }
     }
     if (!targetElement && sourceElement.name) {
         const newName = applyReplaceRules(sourceElement.name, replaceRules);
@@ -570,7 +570,7 @@ async function copyFieldData(sourceElement, targetElement) {
         await copyIframeContent(sourceElement, targetElement);
     }
     else {
-        displayLog('Неизвестный вид элемента','warning');
+        displayLog('Неизвестный вид элемента', 'warning');
     }
 }
 
