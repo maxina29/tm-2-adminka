@@ -21,7 +21,7 @@ for (let courseId of courseIds) {
     tempWindow.querySelector('#course_duplicate_group_templates_attributes_0_week_days_attributes_0_slot_time').value = '01:00'
     tempWindow.querySelector('#course_duplicate_group_templates_attributes_0_starts_at').value = '08.09.2025';
     tempWindow.querySelector('#course_duplicate_group_templates_attributes_0_schedule_hidden').checked = true; // расписание скрыто
-    tempWindow.querySelector('#course_duplicate_copy_groups').checked = false; // копировать прошедшие материалы 
+    tempWindow.querySelector('#course_duplicate_copy_groups').checked = false; // копировать прошедшие вебинары 
     tempWindow.querySelector('#course_duplicate_video_available_on_schedule').checked = false; // сбросить стейт вебинаров 
     tempWindow.querySelector('#course_duplicate_asynchronous_access').checked = false; // асинхронный доступ
     tempWindow.querySelector('.btn.btn-default.btn-primary').click();

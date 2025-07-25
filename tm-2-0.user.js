@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.55
+// @version      0.2.0.56
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -178,9 +178,10 @@ class ManagedWindow {
     }
 
     async waitForSuccess(skipDangerAlert = false) {
-        await this.waitForElement('.alert:not(.alert-dismissible):not(.alert-warning)');
-        if (this.querySelector('.alert-success:not(.alert-dismissible)')) {
-            let alertCloseButton = this.querySelector('.alert-success:not(.alert-dismissible) .close');
+        await this.waitForElement('.alert:not(.alert-dismissible):not(.alert-warning):not(.custom-alert)');
+        let successAlert = this.querySelector('.alert-success:not(.alert-dismissible):not(.custom-alert)');
+        if (successAlert) {
+            let alertCloseButton = successAlert.querySelector('.close');
             alertCloseButton.click();
             await this.waitForElementDisappear('.alert-success:not(.alert-dismissible)');
         }
@@ -358,7 +359,7 @@ async function displayLog(message, type = 'success', time = 3000) {
     catch (e) {
         console.error('Логирование во внутреннюю консоль невозможно', e);
     }
-    const displayAlert = createElement('div', `alert alert-${type}`, 'position:fixed; top:0%; width:100%; z-index:9999;');
+    const displayAlert = createElement('div', `alert alert-${type} custom-alert`, 'position:fixed; top:0%; width:100%; z-index:9999;');
     displayAlert.textContent = message;
     currentWindow.body.appendChild(displayAlert);
     setTimeout(() => displayAlert.remove(), time);
@@ -2395,12 +2396,12 @@ function getBaseUrl(url) {
                 }
                 let teacherIdTarget = await currentWindow.waitForElement('#course_duplicate_group_templates_attributes_0_teacher_id');
                 let usersLimitTarget = await currentWindow.waitForElement('#course_duplicate_group_templates_attributes_0_users_limit');
+                usersLimitTarget.value = usersLimit;
                 teacherIdTarget.value = teacherId;
                 currentWindow.querySelector('#s2id_course_duplicate_group_templates_attributes_0_teacher_id').style.display = 'none';
                 currentWindow.querySelector('#course_duplicate_group_templates_attributes_0_teacher_id').style.display = '';
-                usersLimitTarget.value = usersLimit;
                 await tempWindow.close();
-                displayLog('Данные подгружены)');
+                if (!hasBotApproval) displayLog('Данные подгружены)');
             }
         }
         myButton.onclick = get_data_full;
@@ -3878,7 +3879,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.55 от 23 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.56 от 25 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
 })();
