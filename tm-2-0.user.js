@@ -2058,31 +2058,29 @@ function getBaseUrl(url) {
 
             // Основная функция проверки
             function checkDates() {
-                try {
-                    // Поиск даты параллели
-                    const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
-                    if (!parallelInput) return;
-                    const parallelDate = parallelInput.value.trim();
 
-                    // Поиск даты занятия №1
-                    const lessonRow = [...document.querySelectorAll(SELECTORS.LESSON_ROW)].find(row => {
-                        const numEl = row.querySelector(SELECTORS.LESSON_NUMBER);
-                        return numEl?.textContent.includes('(№1)');
-                    });
+                const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
+                if (!parallelInput) return;
+                const parallelDate = parallelInput.value.trim();            
+                let foundElement = null;            
+                const lessonElements = document.querySelectorAll('.lesson_number');
+                lessonElements.forEach(element => {
+                  const text = element.textContent || element.innerText;
+                  if (text.includes('№1')) {
+                    foundElement = element.parentElement.nextSibling;
+                    return;
+                  }
+                });         
+                if (!foundElement) return;
+                const lessonInput = foundElement.querySelector(SELECTORS.LESSON_DATE);
+                if (!lessonInput) return;
+                const lessonDate = lessonInput.value.trim();            
+                if (!parallelDate || !lessonDate) return;           
 
-                    if (!lessonRow) return;
-                    const lessonInput = lessonRow.querySelector(SELECTORS.LESSON_DATE);
-                    if (!lessonInput) return;
-                    const lessonDate = lessonInput.value.trim();
-
-                    if (!parallelDate || !lessonDate) return;
-
-                    // Парсинг и сравнение дат
-                    const parse = str => {
-                        const [d, m, y] = str.split(' ')[0].split('.').map(Number);
-                        return new Date(y, m - 1, d);
-                    };
-
+                const parse = str => {
+                    const [d, m, y] = str.split(' ')[0].split('.').map(Number);
+                    return new Date(y, m - 1, d);
+                };          
                 const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();          
                 
                 const alerts = alertManager()
