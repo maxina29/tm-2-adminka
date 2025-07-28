@@ -2043,8 +2043,7 @@ function getBaseUrl(url) {
         }
         no_rasp_groups();
 
-        function initDateChecker() {
-            console.log('DateChecker: Starting');
+        function DateChecker() {
 
             const SELECTORS = {
                 PARALLEL_DATE: 'input[name="group_template[starts_at]"]',
@@ -2142,8 +2141,7 @@ function getBaseUrl(url) {
             window.dateCheckerInitialized || (window.dateCheckerInitialized = true, setTimeout(init, 500));
         }
 
-        // Автозапуск
-        initDateChecker();
+        DateChecker();
 
         async function changeVebinarLocations() {
             // Конфигурация кнопок
