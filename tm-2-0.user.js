@@ -2096,30 +2096,10 @@ function getBaseUrl(url) {
                 } else {
                 alerts.removeAlert('date-mismatch-warning');
             }
-
-            // Инициализация наблюдателя и событий
-            function init() {
-                // Наблюдатель для динамического контента
-                const observer = new MutationObserver(checkDates);
-                observer.observe(document.body, {
-                    childList: true,
-                    subtree: true
-                });
-
-                // Слушатели изменений дат
-                document.addEventListener('change', e => {
-                    if (e.target.matches(`${SELECTORS.PARALLEL_DATE}, ${SELECTORS.LESSON_DATE}`)) {
-                        checkDates();
-                    }
-                });
-
-                // Периодическая проверка
-                setInterval(checkDates, 2000);
-                checkDates();
             }
 
-            // Запуск
-            window.dateCheckerInitialized || (window.dateCheckerInitialized = true, setTimeout(init, 500));
+            checkDates();
+            window.dateCheckerInitialized
         }
 
         DateChecker();
