@@ -2124,17 +2124,13 @@ function getBaseUrl(url) {
             // Инициализация кнопок
             function initButtons() {
                 BUTTONS.forEach(config => {
-                    const btn = createButton(config);
+                    const btn = createLocationButton(config);
                     container.insertBefore(btn, container.querySelector('.reset-btn'));
                 });
             }
 
-            // Создание кнопки
-            function createButton({ text, location }) {
-                const btn = document.createElement('button');
-                btn.className = 'my-btn btn';
-                btn.textContent = text;
-                btn.style.margin = '2px';
+            function createLocationButton({ text, location }) {
+                const btn = createButton(text, async () => { })
                 btn.dataset.location = location;
                 btn.addEventListener('click', handleButtonClick);
                 return btn;
