@@ -1897,6 +1897,51 @@ function getBaseUrl(url) {
             }
         }
         full_numeration_creation();
+
+        // Генерация уведомлений от @wanna_get_out
+        function alertManager() {
+            const managerId = 'alert-manager-container';
+            let container = document.getElementById(managerId);
+
+            if (!container) {
+                container = document.createElement('div');
+                container.id = managerId;
+                container.style.display = 'flex';
+                container.style.flexDirection = 'column';
+                container.style.gap = '10px';
+                container.style.marginTop = '10px';
+
+                const referenceNode = document.querySelector('#course_data');
+                if (referenceNode) {
+                    referenceNode.parentNode.insertBefore(container, referenceNode);
+                } else {
+                    document.body.prepend(container);
+                }
+            }
+
+            return {
+                addAlert: (message, bgColor = '#ffb6c4', alertClass = 'custom-alert') => {
+                    const existingAlert = container.querySelector(`.${alertClass}`);
+                    if (existingAlert) existingAlert.remove();
+
+                    const alert = document.createElement('div');
+                    alert.className = alertClass;
+                    alert.style.padding = '10px';
+                    alert.style.borderRadius = '4px';
+                    alert.style.backgroundColor = bgColor;
+                    alert.style.textAlign = 'center';
+                    alert.textContent = message;
+
+                    container.appendChild(alert);
+                },
+
+                removeAlert: (alertClass = 'custom-alert') => {
+                    const alert = container.querySelector(`.${alertClass}`);
+                    if (alert) alert.remove();
+                }
+            };
+        }
+
         // занятия не по расписанию от @wanna_get_out
         let no_rasp_groups = async function () {
             // Возвращает список дней недели
@@ -1984,30 +2029,21 @@ function getBaseUrl(url) {
                     parent.style.backgroundColor = '';
                 }
             }
-            // выводим предупреждение
+            const alerts = alertManager()
             if (lessonsCount) {
-                let msg = `В данной параллели занятий не по расписанию: ${lessonsCount}`;
-
-                let alert = document.querySelector('.alert-no-rasp-groups');
-                if (!alert) {
-                    alert = document.createElement('div');
-                    alert.className = 'alert alert-no-rasp-groups';
-                    alert.style = 'margin-top: 10pt;';
-                }
-                alert.innerHTML = msg
-
-                document.querySelector('#course_data').parentNode.insertBefore(alert, document.querySelector('#course_data'));
-                alert.style.backgroundColor = bgColorOdd;
-            }
-            else { // lessonsCount = 0
-                if (document.querySelectorAll('.alert-no-rasp-groups').length) { document.querySelector('.alert-no-rasp-groups').remove(); }
+                alerts.addAlert(
+                    `В данной параллели занятий не по расписанию: ${lessonsCount}`,
+                    bgColorOdd,
+                    'no-rasp-alert'
+                );
+            } else {
+                alerts.removeAlert('no-rasp-alert');
             }
             document.body.firstChild.className += ' rasp_checked';
         }
         no_rasp_groups();
 
-        function initDateChecker() {
-            console.log('DateChecker: Starting');
+        function DateChecker() {
 
             const SELECTORS = {
                 PARALLEL_DATE: 'input[name="group_template[starts_at]"]',
@@ -2016,97 +2052,50 @@ function getBaseUrl(url) {
                 LESSON_DATE: 'input[name="group[starts_at]"]'
             };
 
-            // Логирование только в режиме разработки
-            const debug = false;
-            const log = debug ? console.log : () => { };
-
-            // Основная функция проверки
             function checkDates() {
-                try {
-                    // Поиск даты параллели
-                    const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
-                    if (!parallelInput) return;
-                    const parallelDate = parallelInput.value.trim();
 
-                    // Поиск даты занятия №1
-                    const lessonRow = [...document.querySelectorAll(SELECTORS.LESSON_ROW)].find(row => {
-                        const numEl = row.querySelector(SELECTORS.LESSON_NUMBER);
-                        return numEl?.textContent.includes('(№1)');
-                    });
+                const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
+                if (!parallelInput) return;
+                const parallelDate = parallelInput.value.trim();            
+                let foundElement = null;            
+                const lessonElements = document.querySelectorAll('.lesson_number');
+                lessonElements.forEach(element => {
+                  const text = element.textContent || element.innerText;
+                  if (text.includes('№1')) {
+                    foundElement = element.parentElement.nextSibling;
+                    return;
+                  }
+                });         
+                if (!foundElement) return;
+                const lessonInput = foundElement.querySelector(SELECTORS.LESSON_DATE);
+                if (!lessonInput) return;
+                const lessonDate = lessonInput.value.trim();            
+                if (!parallelDate || !lessonDate) return;           
 
-                    if (!lessonRow) return;
-                    const lessonInput = lessonRow.querySelector(SELECTORS.LESSON_DATE);
-                    if (!lessonInput) return;
-                    const lessonDate = lessonInput.value.trim();
-
-                    if (!parallelDate || !lessonDate) return;
-
-                    // Парсинг и сравнение дат
-                    const parse = str => {
-                        const [d, m, y] = str.split(' ')[0].split('.').map(Number);
-                        return new Date(y, m - 1, d);
-                    };
-
-                    const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();
-
-                    // Управление предупреждением
-                    const warning = document.getElementById('date-mismatch-warning');
-
-                    if (showWarning && !warning) {
-                        const el = document.createElement('div');
-                        el.id = 'date-mismatch-warning';
-                        el.style.cssText = `
-                    background:#ffebee; padding:12px 15px; margin:0;
-                    border-left:4px solid #f44336; font-family:sans-serif;
-                    position:fixed; top:20px; right:20px; z-index:99999;
-                    max-width:300px; box-shadow:0 2px 10px rgba(0,0,0,0.2);
-                    border-radius:4px;
-                `;
-                        el.innerHTML = `
-                    <div style="font-weight:bold; margin-bottom:8px;">
-                        <span style="font-size:18px;">⚠️</span> Даты не совпадают!
-                    </div>
-                    <div style="font-size:14px;">
-                        <div>Старт параллели: <b>${parallelDate.split(' ')[0]}</b></div>
-                        <div>Первое занятие: <b>${lessonDate.split(' ')[0]}</b></div>
-                    </div>
-                `;
-                        document.body.appendChild(el);
-                    } else if (!showWarning && warning) {
-                        warning.remove();
-                    }
-                } catch (e) {
-                    debug && console.error('DateChecker error:', e);
-                }
+                const parse = str => {
+                    const [d, m, y] = str.split(' ')[0].split('.').map(Number);
+                    return new Date(y, m - 1, d);
+                };          
+                const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();          
+                
+                const alerts = alertManager()
+                const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'         
+                if (showWarning) {
+                    alerts.addAlert(
+                    `Дата старта параллели не совпадает с датой старта первого занятия`,
+                    '#ffb6c4',
+                    msg
+                );
+                } else {
+                alerts.removeAlert('date-mismatch-warning');
+            }
             }
 
-            // Инициализация наблюдателя и событий
-            function init() {
-                // Наблюдатель для динамического контента
-                const observer = new MutationObserver(checkDates);
-                observer.observe(document.body, {
-                    childList: true,
-                    subtree: true
-                });
-
-                // Слушатели изменений дат
-                document.addEventListener('change', e => {
-                    if (e.target.matches(`${SELECTORS.PARALLEL_DATE}, ${SELECTORS.LESSON_DATE}`)) {
-                        checkDates();
-                    }
-                });
-
-                // Периодическая проверка
-                setInterval(checkDates, 2000);
-                checkDates();
-            }
-
-            // Запуск
-            window.dateCheckerInitialized || (window.dateCheckerInitialized = true, setTimeout(init, 500));
+            checkDates();
+            window.dateCheckerInitialized
         }
 
-        // Автозапуск
-        initDateChecker();
+        DateChecker();
 
         async function changeVebinarLocations() {
             // Конфигурация кнопок
@@ -2117,35 +2106,27 @@ function getBaseUrl(url) {
                 { text: 'ССМ', location: 'ssm' }
             ];
 
-            // Основные элементы интерфейса
             const container = document.querySelector('button.reset-btn')?.parentNode;
             if (!container) {
                 console.error('Контейнер для кнопок не найден');
             } else {
                 initButtons();
-                addStyles();
             }
 
-            // Инициализация кнопок
             function initButtons() {
                 BUTTONS.forEach(config => {
-                    const btn = createButton(config);
+                    const btn = createLocationButton(config);
                     container.insertBefore(btn, container.querySelector('.reset-btn'));
                 });
             }
 
-            // Создание кнопки
-            function createButton({ text, location }) {
-                const btn = document.createElement('button');
-                btn.className = 'my-btn btn';
-                btn.textContent = text;
-                btn.style.margin = '2px';
+            function createLocationButton({ text, location }) {
+                const btn = createButton(text, async () => { })
                 btn.dataset.location = location;
                 btn.addEventListener('click', handleButtonClick);
                 return btn;
             }
 
-            // Обработчик клика
             function handleButtonClick({ target }) {
                 const location = target.dataset.location;
                 const groupId = getGroupId();
@@ -2159,37 +2140,10 @@ function getBaseUrl(url) {
                 openNewTab(url);
             }
 
-            // Получение ID группы
             function getGroupId() {
-                // 1. Пробуем получить из скрытого select элемента
-                const groupSelect = document.querySelector('#select_group_template');
-                if (groupSelect?.value) return groupSelect.value;
-
-                // 2. Пробуем получить из активного элемента Select2
-                const activeOption = document.querySelector('.select2-results .select2-highlighted');
-                if (activeOption) {
-                    const id = parseIdFromText(activeOption.textContent);
-                    if (id) return id;
-                }
-
-                // 3. Пробуем получить из основного поля
-                const mainField = document.querySelector('.select2-choice .select2-chosen');
-                if (mainField) return parseIdFromText(mainField.textContent);
-
-                // 4. Пробуем получить из заголовка таблицы
-                const header = document.querySelector('th.groups_list');
-                if (header) return parseIdFromText(header.textContent);
-
-                return null;
+                return currentWindow.group_template_id.value;
             }
 
-            // Парсинг ID из текста
-            function parseIdFromText(text) {
-                const match = text.match(/\[(\d+)\]/) || text.match(/\((\d+)\)/);
-                return match ? match[1] : null;
-            }
-
-            // Формирование URL
             function buildUrl(groupId, location) {
                 const baseUrl = 'https://foxford.ru/admin/dev_services';
                 const params = new URLSearchParams({
@@ -2198,7 +2152,7 @@ function getBaseUrl(url) {
                     location: location,
                     auto_validate: true
                 });
-                console.log(`${baseUrl}?${params}`)
+                log(`${baseUrl}?${params}`)
                 return `${baseUrl}?${params}`;
             }
 
@@ -2218,28 +2172,6 @@ function getBaseUrl(url) {
                     if (!win.closed) win.close();
                     alert('Операция выполнена успешно!');
                 }, 2000);
-            }
-
-            // Добавление стилей
-            function addStyles() {
-                const style = document.createElement('style');
-                style.textContent = `
-                    .my-btn {
-                      border: none;
-                      color: black;
-                      padding: 8px 16px;
-                      text-align: center;
-                      text-decoration: none;
-                      display: inline-block;
-                      font-size: 14px;
-                      margin: 2px;
-                      cursor: pointer;
-                      border-radius: 4px;
-                      transition: background-color 0.3s;
-                    }
-
-                  `;
-                document.head.appendChild(style);
             }
         }
 
