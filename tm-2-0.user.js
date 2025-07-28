@@ -2052,11 +2052,6 @@ function getBaseUrl(url) {
                 LESSON_DATE: 'input[name="group[starts_at]"]'
             };
 
-            // Логирование только в режиме разработки
-            const debug = false;
-            const log = debug ? console.log : () => { };
-
-            // Основная функция проверки
             function checkDates() {
 
                 const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
@@ -2111,7 +2106,6 @@ function getBaseUrl(url) {
                 { text: 'ССМ', location: 'ssm' }
             ];
 
-            // Основные элементы интерфейса
             const container = document.querySelector('button.reset-btn')?.parentNode;
             if (!container) {
                 console.error('Контейнер для кнопок не найден');
@@ -2119,7 +2113,6 @@ function getBaseUrl(url) {
                 initButtons();
             }
 
-            // Инициализация кнопок
             function initButtons() {
                 BUTTONS.forEach(config => {
                     const btn = createLocationButton(config);
@@ -2134,7 +2127,6 @@ function getBaseUrl(url) {
                 return btn;
             }
 
-            // Обработчик клика
             function handleButtonClick({ target }) {
                 const location = target.dataset.location;
                 const groupId = getGroupId();
@@ -2148,12 +2140,10 @@ function getBaseUrl(url) {
                 openNewTab(url);
             }
 
-            // Получение ID группы
             function getGroupId() {
                 return currentWindow.group_template_id.value;
             }
 
-            // Формирование URL
             function buildUrl(groupId, location) {
                 const baseUrl = 'https://foxford.ru/admin/dev_services';
                 const params = new URLSearchParams({
@@ -2162,7 +2152,7 @@ function getBaseUrl(url) {
                     location: location,
                     auto_validate: true
                 });
-                console.log(`${baseUrl}?${params}`)
+                log(`${baseUrl}?${params}`)
                 return `${baseUrl}?${params}`;
             }
 
