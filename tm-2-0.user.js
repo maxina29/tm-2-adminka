@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.57
+// @version      0.2.0.58
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -32,6 +32,7 @@ class ManagedWindow {
         this.jsCodeArea = this.createElement('textarea');
         this.isRunningScript = false;
         this.subwindows = [];
+        this.searchParams = new URLSearchParams(this._nativeWindow.location.search);
         return this.#setupProxy();
     }
 
@@ -789,6 +790,128 @@ function splitString(str) {
     return str.split(/[\s,.;]+/).filter(Boolean);
 }
 
+function getBaseUrl(url) {
+    // Находим первое число в URL и оставляем все до него включительно
+    const match = url.match(/^(.*?\d+)/);
+    return match ? match[1] : url;
+}
+
+async function fillFormFromSearchParams() {
+    const stopParams = ['only_copy', 'only_week_day_webinars_settings', 'utf8', 'commit'];
+    const params = currentWindow.searchParams;
+    if (stopParams.some(param => params.has(param)) || params.size == 0) {
+        return;
+    }
+    const formId = params.get('form_id');
+    const formAction = params.get('form_action');
+    let form;
+    if (formId) {
+        form = currentWindow.querySelector(`form#${formId}`);
+    }
+    else if (formAction) {
+        form = currentWindow.querySelector(`form[action="${formAction}"]`);
+    }
+    else {
+        form = currentWindow.querySelector('form');
+    }
+    if (!form) {
+        const errorMsg = formId ? `Форма с ID "${formId}"` :
+            formAction ? `Форма с action "${formAction}"` :
+                "Ни одна форма";
+        displayError(`${errorMsg} не найдена`);
+        return;
+    }
+    else {
+        log('Начинаю автозаполнение формы');
+    }
+
+    // Обработка параметров заполнения
+    for (const [param, value] of params.entries()) {
+        // Специальные параметры пропускаем
+        if (['form_id', 'form_action', 'action', 'action_target', 'button', 'auto_submit'].includes(param)) continue;
+
+        const field = form.querySelector(`#${param}`);
+        if (field) {
+            fillFieldByType(field, value);
+        }
+    }
+
+    // Обработка действий
+    const action = params.get('action');
+    const actionTarget = params.get('action_target');
+    const buttonClass = params.get('button');
+    const autoSubmit = params.has('auto_submit');
+
+    if (action === 'click' && actionTarget) {
+        const element = form.querySelector(`#${actionTarget}`) ||
+            currentWindow.querySelector(`#${actionTarget}`);
+        log(`Нажимаю на элемент #${actionTarget}`);
+        if (element) element.click();
+    }
+    else if (action === 'click' && buttonClass) {
+        const button = form.querySelector(`.${buttonClass}`) ||
+            currentWindow.querySelector(`.${buttonClass}`);
+        log(`Нажимаю на кнопку .${buttonClass}`);
+        if (button) button.click();
+    }
+    if (action === 'submit' || autoSubmit) {
+        const submitButton = form.querySelector('input[type="submit"], button[type="submit"]');
+        log(`Автоматическа отправка формы`);
+        if (submitButton) {
+            submitButton.click();
+        } else {
+            form.submit();
+        }
+    }
+}
+
+function fillFieldByType(field, value) {
+    const tagName = field.tagName;
+    const type = field.type ? field.type.toLowerCase() : '';
+
+    try {
+        if (tagName === 'SELECT' && field.multiple) {
+            const values = value.split(',');
+            values.forEach(val => {
+                if (!Array.from(field.options).some(opt => opt.value === val)) {
+                    const newOption = new Option(val, val);
+                    field.add(newOption);
+                }
+            });
+            Array.from(field.options).forEach(option => {
+                option.selected = values.includes(option.value);
+            });
+        }
+        else if (tagName === 'SELECT') {
+            if (!Array.from(field.options).some(opt => opt.value === value)) {
+                const newOption = new Option(value, value);
+                field.add(newOption);
+            }
+            field.value = value;
+        }
+        else if (type === 'checkbox') {
+            field.checked = ['1', 'true', 'on'].includes(value.toLowerCase());
+        }
+        else if (type === 'radio') {
+            const radioGroup = field.form.querySelectorAll(`[name="${field.name}"][type="radio"]`);
+            radioGroup.forEach(radio => {
+                radio.checked = (radio.value === value);
+            });
+        }
+        else if (type === 'file') {
+            console.warn('Файловые поля не могут быть заполнены через URL параметры');
+        }
+        else {
+            field.value = value;
+        }
+        const changeEvent = new Event('change', { bubbles: true });
+        field.dispatchEvent(changeEvent);
+        log(`Заполнено поле ${field.id}: ${value}`);
+    } catch (e) {
+        displayError(e, `Ошибка при заполнении поля ${field.id}`);
+    }
+}
+
 // регулярки для проверки текущей страницы админки
 const pagePatterns = {
     // обучение - курсы
@@ -831,12 +954,6 @@ const pagePatterns = {
     index: 'https://foxford.ru/admin',
     hasAnchor: /#/
 };
-
-function getBaseUrl(url) {
-    // Находим первое число в URL и оставляем все до него включительно
-    const match = url.match(/^(.*?\d+)/);
-    return match ? match[1] : url;
-}
 
 (async function () {
     'use strict';
@@ -3879,8 +3996,9 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.57 от 28 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.58 от 29 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
+    await fillFormFromSearchParams();
 })();
 
