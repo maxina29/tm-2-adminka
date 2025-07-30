@@ -899,7 +899,7 @@ function fillFieldByType(field, value) {
             });
         }
         else if (type === 'file') {
-            console.warn('Файловые поля не могут быть заполнены через URL параметры');
+            displayLog('Файловые поля не могут быть заполнены через URL параметры', 'warning');
         }
         else {
             field.value = value;
