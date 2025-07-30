@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.58
+// @version      0.2.0.59
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -3932,6 +3932,67 @@ for (const templateData of templatesData) {
     await win.waitForSuccess();
     await win.openPage('about:blank');
 }`,
+            LOCATION_EDIT: `// в настройках параллели и всех занятиях, соответствующих определенному слоту
+// данные можно взять из таблицы
+// https://disk.360.yandex.ru/i/CFYefGrjHdfGIg
+// https://metabase.foxford.ru/question/47547?teacher_id=2363&school_year=2025
+const templatesData = [
+    // вставить из таблицы
+    { 'course_id': 10609, 'group_template_id': 18068, 'slot_id': 39461, 'location': [5, 1, 27] },
+
+];
+const basicFieldsTemplate = {
+    '_method': 'patch',
+    'commit': 'Сохранить',
+    'reset_schedule_reason': 'other',
+    'group_template[schedule_hidden]': '0'
+};
+const basicFieldsDev = {
+    '_method': 'put',
+    'commit': 'Сохранить'
+}
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+const locationFields = {
+    0: 'location_id',
+    1: 'format_id',
+    2: 'studio_id',
+    3: 'admin_id'
+};
+
+for (const templateData of templatesData) {
+    log(\`Курс $\{templateData.course_id}, параллель $\{templateData.group_template_id}\`);
+    if (templateData.slot_id) log(\`Слот $\{templateData.slot_id}\`); 
+    form.action = \`/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
+    const dynamicFieldsTemplate = {};
+    for (let i = 0; i < templateData.location.length; i++) {
+        dynamicFieldsTemplate[\`group_template[default_$\{locationFields[i]}]\`] = templateData.location[i];
+    }
+    currentWindow.updateFormFields(form, Object.assign(dynamicFieldsTemplate, basicFieldsTemplate));
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+    await sleep(100);
+    form.action = '/admin/dev_services/week_day_webinars_settings';
+    const dynamicFieldsDev = {
+        'week_day_webinars_settings[group_template_id]': templateData.group_template_id
+    };
+    if (templateData.slot_id) {
+        dynamicFieldsDev['week_day_webinars_settings[week_day_id]'] = templateData.slot_id;
+    }
+    else {
+        dynamicFieldsDev['week_day_webinars_settings[all_days]'] = 'true';
+    }
+    for (let i = 0; i < templateData.location.length; i++) {
+        dynamicFieldsDev[\`week_day_webinars_settings[$\{locationFields[i]}]\`] = templateData.location[i];
+    }
+    currentWindow.updateFormFields(form, Object.assign(dynamicFieldsDev, basicFieldsDev));
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+    await sleep(100);
+}`
         }
         createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
         createActionButton(coursesSubsection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
@@ -3946,7 +4007,8 @@ for (const templateData of templatesData) {
         createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
         createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
         createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
-        createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT)
+        createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT);
+        createActionButton(groupsSubsection, 'Изменить локации', SCRIPTS.LOCATION_EDIT);
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -3992,7 +4054,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.58 от 29 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.59 от 30 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
