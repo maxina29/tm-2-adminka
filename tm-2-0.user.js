@@ -825,23 +825,18 @@ async function fillFormFromSearchParams() {
         log('Начинаю автозаполнение формы');
     }
 
-    // Обработка параметров заполнения
     for (const [param, value] of params.entries()) {
-        // Специальные параметры пропускаем
         if (['form_id', 'form_action', 'action', 'action_target', 'button', 'auto_submit'].includes(param)) continue;
-
-        const field = form.querySelector(`#${param}`);
+        const field = form.querySelector(`#${param}:not(.protected)`);
         if (field) {
             fillFieldByType(field, value);
         }
     }
 
-    // Обработка действий
     const action = params.get('action');
     const actionTarget = params.get('action_target');
     const buttonClass = params.get('button');
     const autoSubmit = params.has('auto_submit');
-
     if (action === 'click' && actionTarget) {
         const element = form.querySelector(`#${actionTarget}`) ||
             currentWindow.querySelector(`#${actionTarget}`);
@@ -1695,6 +1690,7 @@ const pagePatterns = {
 
     // на странице с расписанием
     if (currentWindow.checkPath(pagePatterns.groups)) {
+        group_template_id.classList.add('protected');
         let mcid = window.location.href.match(/\d+/)[0];
         let div = document.createElement('div');
         let btn_return_moderators = document.createElement('button');
