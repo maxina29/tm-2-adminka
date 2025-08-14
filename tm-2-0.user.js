@@ -1502,9 +1502,8 @@ const pagePatterns = {
                         log(d[1] + ' ' + d[d.length - 1]);
                         await currentWindow.waitForElement(`#${lessonElement.id} .btn-success:not([style=""])`);
                     }
-                    log('Завершено проставление галок «Бесплатный»');
                 };
-                try { free(); } catch (e) { log(e); }
+                log('Завершено проставление галок «Бесплатный»');
             }
             let x = document.querySelector('.course-settings').parentNode;
             x.insertBefore(div, x.childNodes[2]);
