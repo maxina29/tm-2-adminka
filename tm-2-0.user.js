@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.59
+// @version      0.2.0.60
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1334,7 +1334,7 @@ const pagePatterns = {
                     let lessonsList = currentWindow.querySelectorAll('[id^="edit_lesson_"]');
                     for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonNumber; num++) {
                         let lessonElement = lessonsList[num];
-                        let deadlineCheckbox = lessonElement.querySelector('[name="lesson[tasks_deadline]');
+                        let deadlineCheckbox = lessonElement.querySelector('[name="lesson[tasks_deadline]"]');
                         if (deadlineCheckbox !== null && deadlineCheckbox.value) {
                             deadlineCheckbox.value = '';
                             let saveButton = lessonElement.querySelector('.btn-success');
@@ -1492,7 +1492,7 @@ const pagePatterns = {
                 let lessonsList = document.querySelectorAll('[id^="edit_lesson_"]');
                 for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonNumber; num++) {
                     let lessonElement = lessonsList[num];
-                    let freeCheckbox = lessonElement.querySelector('[name="lesson[free][type="checkbox"]"]');
+                    let freeCheckbox = lessonElement.querySelector('[name="lesson[free]"][type="checkbox"]');
                     if (freeCheckbox) {
                         freeCheckbox.checked = true;
                         let saveButton = lessonElement.querySelector('.btn-success');
@@ -4054,7 +4054,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.59 от 30 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.60 от 14 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
