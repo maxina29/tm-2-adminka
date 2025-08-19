@@ -25,6 +25,7 @@ try {
         let firstLessonNumberElement = groupsWindow.querySelector('#group_template_first_lesson_number');
         if (template.from) { firstLessonNumberElement.value = template.from; }
         else { firstLessonNumberElement.value = firstLessonNumberElement.options[1].value; }
+        groupsWindow.querySelector('[name="group_template[teacher_id]"]').value = 1361;
         if (template.agent) { groupsWindow.querySelector('[name="group_template[agent_id]"]').value = template.agent; }
         groupsWindow.querySelectorAll('[name="group_template[schedule_hidden]"]')[1].checked = template.hidden;
         groupsWindow.querySelector('[name="group_template[users_limit]"]').value = template.users;

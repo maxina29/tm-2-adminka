@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.57
+// @version      0.2.0.60
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -32,6 +32,7 @@ class ManagedWindow {
         this.jsCodeArea = this.createElement('textarea');
         this.isRunningScript = false;
         this.subwindows = [];
+        this.searchParams = new URLSearchParams(this._nativeWindow.location.search);
         return this.#setupProxy();
     }
 
@@ -789,6 +790,123 @@ function splitString(str) {
     return str.split(/[\s,.;]+/).filter(Boolean);
 }
 
+function getBaseUrl(url) {
+    // Находим первое число в URL и оставляем все до него включительно
+    const match = url.match(/^(.*?\d+)/);
+    return match ? match[1] : url;
+}
+
+async function fillFormFromSearchParams() {
+    const stopParams = ['only_copy', 'only_week_day_webinars_settings', 'utf8', 'commit'];
+    const params = currentWindow.searchParams;
+    if (stopParams.some(param => params.has(param)) || params.size == 0) {
+        return;
+    }
+    const formId = params.get('form_id');
+    const formAction = params.get('form_action');
+    let form;
+    if (formId) {
+        form = currentWindow.querySelector(`form#${formId}`);
+    }
+    else if (formAction) {
+        form = currentWindow.querySelector(`form[action="${formAction}"]`);
+    }
+    else {
+        form = currentWindow.querySelector('form');
+    }
+    if (!form) {
+        const errorMsg = formId ? `Форма с ID "${formId}"` :
+            formAction ? `Форма с action "${formAction}"` :
+                "Ни одна форма";
+        displayError(`${errorMsg} не найдена`);
+        return;
+    }
+    else {
+        log('Начинаю автозаполнение формы');
+    }
+
+    for (const [param, value] of params.entries()) {
+        if (['form_id', 'form_action', 'action', 'action_target', 'button', 'auto_submit'].includes(param)) continue;
+        const field = form.querySelector(`#${param}:not(.protected)`);
+        if (field) {
+            fillFieldByType(field, value);
+        }
+    }
+
+    const action = params.get('action');
+    const actionTarget = params.get('action_target');
+    const buttonClass = params.get('button');
+    const autoSubmit = params.has('auto_submit');
+    if (action === 'click' && actionTarget) {
+        const element = form.querySelector(`#${actionTarget}`) ||
+            currentWindow.querySelector(`#${actionTarget}`);
+        log(`Нажимаю на элемент #${actionTarget}`);
+        if (element) element.click();
+    }
+    else if (action === 'click' && buttonClass) {
+        const button = form.querySelector(`.${buttonClass}`) ||
+            currentWindow.querySelector(`.${buttonClass}`);
+        log(`Нажимаю на кнопку .${buttonClass}`);
+        if (button) button.click();
+    }
+    if (action === 'submit' || autoSubmit) {
+        const submitButton = form.querySelector('input[type="submit"], button[type="submit"]');
+        log(`Автоматическа отправка формы`);
+        if (submitButton) {
+            submitButton.click();
+        } else {
+            form.submit();
+        }
+    }
+}
+
+function fillFieldByType(field, value) {
+    const tagName = field.tagName;
+    const type = field.type ? field.type.toLowerCase() : '';
+
+    try {
+        if (tagName === 'SELECT' && field.multiple) {
+            const values = value.split(',');
+            values.forEach(val => {
+                if (!Array.from(field.options).some(opt => opt.value === val)) {
+                    const newOption = new Option(val, val);
+                    field.add(newOption);
+                }
+            });
+            Array.from(field.options).forEach(option => {
+                option.selected = values.includes(option.value);
+            });
+        }
+        else if (tagName === 'SELECT') {
+            if (!Array.from(field.options).some(opt => opt.value === value)) {
+                const newOption = new Option(value, value);
+                field.add(newOption);
+            }
+            field.value = value;
+        }
+        else if (type === 'checkbox') {
+            field.checked = ['1', 'true', 'on'].includes(value.toLowerCase());
+        }
+        else if (type === 'radio') {
+            const radioGroup = field.form.querySelectorAll(`[name="${field.name}"][type="radio"]`);
+            radioGroup.forEach(radio => {
+                radio.checked = (radio.value === value);
+            });
+        }
+        else if (type === 'file') {
+            displayLog('Файловые поля не могут быть заполнены через URL параметры', 'warning');
+        }
+        else {
+            field.value = value;
+        }
+        const changeEvent = new Event('change', { bubbles: true });
+        field.dispatchEvent(changeEvent);
+        log(`Заполнено поле ${field.id}: ${value}`);
+    } catch (e) {
+        displayError(e, `Ошибка при заполнении поля ${field.id}`);
+    }
+}
+
 // регулярки для проверки текущей страницы админки
 const pagePatterns = {
     // обучение - курсы
@@ -831,12 +949,6 @@ const pagePatterns = {
     index: 'https://foxford.ru/admin',
     hasAnchor: /#/
 };
-
-function getBaseUrl(url) {
-    // Находим первое число в URL и оставляем все до него включительно
-    const match = url.match(/^(.*?\d+)/);
-    return match ? match[1] : url;
-}
 
 (async function () {
     'use strict';
@@ -1222,7 +1334,7 @@ function getBaseUrl(url) {
                     let lessonsList = currentWindow.querySelectorAll('[id^="edit_lesson_"]');
                     for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonNumber; num++) {
                         let lessonElement = lessonsList[num];
-                        let deadlineCheckbox = lessonElement.querySelector('[name="lesson[tasks_deadline]');
+                        let deadlineCheckbox = lessonElement.querySelector('[name="lesson[tasks_deadline]"]');
                         if (deadlineCheckbox !== null && deadlineCheckbox.value) {
                             deadlineCheckbox.value = '';
                             let saveButton = lessonElement.querySelector('.btn-success');
@@ -1380,7 +1492,7 @@ function getBaseUrl(url) {
                 let lessonsList = document.querySelectorAll('[id^="edit_lesson_"]');
                 for (let num = currentWindow.firstLessonNumber; num <= currentWindow.lastLessonNumber; num++) {
                     let lessonElement = lessonsList[num];
-                    let freeCheckbox = lessonElement.querySelector('[name="lesson[free][type="checkbox"]"]');
+                    let freeCheckbox = lessonElement.querySelector('[name="lesson[free]"][type="checkbox"]');
                     if (freeCheckbox) {
                         freeCheckbox.checked = true;
                         let saveButton = lessonElement.querySelector('.btn-success');
@@ -1390,9 +1502,8 @@ function getBaseUrl(url) {
                         log(d[1] + ' ' + d[d.length - 1]);
                         await currentWindow.waitForElement(`#${lessonElement.id} .btn-success:not([style=""])`);
                     }
-                    log('Завершено проставление галок «Бесплатный»');
                 };
-                try { free(); } catch (e) { log(e); }
+                log('Завершено проставление галок «Бесплатный»');
             }
             let x = document.querySelector('.course-settings').parentNode;
             x.insertBefore(div, x.childNodes[2]);
@@ -1578,6 +1689,7 @@ function getBaseUrl(url) {
 
     // на странице с расписанием
     if (currentWindow.checkPath(pagePatterns.groups)) {
+        group_template_id.classList.add('protected');
         let mcid = window.location.href.match(/\d+/)[0];
         let div = document.createElement('div');
         let btn_return_moderators = document.createElement('button');
@@ -3751,6 +3863,67 @@ for (const templateData of templatesData) {
     await win.waitForSuccess();
     await win.openPage('about:blank');
 }`,
+            LOCATION_EDIT: `// в настройках параллели и всех занятиях, соответствующих определенному слоту
+// данные можно взять из таблицы
+// https://disk.360.yandex.ru/i/CFYefGrjHdfGIg
+// https://metabase.foxford.ru/question/47547?teacher_id=2363&school_year=2025
+const templatesData = [
+    // вставить из таблицы
+    { 'course_id': 10609, 'group_template_id': 18068, 'slot_id': 39461, 'location': [5, 1, 27] },
+
+];
+const basicFieldsTemplate = {
+    '_method': 'patch',
+    'commit': 'Сохранить',
+    'reset_schedule_reason': 'other',
+    'group_template[schedule_hidden]': '0'
+};
+const basicFieldsDev = {
+    '_method': 'put',
+    'commit': 'Сохранить'
+}
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+const locationFields = {
+    0: 'location_id',
+    1: 'format_id',
+    2: 'studio_id',
+    3: 'admin_id'
+};
+
+for (const templateData of templatesData) {
+    log(\`Курс $\{templateData.course_id}, параллель $\{templateData.group_template_id}\`);
+    if (templateData.slot_id) log(\`Слот $\{templateData.slot_id}\`); 
+    form.action = \`/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
+    const dynamicFieldsTemplate = {};
+    for (let i = 0; i < templateData.location.length; i++) {
+        dynamicFieldsTemplate[\`group_template[default_$\{locationFields[i]}]\`] = templateData.location[i];
+    }
+    currentWindow.updateFormFields(form, Object.assign(dynamicFieldsTemplate, basicFieldsTemplate));
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+    await sleep(100);
+    form.action = '/admin/dev_services/week_day_webinars_settings';
+    const dynamicFieldsDev = {
+        'week_day_webinars_settings[group_template_id]': templateData.group_template_id
+    };
+    if (templateData.slot_id) {
+        dynamicFieldsDev['week_day_webinars_settings[week_day_id]'] = templateData.slot_id;
+    }
+    else {
+        dynamicFieldsDev['week_day_webinars_settings[all_days]'] = 'true';
+    }
+    for (let i = 0; i < templateData.location.length; i++) {
+        dynamicFieldsDev[\`week_day_webinars_settings[$\{locationFields[i]}]\`] = templateData.location[i];
+    }
+    currentWindow.updateFormFields(form, Object.assign(dynamicFieldsDev, basicFieldsDev));
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+    await sleep(100);
+}`
         }
         createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
         createActionButton(coursesSubsection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
@@ -3765,7 +3938,8 @@ for (const templateData of templatesData) {
         createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
         createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
         createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
-        createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT)
+        createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT);
+        createActionButton(groupsSubsection, 'Изменить локации', SCRIPTS.LOCATION_EDIT);
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -3811,8 +3985,9 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.57 от 28 июля 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.60 от 14 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
+    await fillFormFromSearchParams();
 })();
 
