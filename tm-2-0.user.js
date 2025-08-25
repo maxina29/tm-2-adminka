@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.60
+// @version      0.2.0.61
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1869,7 +1869,56 @@ const pagePatterns = {
         }
         btn_group_lessons = createButton('Проставить групповые встречи', btn_group_lessons_onclick, 'set-group-lessons');
         btn_group_lessons.hidden = true;
-        div.appendChild(btn_show); div.appendChild(btn_masscopy); div.appendChild(btn_group_lessons); div.appendChild(btn_hide); div.appendChild(btn_prs);
+        let btn_dop_sam_lessons_onclick = async () => {
+            function isValidTime(timeString) {
+                const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+                return timeRegex.test(timeString);
+            }
+            let dopTime = prompt('Укажи время допзанятий в формате 13:00');
+            if (!isValidTime(dopTime)) { 
+                log('Выполнение скрипта отменено, неверный формат времени');
+                return; 
+            }
+            let href = currentWindow.location.href;
+            let tempWindow = await createWindow('adminka_lessons');
+            await tempWindow.openPage(`${getBaseUrl(href)}/lessons`);
+            let lessonElements = tempWindow.querySelectorAll('.lessons-list .lesson');
+            let lessonNames = _.toArray(lessonElements).map(i => i.querySelector('#lesson_name').value);
+            let lessonWithoutVideo = _.toArray(lessonElements).map(i => i.querySelector('#lesson_video_url') == null);
+            let dopLessonNames = lessonNames.filter(i => i.search(/📝Дополнительный разбор/) != -1 || i.search(/✒️Аудиодиктант/) != -1);
+            let dopLessonInd = dopLessonNames.map(i => lessonNames.indexOf(i));
+            let noVideoInd = [];
+            lessonWithoutVideo.forEach((value, index) => {
+                if (value === true) {
+                    noVideoInd.push(index);
+                }
+            });
+            await tempWindow.close();
+            log(dopLessonInd);
+            let startsAtElements = currentWindow.querySelectorAll('[name="group[starts_at]"]');
+            let startsAtValues = _.toArray(startsAtElements).map(i => i.value);
+            let k = 0;
+            for (let i = 0; i < startsAtValues.length; i++) {
+                if (dopLessonInd.includes(i)) {
+                    k++;
+                    startsAtElements[i].value = startsAtValues[i - k].replace(/\d\d:00$/, `${dopTime}`);
+                }
+                else if (noVideoInd.includes(i)) {
+                    k++;
+                    startsAtElements[i].value = startsAtValues[i - k];
+                }
+                else {
+                    startsAtElements[i].value = startsAtValues[i - k];
+                }
+                let submitButton = startsAtElements[i].closest('.groups_list').querySelector('[type="submit"]');
+                submitButton.click();
+                await sleep(100);
+            }
+
+        }
+        let btn_dop_sam_lessons = createButton('Проставить доп. занятия (тариф Самостоятельный)', btn_dop_sam_lessons_onclick, 'set-dop-sam-lessons');
+        btn_dop_sam_lessons.hidden = true;
+        div.appendChild(btn_show); div.appendChild(btn_masscopy); div.appendChild(btn_group_lessons); div.appendChild(btn_dop_sam_lessons); div.appendChild(btn_hide); div.appendChild(btn_prs);
         let x = document.getElementsByClassName('container-fluid')[1].childNodes[2];
         x.insertBefore(div, x.firstChild);
         function join_short(a, sym = ', ', end = ' и еще в ', cou = 3) {
@@ -4053,7 +4102,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.60 от 14 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.61 от 25 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
