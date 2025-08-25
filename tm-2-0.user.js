@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.62
+// @version      0.2.0.63
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1885,7 +1885,7 @@ const pagePatterns = {
             let lessonElements = tempWindow.querySelectorAll('.lessons-list .lesson');
             let lessonNames = _.toArray(lessonElements).map(i => i.querySelector('#lesson_name').value);
             let lessonWithoutVideo = _.toArray(lessonElements).map(i => i.querySelector('#lesson_video_url') == null);
-            let dopLessonNames = lessonNames.filter(i => i.search(/📝Дополнительный разбор/) != -1 || i.search(/✒️Аудиодиктант/) != -1);
+            let dopLessonNames = lessonNames.filter(i => i.search(/📝Дополнительный разбор/) != -1 || i.search(/📝 Дополнительный разбор/) != -1 || i.search(/✒️Аудиодиктант/) != -1 || i.search(/✒️ Аудиодиктант/) != -1);
             let dopLessonInd = dopLessonNames.map(i => lessonNames.indexOf(i));
             let noVideoInd = [];
             lessonWithoutVideo.forEach((value, index) => {
@@ -4105,7 +4105,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.62 от 25 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.63 от 25 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
