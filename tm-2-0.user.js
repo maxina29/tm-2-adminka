@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.61
+// @version      0.2.0.62
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1896,9 +1896,12 @@ const pagePatterns = {
             await tempWindow.close();
             log(dopLessonInd);
             let startsAtElements = currentWindow.querySelectorAll('[name="group[starts_at]"]');
-            let startsAtValues = _.toArray(startsAtElements).map(i => i.value);
+            let startsAtValues = [];
+            for (let el of startsAtElements) {
+                if (!startsAtValues.includes(el.value)) startsAtValues.push(el.value);
+            }
             let k = 0;
-            for (let i = 0; i < startsAtValues.length; i++) {
+            for (let i = 0; i < startsAtElements.length; i++) {
                 if (dopLessonInd.includes(i)) {
                     k++;
                     startsAtElements[i].value = startsAtValues[i - k].replace(/\d\d:00$/, `${dopTime}`);
@@ -1914,7 +1917,7 @@ const pagePatterns = {
                 submitButton.click();
                 await sleep(100);
             }
-
+            displayLog('Выполнение скрипта завершено');
         }
         let btn_dop_sam_lessons = createButton('Проставить доп. занятия (тариф Самостоятельный)', btn_dop_sam_lessons_onclick, 'set-dop-sam-lessons');
         btn_dop_sam_lessons.hidden = true;
@@ -4102,7 +4105,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.61 от 25 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.62 от 25 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
