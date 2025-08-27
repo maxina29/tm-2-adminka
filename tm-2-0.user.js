@@ -926,12 +926,12 @@ const pagePatterns = {
     // обучение - тесты
     trainingsTaskTemplates: /trainings\/\d*\/task_templates/,
     trainingsIndividualTasks: /trainings\/task_templates\/\d*\/individual_tasks/,
-    // практика - задачи
-    taskPreviewAnswers: /admin\/tasks\/\d*\/preview#ans/,
-    tasksEdit: /admin\/tasks\/(?:codes\/|essays\/)?\d*\/edit/,
     // обучение - мероприятия
     eventsNew: /admin\/events\/new/,
     eventsEdit: /admin\/events\/\d*\/edit/,
+    // практика - задачи
+    taskPreviewAnswers: /admin\/tasks\/\d*\/preview#ans/,
+    tasksEdit: /admin\/tasks\/(?:codes\/|essays\/)?\d*\/edit/,
     // практика - учебные программы
     methodicalBlockEdit: /methodical_materials\/programs\/[\d]*\/blocks\/\d*\/edit/,
     methodicalLinkCreateVideo: /methodical_materials\/units\/\d*\/link_items\/new#szh/,
@@ -2911,12 +2911,6 @@ const pagePatterns = {
         createTaskButton.parentNode.insertBefore(massTasksButton, createTaskButton.nextSibling);
     }
 
-    /************************* Практика - задачи ************************/
-
-    if (currentWindow.checkPath(pagePatterns.trainingsIndividualTasks)) {
-        currentWindow.body.firstChild.className += ' trainings_individual_tasks';
-    }
-
     /********************** Обучение - мероприятия **********************/
 
     if (currentWindow.checkPath(pagePatterns.eventsEdit) ||
@@ -2946,6 +2940,12 @@ const pagePatterns = {
         pred.style = 'color:orange;font-size: 11px; top: 3px';
         document.getElementsByClassName('event_series')[0].childNodes[1].appendChild(pred);
         log('Страница модифицирована');
+    }
+
+    /************************* Практика - задачи ************************/
+
+    if (currentWindow.checkPath(pagePatterns.trainingsIndividualTasks)) {
+        currentWindow.body.firstChild.className += ' trainings_individual_tasks';
     }
 
     /******************* Практика - учебные программы *******************/
