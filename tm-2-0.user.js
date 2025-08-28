@@ -915,7 +915,7 @@ const pagePatterns = {
     coursesNew: /admin\/courses\/new/,
     miniGroupsEdit: /admin\/mini_groups\/\d*\/edit/, /* пока не используется */
     miniGroupsNew: /admin\/mini_groups\/new/,
-    lessons: /lessons[#$]?$/,
+    lessons: /lessons[#$]/,
     lessonsOrder: /lessons_order$/,
     lessonTasks: /admin\/lessons\/\d*\/lesson_tasks/,
     groups: /groups([?#]|$)/,
