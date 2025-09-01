@@ -2272,8 +2272,7 @@ const pagePatterns = {
         // Автозапуск
         initDateChecker();
 
-        async function changeVebinarLocations() {
-            // Конфигурация кнопок
+        async function changeWebinarLocations() {
             const BUTTONS = [
                 { text: 'Мини-группы', location: 'mini' },
                 { text: 'Шлак', location: 'slag' },
@@ -2315,7 +2314,7 @@ const pagePatterns = {
                 }
 
                 const url = buildUrl(groupId, location);
-                openNewTab(url);
+                openAndCloseWindow(url);
             }
 
             // Получение ID группы
@@ -2337,7 +2336,7 @@ const pagePatterns = {
             }
 
             // Открытие новой вкладки
-            async function openNewTab(url) {
+            async function openAndCloseWindow(url) {
                 let win = await createWindow();
                 await win.openPage(url, '_blank');
                 await win.waitForSuccess();
@@ -2355,7 +2354,7 @@ const pagePatterns = {
             }
         }
 
-        changeVebinarLocations();
+        changeWebinarLocations();
 
         let all_save_btns = document.querySelectorAll('.btn-default[value="Сохранить"]');
         for (let save_btn of all_save_btns) { save_btn.addEventListener('click', no_rasp_groups); }
