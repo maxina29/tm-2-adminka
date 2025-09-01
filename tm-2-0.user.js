@@ -1691,7 +1691,7 @@ const pagePatterns = {
     if (currentWindow.checkPath(pagePatterns.groups)) {
         group_template_id.classList.add('protected');
         let mcid = window.location.href.match(/\d+/)[0];
-        let div = document.createElement('div');
+        let div = createElement('div', 'adminButtons');
         let btn_return_moderators = document.createElement('button');
         btn_return_moderators.innerHTML = 'Вернуть модераторов'; btn_return_moderators.hidden = false;
         div.appendChild(btn_return_moderators);
@@ -2013,21 +2013,21 @@ const pagePatterns = {
         // Генерация уведомлений от @wanna_get_out
         function alertManager() {
             const managerId = 'alert-manager-container';
-            let container = document.getElementById(managerId);
+            let container = currentWindow.getElementById(managerId);
 
             if (!container) {
-                container = document.createElement('div');
+                container = currentWindow.createElement('div');
                 container.id = managerId;
                 container.style.display = 'flex';
                 container.style.flexDirection = 'column';
                 container.style.gap = '10px';
                 container.style.marginTop = '10px';
 
-                const referenceNode = document.querySelector('#course_data');
+                const referenceNode = currentWindow.querySelector('#course_data');
                 if (referenceNode) {
                     referenceNode.parentNode.insertBefore(container, referenceNode);
                 } else {
-                    document.body.prepend(container);
+                    currentWindow.body.prepend(container);
                 }
             }
 
@@ -2036,7 +2036,7 @@ const pagePatterns = {
                     const existingAlert = container.querySelector(`.${alertClass}`);
                     if (existingAlert) existingAlert.remove();
 
-                    const alert = document.createElement('div');
+                    const alert = currentWindow.createElement('div');
                     alert.className = alertClass;
                     alert.style.padding = '10px';
                     alert.style.borderRadius = '4px';
@@ -2155,23 +2155,16 @@ const pagePatterns = {
         }
         no_rasp_groups();
 
-        function DateChecker() {
-
-            const SELECTORS = {
-                PARALLEL_DATE: 'input[name="group_template[starts_at]"]',
-                LESSON_ROW: 'tr:has(td.first_column)',
-                LESSON_NUMBER: '.lesson_number a',
-                LESSON_DATE: 'input[name="group[starts_at]"]'
-            };
+        function templateStartDateChecker() {
 
             function checkDates() {
 
-                const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
-                if (!parallelInput) return;
-                const parallelDate = parallelInput.value.trim();            
+                const templateStartsAtInput = [...currentWindow.querySelectorAll('input[name="group_template[starts_at]"]')].pop();
+                if (!templateStartsAtInput) return;
+                const templateDate = templateStartsAtInput.value.trim();            
                 let foundElement = null;            
-                const lessonElements = document.querySelectorAll('.lesson_number');
-                lessonElements.forEach(element => {
+                const lessonInfoElements = currentWindow.querySelectorAll('.lesson_number');
+                lessonInfoElements.forEach(element => {
                   const text = element.textContent || element.innerText;
                   if (text.includes('№1')) {
                     foundElement = element.parentElement.nextSibling;
@@ -2179,16 +2172,16 @@ const pagePatterns = {
                   }
                 });         
                 if (!foundElement) return;
-                const lessonInput = foundElement.querySelector(SELECTORS.LESSON_DATE);
+                const lessonInput = foundElement.querySelector('input[name="group[starts_at]"]');
                 if (!lessonInput) return;
                 const lessonDate = lessonInput.value.trim();            
-                if (!parallelDate || !lessonDate) return;           
+                if (!templateDate || !lessonDate) return;           
 
                 const parse = str => {
                     const [d, m, y] = str.split(' ')[0].split('.').map(Number);
                     return new Date(y, m - 1, d);
                 };          
-                const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();          
+                const showWarning = parse(templateDate).getTime() !== parse(lessonDate).getTime();          
                 
                 const alerts = alertManager()
                 const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'         
@@ -2207,10 +2200,9 @@ const pagePatterns = {
             window.dateCheckerInitialized
         }
 
-        DateChecker();
+        templateStartDateChecker();
 
-        async function changeVebinarLocations() {
-            // Конфигурация кнопок
+        async function changeWebinarLocations() {
             const BUTTONS = [
                 { text: 'Мини-группы', location: 'mini' },
                 { text: 'Шлак', location: 'slag' },
@@ -2218,9 +2210,9 @@ const pagePatterns = {
                 { text: 'ССМ', location: 'ssm' }
             ];
 
-            const container = document.querySelector('button.reset-btn')?.parentNode;
+            const container = currentWindow.querySelector('.adminButtons');
             if (!container) {
-                console.error('Контейнер для кнопок не найден');
+                displayLog('Контейнер для кнопок не найден', 'danger');
             } else {
                 initButtons();
             }
@@ -2228,7 +2220,7 @@ const pagePatterns = {
             function initButtons() {
                 BUTTONS.forEach(config => {
                     const btn = createLocationButton(config);
-                    container.insertBefore(btn, container.querySelector('.reset-btn'));
+                    container.append(btn);
                 });
             }
 
@@ -2249,7 +2241,7 @@ const pagePatterns = {
                 }
 
                 const url = buildUrl(groupId, location);
-                openNewTab(url);
+                openAndCloseWindow(url);
             }
 
             function getGroupId() {
@@ -2269,25 +2261,14 @@ const pagePatterns = {
             }
 
             // Открытие новой вкладки
-            async function openNewTab(url) {
+            async function openAndCloseWindow(url) {
                 let win = await createWindow();
-                await win.openPage(url, '_blank');
                 await win.waitForSuccess();
-
-                if (!win) {
-                    alert('Разрешите всплывающие окна для работы скрипта');
-                    return;
-                }
-
-                // Автозакрытие через 2 секунды
-                setTimeout(() => {
-                    if (!win.closed) win.close();
-                    alert('Операция выполнена успешно!');
-                }, 2000);
+                if (!win.closed) win.close();
             }
         }
 
-        changeVebinarLocations();
+        changeWebinarLocations();
 
         let all_save_btns = document.querySelectorAll('.btn-default[value="Сохранить"]');
         for (let save_btn of all_save_btns) { save_btn.addEventListener('click', no_rasp_groups); }
