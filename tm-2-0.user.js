@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.63
+// @version      0.2.0.64
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1875,9 +1875,9 @@ const pagePatterns = {
                 return timeRegex.test(timeString);
             }
             let dopTime = prompt('Укажи время допзанятий в формате 13:00');
-            if (!isValidTime(dopTime)) { 
+            if (!isValidTime(dopTime)) {
                 log('Выполнение скрипта отменено, неверный формат времени');
-                return; 
+                return;
             }
             let href = currentWindow.location.href;
             let tempWindow = await createWindow('adminka_lessons');
@@ -2216,11 +2216,11 @@ const pagePatterns = {
                 let foundElement = null;
                 const lessonInfoElements = currentWindow.querySelectorAll('.lesson_number');
                 lessonInfoElements.forEach(element => {
-                  const text = element.textContent || element.innerText;
-                  if (text.includes('№1')) {
-                    foundElement = element.parentElement.nextSibling;
-                    return;
-                  }
+                    const text = element.textContent || element.innerText;
+                    if (text.includes('№1')) {
+                        foundElement = element.parentElement.nextSibling;
+                        return;
+                    }
                 });
                 if (!foundElement) return;
                 const lessonInput = foundElement.querySelector('input[name="group[starts_at]"]');
@@ -2233,18 +2233,18 @@ const pagePatterns = {
                     return new Date(y, m - 1, d);
                 };
                 const showWarning = parse(templateDate).getTime() !== parse(lessonDate).getTime();
-                
+
                 const alerts = alertManager()
-                const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'         
+                const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'
                 if (showWarning) {
                     alerts.addAlert(
-                    `Дата старта параллели не совпадает с датой старта первого занятия`,
-                    '#ffb6c4',
-                    msg
-                );
+                        `Дата старта параллели не совпадает с датой старта первого занятия`,
+                        '#ffb6c4',
+                        msg
+                    );
                 } else {
-                alerts.removeAlert('date-mismatch-warning');
-            }
+                    alerts.removeAlert('date-mismatch-warning');
+                }
             }
 
             checkDates();
@@ -4017,7 +4017,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.63 от 25 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.64 от 2 сентября 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
