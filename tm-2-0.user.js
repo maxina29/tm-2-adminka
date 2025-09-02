@@ -2061,6 +2061,51 @@ const pagePatterns = {
             }
         }
         full_numeration_creation();
+
+        // Генерация уведомлений от @wanna_get_out
+        function alertManager() {
+            const managerId = 'alert-manager-container';
+            let container = document.getElementById(managerId);
+
+            if (!container) {
+                container = document.createElement('div');
+                container.id = managerId;
+                container.style.display = 'flex';
+                container.style.flexDirection = 'column';
+                container.style.gap = '10px';
+                container.style.marginTop = '10px';
+
+                const referenceNode = document.querySelector('#course_data');
+                if (referenceNode) {
+                    referenceNode.parentNode.insertBefore(container, referenceNode);
+                } else {
+                    document.body.prepend(container);
+                }
+            }
+
+            return {
+                addAlert: (message, bgColor = '#ffb6c4', alertClass = 'custom-alert') => {
+                    const existingAlert = container.querySelector(`.${alertClass}`);
+                    if (existingAlert) existingAlert.remove();
+
+                    const alert = document.createElement('div');
+                    alert.className = alertClass;
+                    alert.style.padding = '10px';
+                    alert.style.borderRadius = '4px';
+                    alert.style.backgroundColor = bgColor;
+                    alert.style.textAlign = 'center';
+                    alert.textContent = message;
+
+                    container.appendChild(alert);
+                },
+
+                removeAlert: (alertClass = 'custom-alert') => {
+                    const alert = container.querySelector(`.${alertClass}`);
+                    if (alert) alert.remove();
+                }
+            };
+        }
+
         // занятия не по расписанию от @wanna_get_out
         let no_rasp_groups = async function () {
             // Возвращает список дней недели
