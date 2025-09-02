@@ -2325,32 +2325,7 @@ const pagePatterns = {
 
             // Получение ID группы
             function getGroupId() {
-                // 1. Пробуем получить из скрытого select элемента
-                const groupSelect = document.querySelector('#select_group_template');
-                if (groupSelect?.value) return groupSelect.value;
-
-                // 2. Пробуем получить из активного элемента Select2
-                const activeOption = document.querySelector('.select2-results .select2-highlighted');
-                if (activeOption) {
-                    const id = parseIdFromText(activeOption.textContent);
-                    if (id) return id;
-                }
-
-                // 3. Пробуем получить из основного поля
-                const mainField = document.querySelector('.select2-choice .select2-chosen');
-                if (mainField) return parseIdFromText(mainField.textContent);
-
-                // 4. Пробуем получить из заголовка таблицы
-                const header = document.querySelector('th.groups_list');
-                if (header) return parseIdFromText(header.textContent);
-
-                return null;
-            }
-
-            // Парсинг ID из текста
-            function parseIdFromText(text) {
-                const match = text.match(/\[(\d+)\]/) || text.match(/\((\d+)\)/);
-                return match ? match[1] : null;
+                return currentWindow.group_template_id.value;
             }
 
             // Формирование URL
