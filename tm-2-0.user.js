@@ -2207,8 +2207,7 @@ const pagePatterns = {
         }
         no_rasp_groups();
 
-        function initDateChecker() {
-            console.log('DateChecker: Starting');
+        function DateChecker() {
 
             const SELECTORS = {
                 PARALLEL_DATE: 'input[name="group_template[starts_at]"]',
@@ -2306,8 +2305,7 @@ const pagePatterns = {
             window.dateCheckerInitialized || (window.dateCheckerInitialized = true, setTimeout(init, 500));
         }
 
-        // Автозапуск
-        initDateChecker();
+        DateChecker();
 
         async function changeWebinarLocations() {
             const BUTTONS = [
