@@ -2217,12 +2217,9 @@ const pagePatterns = {
             };
 
             function checkDates() {
-                // Поиск даты параллели
                 const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
                 if (!parallelInput) return;
                 const parallelDate = parallelInput.value.trim();
-
-                // Поиск даты занятия №1
                 const lessonRow = [...document.querySelectorAll(SELECTORS.LESSON_ROW)].find(row => {
                     const numEl = row.querySelector(SELECTORS.LESSON_NUMBER);
                     return numEl?.textContent.includes('(№1)');
@@ -2235,12 +2232,10 @@ const pagePatterns = {
 
                 if (!parallelDate || !lessonDate) return;
 
-                // Парсинг и сравнение дат
                 const parse = str => {
                     const [d, m, y] = str.split(' ')[0].split('.').map(Number);
                     return new Date(y, m - 1, d);
                 };
-
                 const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();          
                 
                 const alerts = alertManager()
