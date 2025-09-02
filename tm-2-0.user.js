@@ -2220,16 +2220,19 @@ const pagePatterns = {
                 const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
                 if (!parallelInput) return;
                 const parallelDate = parallelInput.value.trim();
-                const lessonRow = [...document.querySelectorAll(SELECTORS.LESSON_ROW)].find(row => {
-                    const numEl = row.querySelector(SELECTORS.LESSON_NUMBER);
-                    return numEl?.textContent.includes('(№1)');
+                let foundElement = null;
+                const lessonElements = document.querySelectorAll('.lesson_number');
+                lessonElements.forEach(element => {
+                  const text = element.textContent || element.innerText;
+                  if (text.includes('№1')) {
+                    foundElement = element.parentElement.nextSibling;
+                    return;
+                  }
                 });
-
-                if (!lessonRow) return;
-                const lessonInput = lessonRow.querySelector(SELECTORS.LESSON_DATE);
+                if (!foundElement) return;
+                const lessonInput = foundElement.querySelector(SELECTORS.LESSON_DATE);
                 if (!lessonInput) return;
                 const lessonDate = lessonInput.value.trim();
-
                 if (!parallelDate || !lessonDate) return;
 
                 const parse = str => {
