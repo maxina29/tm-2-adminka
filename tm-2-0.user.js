@@ -2271,7 +2271,7 @@ const pagePatterns = {
                         warning.remove();
                     }
                 } catch (e) {
-                    debug && console.error('DateChecker error:', e);
+                    console.error('DateChecker error:', e);
                 }
             }
             
