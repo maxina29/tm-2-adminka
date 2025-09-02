@@ -2193,23 +2193,15 @@ const pagePatterns = {
                     parent.style.backgroundColor = '';
                 }
             }
-            // выводим предупреждение
+            const alerts = alertManager()
             if (lessonsCount) {
-                let msg = `В данной параллели занятий не по расписанию: ${lessonsCount}`;
-
-                let alert = document.querySelector('.alert-no-rasp-groups');
-                if (!alert) {
-                    alert = document.createElement('div');
-                    alert.className = 'alert alert-no-rasp-groups';
-                    alert.style = 'margin-top: 10pt;';
-                }
-                alert.innerHTML = msg
-
-                document.querySelector('#course_data').parentNode.insertBefore(alert, document.querySelector('#course_data'));
-                alert.style.backgroundColor = bgColorOdd;
-            }
-            else { // lessonsCount = 0
-                if (document.querySelectorAll('.alert-no-rasp-groups').length) { document.querySelector('.alert-no-rasp-groups').remove(); }
+                alerts.addAlert(
+                    `В данной параллели занятий не по расписанию: ${lessonsCount}`,
+                    bgColorOdd,
+                    'no-rasp-alert'
+                );
+            } else {
+                alerts.removeAlert('no-rasp-alert');
             }
             document.body.firstChild.className += ' rasp_checked';
         }
