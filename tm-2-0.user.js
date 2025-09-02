@@ -2211,7 +2211,11 @@ const pagePatterns = {
             ];
 
             const container = currentWindow.querySelector('.adminButtons');
-            if (!container) {
+            miniGroupFlag = Boolean(currentWindow.querySelector('input[name="group_template[agent_id]"]'))
+            if (!miniGroupFlag) {
+                return;
+            }
+             else if (!container) {
                 displayLog('Контейнер для кнопок не найден', 'danger');
             } else {
                 initButtons();
@@ -2242,6 +2246,15 @@ const pagePatterns = {
 
                 const url = buildUrl(groupId, location);
                 openAndCloseWindow(url);
+                changeGroupLocations(location)
+            }
+
+            async function changeGroupLocations(location){
+                groupLocation = currentWindow.querySelector('input["group_template[default_location_id]"]')
+                groupLocation.value = location;
+                await sleep(500)
+                groupwebinar = currentWindow.querySelector('input["group_template[default_studio_id]"]')
+                groupsWindow.value = groupsWindow.options[1].value;
             }
 
             function getGroupId() {
