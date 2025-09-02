@@ -2287,7 +2287,6 @@ const pagePatterns = {
                 console.error('Контейнер для кнопок не найден');
             } else {
                 initButtons();
-                addStyles();
             }
 
             // Инициализация кнопок
@@ -2353,28 +2352,6 @@ const pagePatterns = {
                     if (!win.closed) win.close();
                     alert('Операция выполнена успешно!');
                 }, 2000);
-            }
-
-            // Добавление стилей
-            function addStyles() {
-                const style = document.createElement('style');
-                style.textContent = `
-                    .my-btn {
-                      border: none;
-                      color: black;
-                      padding: 8px 16px;
-                      text-align: center;
-                      text-decoration: none;
-                      display: inline-block;
-                      font-size: 14px;
-                      margin: 2px;
-                      cursor: pointer;
-                      border-radius: 4px;
-                      transition: background-color 0.3s;
-                    }
-
-                  `;
-                document.head.appendChild(style);
             }
         }
 
