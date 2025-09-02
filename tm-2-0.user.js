@@ -2280,7 +2280,6 @@ const pagePatterns = {
                 { text: 'ССМ', location: 'ssm' }
             ];
 
-            // Основные элементы интерфейса
             const container = document.querySelector('button.reset-btn')?.parentNode;
             if (!container) {
                 console.error('Контейнер для кнопок не найден');
@@ -2288,7 +2287,6 @@ const pagePatterns = {
                 initButtons();
             }
 
-            // Инициализация кнопок
             function initButtons() {
                 BUTTONS.forEach(config => {
                     const btn = createLocationButton(config);
@@ -2303,7 +2301,6 @@ const pagePatterns = {
                 return btn;
             }
 
-            // Обработчик клика
             function handleButtonClick({ target }) {
                 const location = target.dataset.location;
                 const groupId = getGroupId();
@@ -2317,12 +2314,10 @@ const pagePatterns = {
                 openAndCloseWindow(url);
             }
 
-            // Получение ID группы
             function getGroupId() {
                 return currentWindow.group_template_id.value;
             }
 
-            // Формирование URL
             function buildUrl(groupId, location) {
                 const baseUrl = 'https://foxford.ru/admin/dev_services';
                 const params = new URLSearchParams({
