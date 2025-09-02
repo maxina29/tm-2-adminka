@@ -2302,6 +2302,15 @@ const pagePatterns = {
 
                 const url = buildUrl(groupId, location);
                 openAndCloseWindow(url);
+                changeGroupLocations(location)
+            }
+
+            async function changeGroupLocations(location){
+                groupLocation = currentWindow.querySelector('input["group_template[default_location_id]"]')
+                groupLocation.value = location;
+                await sleep(500)
+                groupwebinar = currentWindow.querySelector('input["group_template[default_studio_id]"]')
+                groupsWindow.value = groupsWindow.options[1].value;
             }
 
             function getGroupId() {
