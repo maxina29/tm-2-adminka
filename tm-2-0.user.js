@@ -2217,12 +2217,12 @@ const pagePatterns = {
             };
 
             function checkDates() {
-                const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
-                if (!parallelInput) return;
-                const parallelDate = parallelInput.value.trim();
+                const templateStartsAtInput = [...currentWindow.querySelectorAll('input[name="group_template[starts_at]"]')].pop();
+                if (!templateStartsAtInput) return;
+                const templateDate = templateStartsAtInput.value.trim();
                 let foundElement = null;
-                const lessonElements = document.querySelectorAll('.lesson_number');
-                lessonElements.forEach(element => {
+                const lessonInfoElements = currentWindow.querySelectorAll('.lesson_number');
+                lessonInfoElements.forEach(element => {
                   const text = element.textContent || element.innerText;
                   if (text.includes('№1')) {
                     foundElement = element.parentElement.nextSibling;
@@ -2233,13 +2233,13 @@ const pagePatterns = {
                 const lessonInput = foundElement.querySelector(SELECTORS.LESSON_DATE);
                 if (!lessonInput) return;
                 const lessonDate = lessonInput.value.trim();
-                if (!parallelDate || !lessonDate) return;
+                if (!templateDate || !lessonDate) return;
 
                 const parse = str => {
                     const [d, m, y] = str.split(' ')[0].split('.').map(Number);
                     return new Date(y, m - 1, d);
                 };
-                const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();          
+                const showWarning = parse(templateDate).getTime() !== parse(lessonDate).getTime();
                 
                 const alerts = alertManager()
                 const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'         
