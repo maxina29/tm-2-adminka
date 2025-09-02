@@ -2335,17 +2335,7 @@ const pagePatterns = {
                 let win = await createWindow();
                 await win.openPage(url, '_blank');
                 await win.waitForSuccess();
-
-                if (!win) {
-                    alert('Разрешите всплывающие окна для работы скрипта');
-                    return;
-                }
-
-                // Автозакрытие через 2 секунды
-                setTimeout(() => {
-                    if (!win.closed) win.close();
-                    alert('Операция выполнена успешно!');
-                }, 2000);
+                if (!win.closed) win.close();
             }
         }
 
