@@ -2216,11 +2216,6 @@ const pagePatterns = {
                 LESSON_DATE: 'input[name="group[starts_at]"]'
             };
 
-            // Логирование только в режиме разработки
-            const debug = false;
-            const log = debug ? console.log : () => { };
-
-            // Основная функция проверки
             function checkDates() {
                 try {
                     // Поиск даты параллели
