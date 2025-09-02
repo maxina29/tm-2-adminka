@@ -2241,36 +2241,21 @@ const pagePatterns = {
                     return new Date(y, m - 1, d);
                 };
 
-                const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();
-
-                // Управление предупреждением
-                const warning = document.getElementById('date-mismatch-warning');
-
-                if (showWarning && !warning) {
-                    const el = document.createElement('div');
-                    el.id = 'date-mismatch-warning';
-                    el.style.cssText = `
-                background:#ffebee; padding:12px 15px; margin:0;
-                border-left:4px solid #f44336; font-family:sans-serif;
-                position:fixed; top:20px; right:20px; z-index:99999;
-                max-width:300px; box-shadow:0 2px 10px rgba(0,0,0,0.2);
-                border-radius:4px;
-            `;
-                    el.innerHTML = `
-                <div style="font-weight:bold; margin-bottom:8px;">
-                    <span style="font-size:18px;">⚠️</span> Даты не совпадают!
-                </div>
-                <div style="font-size:14px;">
-                    <div>Старт параллели: <b>${parallelDate.split(' ')[0]}</b></div>
-                    <div>Первое занятие: <b>${lessonDate.split(' ')[0]}</b></div>
-                </div>
-            `;
-                    document.body.appendChild(el);
-                } else if (!showWarning && warning) {
-                    warning.remove();
-                }
+                const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();          
+                
+                const alerts = alertManager()
+                const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'         
+                if (showWarning) {
+                    alerts.addAlert(
+                    `Дата старта параллели не совпадает с датой старта первого занятия`,
+                    '#ffb6c4',
+                    msg
+                );
+                } else {
+                alerts.removeAlert('date-mismatch-warning');
             }
-            
+            }
+
             checkDates();
         }
 
