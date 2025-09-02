@@ -1691,7 +1691,7 @@ const pagePatterns = {
     if (currentWindow.checkPath(pagePatterns.groups)) {
         group_template_id.classList.add('protected');
         let mcid = window.location.href.match(/\d+/)[0];
-        let div = document.createElement('div');
+        let div = createElement('div', 'adminButtons');
         let btn_return_moderators = document.createElement('button');
         btn_return_moderators.innerHTML = 'Вернуть модераторов'; btn_return_moderators.hidden = false;
         div.appendChild(btn_return_moderators);
@@ -2280,9 +2280,9 @@ const pagePatterns = {
                 { text: 'ССМ', location: 'ssm' }
             ];
 
-            const container = document.querySelector('button.reset-btn')?.parentNode;
+            const container = currentWindow.querySelector('.adminButtons');
             if (!container) {
-                console.error('Контейнер для кнопок не найден');
+                displayLog('Контейнер для кнопок не найден', 'danger');
             } else {
                 initButtons();
             }
@@ -2326,7 +2326,7 @@ const pagePatterns = {
                     location: location,
                     auto_validate: true
                 });
-                console.log(`${baseUrl}?${params}`)
+                log(`${baseUrl}?${params}`)
                 return `${baseUrl}?${params}`;
             }
 
