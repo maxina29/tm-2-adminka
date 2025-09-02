@@ -2207,7 +2207,7 @@ const pagePatterns = {
         }
         no_rasp_groups();
 
-        function DateChecker() {
+        function templateStartDateChecker() {
 
             const SELECTORS = {
                 PARALLEL_DATE: 'input[name="group_template[starts_at]"]',
@@ -2257,7 +2257,7 @@ const pagePatterns = {
             checkDates();
         }
 
-        DateChecker();
+        templateStartDateChecker();
 
         async function changeWebinarLocations() {
             const BUTTONS = [
