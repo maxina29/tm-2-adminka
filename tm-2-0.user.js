@@ -2068,18 +2068,18 @@ const pagePatterns = {
             let container = document.getElementById(managerId);
 
             if (!container) {
-                container = document.createElement('div');
+                container = currentWindow.createElement('div');
                 container.id = managerId;
                 container.style.display = 'flex';
                 container.style.flexDirection = 'column';
                 container.style.gap = '10px';
                 container.style.marginTop = '10px';
 
-                const referenceNode = document.querySelector('#course_data');
+                const referenceNode = currentWindow.querySelector('#course_data');
                 if (referenceNode) {
                     referenceNode.parentNode.insertBefore(container, referenceNode);
                 } else {
-                    document.body.prepend(container);
+                    currentWindow.body.prepend(container);
                 }
             }
 
@@ -2088,7 +2088,7 @@ const pagePatterns = {
                     const existingAlert = container.querySelector(`.${alertClass}`);
                     if (existingAlert) existingAlert.remove();
 
-                    const alert = document.createElement('div');
+                    const alert = currentWindow.createElement('div');
                     alert.className = alertClass;
                     alert.style.padding = '10px';
                     alert.style.borderRadius = '4px';
