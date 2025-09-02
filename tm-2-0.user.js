@@ -2217,61 +2217,57 @@ const pagePatterns = {
             };
 
             function checkDates() {
-                try {
-                    // Поиск даты параллели
-                    const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
-                    if (!parallelInput) return;
-                    const parallelDate = parallelInput.value.trim();
+                // Поиск даты параллели
+                const parallelInput = [...document.querySelectorAll(SELECTORS.PARALLEL_DATE)].pop();
+                if (!parallelInput) return;
+                const parallelDate = parallelInput.value.trim();
 
-                    // Поиск даты занятия №1
-                    const lessonRow = [...document.querySelectorAll(SELECTORS.LESSON_ROW)].find(row => {
-                        const numEl = row.querySelector(SELECTORS.LESSON_NUMBER);
-                        return numEl?.textContent.includes('(№1)');
-                    });
+                // Поиск даты занятия №1
+                const lessonRow = [...document.querySelectorAll(SELECTORS.LESSON_ROW)].find(row => {
+                    const numEl = row.querySelector(SELECTORS.LESSON_NUMBER);
+                    return numEl?.textContent.includes('(№1)');
+                });
 
-                    if (!lessonRow) return;
-                    const lessonInput = lessonRow.querySelector(SELECTORS.LESSON_DATE);
-                    if (!lessonInput) return;
-                    const lessonDate = lessonInput.value.trim();
+                if (!lessonRow) return;
+                const lessonInput = lessonRow.querySelector(SELECTORS.LESSON_DATE);
+                if (!lessonInput) return;
+                const lessonDate = lessonInput.value.trim();
 
-                    if (!parallelDate || !lessonDate) return;
+                if (!parallelDate || !lessonDate) return;
 
-                    // Парсинг и сравнение дат
-                    const parse = str => {
-                        const [d, m, y] = str.split(' ')[0].split('.').map(Number);
-                        return new Date(y, m - 1, d);
-                    };
+                // Парсинг и сравнение дат
+                const parse = str => {
+                    const [d, m, y] = str.split(' ')[0].split('.').map(Number);
+                    return new Date(y, m - 1, d);
+                };
 
-                    const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();
+                const showWarning = parse(parallelDate).getTime() !== parse(lessonDate).getTime();
 
-                    // Управление предупреждением
-                    const warning = document.getElementById('date-mismatch-warning');
+                // Управление предупреждением
+                const warning = document.getElementById('date-mismatch-warning');
 
-                    if (showWarning && !warning) {
-                        const el = document.createElement('div');
-                        el.id = 'date-mismatch-warning';
-                        el.style.cssText = `
-                    background:#ffebee; padding:12px 15px; margin:0;
-                    border-left:4px solid #f44336; font-family:sans-serif;
-                    position:fixed; top:20px; right:20px; z-index:99999;
-                    max-width:300px; box-shadow:0 2px 10px rgba(0,0,0,0.2);
-                    border-radius:4px;
-                `;
-                        el.innerHTML = `
-                    <div style="font-weight:bold; margin-bottom:8px;">
-                        <span style="font-size:18px;">⚠️</span> Даты не совпадают!
-                    </div>
-                    <div style="font-size:14px;">
-                        <div>Старт параллели: <b>${parallelDate.split(' ')[0]}</b></div>
-                        <div>Первое занятие: <b>${lessonDate.split(' ')[0]}</b></div>
-                    </div>
-                `;
-                        document.body.appendChild(el);
-                    } else if (!showWarning && warning) {
-                        warning.remove();
-                    }
-                } catch (e) {
-                    console.error('DateChecker error:', e);
+                if (showWarning && !warning) {
+                    const el = document.createElement('div');
+                    el.id = 'date-mismatch-warning';
+                    el.style.cssText = `
+                background:#ffebee; padding:12px 15px; margin:0;
+                border-left:4px solid #f44336; font-family:sans-serif;
+                position:fixed; top:20px; right:20px; z-index:99999;
+                max-width:300px; box-shadow:0 2px 10px rgba(0,0,0,0.2);
+                border-radius:4px;
+            `;
+                    el.innerHTML = `
+                <div style="font-weight:bold; margin-bottom:8px;">
+                    <span style="font-size:18px;">⚠️</span> Даты не совпадают!
+                </div>
+                <div style="font-size:14px;">
+                    <div>Старт параллели: <b>${parallelDate.split(' ')[0]}</b></div>
+                    <div>Первое занятие: <b>${lessonDate.split(' ')[0]}</b></div>
+                </div>
+            `;
+                    document.body.appendChild(el);
+                } else if (!showWarning && warning) {
+                    warning.remove();
                 }
             }
             
