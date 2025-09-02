@@ -2209,13 +2209,6 @@ const pagePatterns = {
 
         function templateStartDateChecker() {
 
-            const SELECTORS = {
-                PARALLEL_DATE: 'input[name="group_template[starts_at]"]',
-                LESSON_ROW: 'tr:has(td.first_column)',
-                LESSON_NUMBER: '.lesson_number a',
-                LESSON_DATE: 'input[name="group[starts_at]"]'
-            };
-
             function checkDates() {
                 const templateStartsAtInput = [...currentWindow.querySelectorAll('input[name="group_template[starts_at]"]')].pop();
                 if (!templateStartsAtInput) return;
@@ -2230,7 +2223,7 @@ const pagePatterns = {
                   }
                 });
                 if (!foundElement) return;
-                const lessonInput = foundElement.querySelector(SELECTORS.LESSON_DATE);
+                const lessonInput = foundElement.querySelector('input[name="group[starts_at]"]');
                 if (!lessonInput) return;
                 const lessonDate = lessonInput.value.trim();
                 if (!templateDate || !lessonDate) return;
