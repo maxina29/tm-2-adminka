@@ -2065,7 +2065,7 @@ const pagePatterns = {
         // Генерация уведомлений от @wanna_get_out
         function alertManager() {
             const managerId = 'alert-manager-container';
-            let container = document.getElementById(managerId);
+            let container = currentWindow.getElementById(managerId);
 
             if (!container) {
                 container = currentWindow.createElement('div');
@@ -2314,7 +2314,6 @@ const pagePatterns = {
             // Открытие новой вкладки
             async function openAndCloseWindow(url) {
                 let win = await createWindow();
-                await win.openPage(url, '_blank');
                 await win.waitForSuccess();
                 if (!win.closed) win.close();
             }
