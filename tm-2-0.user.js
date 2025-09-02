@@ -2290,7 +2290,7 @@ const pagePatterns = {
             function initButtons() {
                 BUTTONS.forEach(config => {
                     const btn = createLocationButton(config);
-                    container.insertBefore(btn, container.querySelector('.reset-btn'));
+                    container.append(btn);
                 });
             }
 
