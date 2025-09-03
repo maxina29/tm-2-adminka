@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.64
+// @version      0.2.0.65
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -3719,6 +3719,26 @@ for (const [courseId, lessonId] of pairs) {
     await win.waitForSuccess();
     await win.openPage('about:blank');
 }`,
+            LESSONS_DELETE_SOFT: `// Переведите все параллели этого занятия в finished/шлак заранее 
+const pairs = [
+    // [course_id, lesson_id],
+    [10609, 500859],
+];
+let win = await createWindow('adminka123');
+let form = currentWindow.querySelector('form');
+form.target = "adminka123";
+for (const [courseId, lessonId] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    form.action = \`https://foxford.ru/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    const fields = {
+        '_method': 'patch',
+        'lesson[course_id]': '9118',
+    };
+    currentWindow.updateFormFields(form, fields);
+    form.submit();
+    await win.waitForSuccess();
+    await win.openPage('about:blank');
+}`,
             LESSONS_VIDEO: `const pairs = [
     // [course_id, lesson_id, video_url],
     [10609, 334928, 'https://kinescope.io/u53tsTBCQNZDaNCMuJHK11111N'],
@@ -3968,6 +3988,7 @@ for (const templateData of templatesData) {
         createActionButton(adminLessonsSubsection, 'Сделать уроки бесплатными', SCRIPTS.LESSONS_FREE);
         createActionButton(adminLessonsSubsection, 'Переместить уроки в конец курса (для удаления)', SCRIPTS.LESSONS_REORDER);
         createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
+        createActionButton(adminLessonsSubsection, '«Удалить» неудаляемый урок', SCRIPTS.LESSONS_DELETE_SOFT)
         createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
         createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
         createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT);
@@ -4017,7 +4038,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.64 от 2 сентября 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.65 от 3 сентября 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
