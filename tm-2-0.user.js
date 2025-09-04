@@ -2013,7 +2013,7 @@ const pagePatterns = {
         // Генерация уведомлений от @wanna_get_out
         function alertManager() {
             const managerId = 'alert-manager-container';
-            let container = currentWindow.getElementById(managerId);
+            let container = currentWindow.querySelector(`#${managerId}`);
 
             if (!container) {
                 container = currentWindow.createElement('div');
@@ -2277,6 +2277,7 @@ const pagePatterns = {
             async function openAndCloseWindow(url) {
                 let win = await createWindow();
                 await win.waitForSuccess();
+                await win.openPage(url, '_blank');
                 if (!win.closed) win.close();
             }
         }
@@ -2309,8 +2310,7 @@ const pagePatterns = {
             selectElements.forEach(async (selectElement) => {
                 // Пропускаем обработку, если найден элемент <p class="form-control-static">
                 // Значит, занятие уже прошло и изменение недоступно
-                const formGroup = selectElement.closest('.form-group');
-                if (formGroup && formGroup.querySelector('.form-control-static')) {
+                if (selectElement.disabled) {
                     return; // Пропускаем текущий блок
                 }
 
