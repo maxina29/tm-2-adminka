@@ -2167,7 +2167,7 @@ const pagePatterns = {
                 const lessonInfoElements = currentWindow.querySelectorAll('.lesson_number');
                 lessonInfoElements.forEach(element => {
                   const text = element.textContent || element.innerText;
-                  if (text.includes('№1')) {
+                  if (text.includes('(№1)')) {
                     foundElement = element.parentElement.nextSibling;
                     return;
                   }
@@ -2176,7 +2176,7 @@ const pagePatterns = {
                 const lessonInput = foundElement.querySelector('input[name="group[starts_at]"]');
                 if (!lessonInput) return;
                 const lessonDate = lessonInput.value.trim();            
-                if (!templateDate || !lessonDate) return;           
+                if (!templateDate || !lessonDate) return;
 
                 const parse = str => {
                     const [d, m, y] = str.split(' ')[0].split('.').map(Number);
