@@ -2333,6 +2333,7 @@ const pagePatterns = {
             async function openAndCloseWindow(url) {
                 let win = await createWindow();
                 await win.waitForSuccess();
+                await win.openPage(url, '_blank');
                 if (!win.closed) win.close();
             }
         }
