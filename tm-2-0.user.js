@@ -983,6 +983,7 @@ const pagePatterns = {
         }
     }
     currentWindow.body.firstChild.className += ' loaded';
+    currentWindow.body.firstChild.id = 'js-console';
 
     /************************* Обучение - курсы *************************/
 
@@ -2023,9 +2024,9 @@ const pagePatterns = {
                 container.style.gap = '10px';
                 container.style.marginTop = '10px';
 
-                const referenceNode = currentWindow.querySelector('#course_data');
+                const referenceNode = currentWindow.querySelector('#js-console');
                 if (referenceNode) {
-                    referenceNode.parentNode.insertBefore(container, referenceNode);
+                    referenceNode.after(container);
                 } else {
                     currentWindow.body.prepend(container);
                 }
