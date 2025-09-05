@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.66
+// @version      0.2.0.67
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2886,10 +2886,10 @@ const pagePatterns = {
     if (currentWindow.checkPath(pagePatterns.usersCoursesReplace)) {
         let idSearchButton = createButton('Найти по ID', async () => { }, 'btn-default', false);
         const idElement = q_id_eq;
-        idSearchButton.href = `https://foxford.ru/admin/users_courses/56820083/replace?q%5Bid_eq%5D=${idElement.value}&q%5Bg%5D%5B%23%3CRansack%3A%3ANodes%3A%3AGrouping%3A0x00007d7c85b668c0%3E%5D%5Bid_not_null%5D=false`;
+        idSearchButton.href = `${window.location.pathname}?q%5Bid_eq%5D=${idElement.value}&q%5Bg%5D%5B%23%3CRansack%3A%3ANodes%3A%3AGrouping%3A0x00007d7c85b668c0%3E%5D%5Bid_not_null%5D=false`;
         idElement.style = 'width:52%;';
         idElement.parentNode.style = 'margin-right:-7pt;';
-        idElement.onchange = function () { idSearchButton.href = `https://foxford.ru/admin/users_courses/56820083/replace?q%5Bid_eq%5D=${idElement.value}&q%5Bg%5D%5B%23%3CRansack%3A%3ANodes%3A%3AGrouping%3A0x00007d7c85b668c0%3E%5D%5Bid_not_null%5D=false`; }
+        idElement.onchange = function () { idSearchButton.href = `${window.location.pathname}?q%5Bid_eq%5D=${idElement.value}&q%5Bg%5D%5B%23%3CRansack%3A%3ANodes%3A%3AGrouping%3A0x00007d7c85b668c0%3E%5D%5Bid_not_null%5D=false`; }
         currentWindow.querySelector('.q_id_eq').appendChild(idSearchButton);
         log('Страница модифицирована')
     }
@@ -4054,7 +4054,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.66 от 5 сентября 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.67 от 5 сентября 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
