@@ -2219,7 +2219,7 @@ const pagePatterns = {
                 const lessonInfoElements = currentWindow.querySelectorAll('.lesson_number');
                 lessonInfoElements.forEach(element => {
                     const text = element.textContent || element.innerText;
-                    if (text.includes('№1')) {
+                    if (text.includes('(№1)')) {
                         foundElement = element.parentElement.nextSibling;
                         return;
                     }
