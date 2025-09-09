@@ -2214,8 +2214,8 @@ const pagePatterns = {
             function checkDates() {
                 const templateStartsAtInput = [...currentWindow.querySelectorAll('input[name="group_template[starts_at]"]')].pop();
                 if (!templateStartsAtInput) return;
-                const templateDate = templateStartsAtInput.value.trim();
-                let foundElement = null;
+                const templateDate = templateStartsAtInput.value.trim();            
+                let foundElement = null;            
                 const lessonInfoElements = currentWindow.querySelectorAll('.lesson_number');
                 lessonInfoElements.forEach(element => {
                     const text = element.textContent || element.innerText;
@@ -2227,13 +2227,13 @@ const pagePatterns = {
                 if (!foundElement) return;
                 const lessonInput = foundElement.querySelector('input[name="group[starts_at]"]');
                 if (!lessonInput) return;
-                const lessonDate = lessonInput.value.trim();
+                const lessonDate = lessonInput.value.trim();            
                 if (!templateDate || !lessonDate) return;
 
                 const parse = str => {
                     const [d, m, y] = str.split(' ')[0].split('.').map(Number);
                     return new Date(y, m - 1, d);
-                };
+                };            
                 const showWarning = parse(templateDate).getTime() !== parse(lessonDate).getTime();
 
                 const alerts = alertManager()
@@ -2250,6 +2250,7 @@ const pagePatterns = {
             }
 
             checkDates();
+            window.dateCheckerInitialized
         }
 
         templateStartDateChecker();
@@ -2322,7 +2323,6 @@ const pagePatterns = {
             // Открытие новой вкладки
             async function openAndCloseWindow(url) {
                 let win = await createWindow();
-                await win.openPage(url, '_blank');
                 await win.waitForSuccess();
                 if (!win.closed) win.close();
             }
