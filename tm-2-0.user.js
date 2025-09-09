@@ -2255,21 +2255,28 @@ const pagePatterns = {
         templateStartDateChecker();
 
         async function changeWebinarLocations() {
-            const BUTTONS = [
+            const MINI_GROUP_BUTTONS = [
                 { text: 'Мини-группы', location: 'mini' },
+                { text: 'Шлак', location: 'slag' },
+            ];
+            const NOT_MINI_GROUP_BUTTONS = [
                 { text: 'Шлак', location: 'slag' },
                 { text: 'Дом', location: 'home' },
                 { text: 'ССМ', location: 'ssm' }
-            ];
+            ]
 
             const container = currentWindow.querySelector('.adminButtons');
-            if (!container) {
+            const miniGroupFlag = Boolean(currentWindow.querySelector('input[name="group_template[agent_id]"]'));
+            if (!miniGroupFlag) {
+                initButtons(NOT_MINI_GROUP_BUTTONS);
+            }
+             else if (!container) {
                 displayLog('Контейнер для кнопок не найден', 'danger');
             } else {
-                initButtons();
+                initButtons(MINI_GROUP_BUTTONS);
             }
 
-            function initButtons() {
+            function initButtons(BUTTONS) {
                 BUTTONS.forEach(config => {
                     const btn = createLocationButton(config);
                     container.append(btn);
