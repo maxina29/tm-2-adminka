@@ -2356,8 +2356,7 @@ const pagePatterns = {
             selectElements.forEach(async (selectElement) => {
                 // Пропускаем обработку, если найден элемент <p class="form-control-static">
                 // Значит, занятие уже прошло и изменение недоступно
-                const formGroup = selectElement.closest('.form-group');
-                if (formGroup && formGroup.querySelector('.form-control-static')) {
+                if (selectElement.disabled) {
                     return; // Пропускаем текущий блок
                 }
 
