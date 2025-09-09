@@ -2067,7 +2067,7 @@ const pagePatterns = {
         // Генерация уведомлений от @wanna_get_out
         function alertManager() {
             const managerId = 'alert-manager-container';
-            let container = document.getElementById(managerId);
+            let container = currentWindow.querySelector(`#${managerId}`);
 
             if (!container) {
                 container = currentWindow.createElement('div');
