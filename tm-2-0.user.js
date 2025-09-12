@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.68
+// @version      0.2.0.69
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -725,6 +725,40 @@ function CSVToArray(CSV_string, delimiter = ',') {
     return rows; // Return the parsed data Array
 }
 
+async function getCsvFromMetabase(question_id, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+        let tempWindow = window.open(`https://metabase.foxford.ru/question/${question_id}?get_data`, 'metabaseWindow');
+        function messageHandler(event) {
+            if (event.origin !== 'https://metabase.foxford.ru') return;
+            if (event.data.type === 'FROM_METABASE_CSV_DATA') {
+                cleanup();
+                resolve(event.data.payload);
+            }
+        }
+        function cleanup() {
+            window.removeEventListener('message', messageHandler);
+            if (timeoutId) clearTimeout(timeoutId);
+            if (tempWindow) tempWindow.close();
+        }
+        const timeoutId = setTimeout(() => {
+            cleanup();
+            displayError(new Error('Для работы скрипта необходимо:\n1) авторизоваться в https://metabase.foxford.ru/\n2) установить скрипт https://foxford.ru/tampermoney_script_metabase.user.js'));
+            resolve('');
+        }, timeout);
+        window.addEventListener('message', messageHandler);
+    });
+}
+
+function setCsvFileByContent(fileInput, csvContent) {
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const file = new File([blob], 'fake_file.csv', { type: 'text/csv' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    fileInput.files = dataTransfer.files;
+    const changeEvent = new Event('change', { bubbles: true });
+    fileInput.dispatchEvent(changeEvent);
+}
+
 async function createJsConsoles() {
     currentWindow.jsCodeArea.rows = 1;
     currentWindow.jsCodeArea.cols = 1;
@@ -937,6 +971,7 @@ const pagePatterns = {
     methodicalLinkCreateVideo: /methodical_materials\/units\/\d*\/link_items\/new#szh/,
     // пользователи - учащиеся
     usersCoursesReplace: /admin\/users_courses\/\d*\/replace/,
+    massCourseAccess: /admin\/mass_course_access$/,
     // эдш - типы продуктов
     gridsCreate: /externship\/product_types\/\d*\/grids\/new/,
     gridsEdit: /externship\/product_types\/\d*\/grids\/\d*\/edit/,
@@ -2900,6 +2935,69 @@ const pagePatterns = {
         log('Страница модифицирована')
     }
 
+    // на странице массового добавления доступов
+    if (currentWindow.checkPath(pagePatterns.massCourseAccess)) {
+        let satelliteAccessButton = createButton('Выдать доступ к спутникам и СИ по отчету', () => { }, 'btn-default', false);
+        new_admin_mass_course_access_form.before(satelliteAccessButton);
+        satelliteAccessButton.onclick = async () => {
+            let csvContent = await getCsvFromMetabase('49105');
+            if (csvContent) {
+                let fullCsvArray = CSVToArray(csvContent).slice(1, -1);
+                log(`Нужно выдать ${fullCsvArray.length} записей`);
+                let accessData = generateAccessData(fullCsvArray);
+                console.log(accessData);
+                currentWindow.document.accessData = accessData;
+                let tempWindow = await createWindow('access_temp_window');
+                currentWindow.querySelector('form').target = 'access_temp_window';
+                let submitButton = currentWindow.querySelector('input[type="submit"]');
+                submitButton.removeAttribute('data-disable-with');
+                for (let key in accessData) {
+                    let accessDataElement = accessData[key];
+                    let accessType = accessDataElement[0][2];
+                    let accessFinishesAt = accessDataElement[0][3];
+                    let accessArray = accessDataElement.map(subArray => subArray.slice(0, 2).join(','));
+                    let accessCsvContent = accessArray.join('\n');
+                    log(`Выдача ${accessArray.length} доступов ${accessType} ${accessFinishesAt}`);
+                    admin_mass_course_access_form_access_type.value = accessType;
+                    admin_mass_course_access_form_access_finishes_at.value = accessFinishesAt;
+                    setCsvFileByContent(admin_mass_course_access_form_csv_file, accessCsvContent);
+                    admin_mass_course_access_form_access_change_description.value = 'Подарок от “Фоксфорда”';
+                    submitButton.click();
+                    await tempWindow.waitForElement('.loaded');
+                    await tempWindow.openPage('about:blank');
+                }
+                await tempWindow.close();
+                displayLog('Доступы выданы');
+
+                function generateAccessData(arr) {
+                    let maxSize = 5000;
+                    arr.sort((a, b) => {
+                        if (a[2] === b[2]) { return a[3].localeCompare(b[3]); }
+                        return a[2].localeCompare(b[2]);
+                    });
+                    if (arr.length > maxSize) {
+                        displayLog(`Будет выдано ${maxSize} доступов из ${arr.length}, запустите скрипт повторно через 10 минут`, 'warning');
+                    }
+                    const limited = arr.slice(0, maxSize);
+                    const result = {};
+                    for (const item of limited) {
+                        const key = `${item[2]}_${item[3]}`;
+                        if (!result[key]) {
+                            result[key] = [];
+                        }
+                        result[key].push(item);
+                    }
+
+                    return result;
+                }
+            }
+            else {
+                log('Выполнение скрипта прервано, данные отсутствуют');
+            }
+        }
+        log('Страница модифицирована')
+    }
+
     /*********************** ЭДШ - типы продуктов ***********************/
 
     // сетки расписания
@@ -4060,7 +4158,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.68 от 9 сентября 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.69 от 12 сентября 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
