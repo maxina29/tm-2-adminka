@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.72
+// @version      0.2.0.73
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -985,6 +985,144 @@ function fillFieldByType(field, value) {
         field.dispatchEvent(changeEvent);
         log(`Заполнено поле ${field.id}: ${value}`);
     } catch (e) { displayError(e, `Ошибка при заполнении поля ${field.id}`); }
+}
+
+function matchNumber(str) { return str.match(/\d+/g)[0]; }
+
+function getTableLinks(virtualWindow, tableSelector = '.table', elementSelector = 'a[href$="edit"]') {
+    return Array.from(virtualWindow.querySelectorAll(`${tableSelector} tbody tr ${elementSelector}`))
+        .map(link => link.href);
+}
+
+function getTableTexts(virtualWindow, elementSelector = '') {
+    return Array.from(virtualWindow.querySelectorAll(`.table tbody tr ${elementSelector}`))
+        .map(element => element.textContent);
+}
+
+async function copyMethodicalRecomendationItems(virtualWindow, sourceUnitLink, targetUnitLink, tabName, tabTitle) {
+    await virtualWindow.openPage(`${sourceUnitLink}?tab=${tabName}`);
+    let sourceLinks = getTableLinks(virtualWindow, '.table', 'a[data-method="delete"]');
+    let appendTextLink = targetUnitLink.replace(/\/blocks\/\d+(\/units\/\d+)\/edit$/, `$1/${tabName}_items`);
+    if (sourceLinks.length > 0) { log(`-- Копирую ${tabTitle} --`); }
+    for (let sourceLink of sourceLinks) {
+        await virtualWindow.openPage(`${sourceLink}/edit`);
+        let sourceText = virtualWindow.getElementValue(
+            `#methodical_materials_items_${tabName}_item_text_attachment_attributes_content`
+        );
+        await virtualWindow.postFormData(
+            appendTextLink,
+            { [`methodical_materials_items_${tabName}_item[text_attachment_attributes][content]`]: sourceText }
+        );
+    }
+}
+
+async function сopyMethodicalFileItems(virtualWindow, sourceUnitLink, targetUnitLink, tabName, tabTitle, options = {}) {
+    let { hasUserDownloadable = false } = options;
+    await virtualWindow.openPage(`${sourceUnitLink}?tab=${tabName}`);
+    let sourceLinks = getTableLinks(virtualWindow, '.table', 'a[data-method="delete"]');
+    let sourceFileLinks = getTableLinks(virtualWindow, '.table', 'a[target="_blank"]');
+    let appendFileLink = targetUnitLink.replace(/\/blocks\/\d+(\/units\/\d+)\/edit$/, `$1/${tabName}_items`);
+    if (sourceLinks.length > 0) { log(`-- Копирую ${tabTitle} --`); }
+    for (let ind = 0; ind < sourceLinks.length; ind++) {
+        let sourceLink = sourceLinks[ind];
+        let sourceFileLink = sourceFileLinks[ind];
+        await virtualWindow.openPage(`${sourceLink}/edit`);
+        let sourceName = virtualWindow.getElementValue(
+            `#methodical_materials_items_${tabName}_item_attachment_attributes_name`
+        );
+        let fields = {
+            [`methodical_materials_items_${tabName}_item[attachment_attributes][name]`]: sourceName,
+            [`methodical_materials_items_${tabName}_item[attachment_attributes][file]`]: sourceFileLink
+        };
+        if (!hasUserDownloadable) {
+            let sourceUserDownloadable = virtualWindow.getElementValue(
+                `#methodical_materials_items_${tabName}_item_user_downloadable`
+            );
+            fields[`methodical_materials_items_${tabName}_item[user_downloadable]`] = sourceUserDownloadable;
+        }
+        await virtualWindow.postFormData(
+            appendFileLink, fields,
+            { fileFields: [`methodical_materials_items_${tabName}_item[attachment_attributes][file]`] }
+        );
+    }
+}
+
+async function copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnitLink, settings) {
+    if (settings['Задачи'] || settings['Рекомендованность к ДЗ']) {
+        await virtualWindow.openPage(`${sourceUnitLink}?tab=task`);
+        let sourceTaskLinks = getTableLinks(virtualWindow);
+        let sourceTaskRecommendations = getTableTexts(virtualWindow, '.homework_recommendation_text');
+        if (settings['Задачи']) {
+            if (sourceTaskLinks.length > 0) { log('-- Копирую задачи --'); }
+            for (let taskLink of sourceTaskLinks) {
+                let taskId = matchNumber(taskLink);
+                let appendTaskLink = targetUnitLink.replace(
+                    /\/blocks\/\d+(\/units\/\d+)\/edit$/, `$1/task_bindings?task_id=${taskId}`
+                );
+                await virtualWindow.postFormData(appendTaskLink, {}, { successAlertIsNessesary: false });
+            }
+        }
+        if (settings['Рекомендованность к ДЗ']) {
+            await virtualWindow.openPage(`${targetUnitLink}?tab=task`);
+            let targetTaskRecommendationLinks = getTableLinks(
+                virtualWindow, '.table', 'a[href$="toggle_homework_recommendation"]'
+            );
+            let targetTaskRecommendations = getTableTexts(virtualWindow, '.homework_recommendation_text');
+            if (sourceTaskRecommendations.length != targetTaskRecommendations.length) {
+                displayLog('Количество задач в ДЗ в уроках не совпадает, пропускаем их', 'warning');
+            }
+            else {
+                log('-- Проверяю рекомендованность к ДЗ --');
+                for (let taskInd = 0; taskInd < sourceTaskRecommendations.length; taskInd++) {
+                    if (sourceTaskRecommendations[taskInd] != targetTaskRecommendations[taskInd]) {
+                        await virtualWindow.postFormDataJSON(targetTaskRecommendationLinks[taskInd]);
+                    }
+                }
+            }
+        }
+    }
+    if (settings['Рекомендации (методические)']) {
+        await copyMethodicalRecomendationItems(
+            virtualWindow, sourceUnitLink, targetUnitLink, 'text', 'рекомендации (методические)'
+        );
+    }
+    if (settings['Презентации']) {
+        await сopyMethodicalFileItems(virtualWindow, sourceUnitLink, targetUnitLink, 'presentation', 'презентации');
+    }
+    if (settings['Файлы (методические)']) {
+        await сopyMethodicalFileItems(virtualWindow, sourceUnitLink, targetUnitLink, 'file', 'файлы (методические)');
+    }
+    if (settings['Рекомендации (подготовительные)']) {
+        await copyMethodicalRecomendationItems(
+            virtualWindow, sourceUnitLink, targetUnitLink, 'preparation_text', 'рекомендации (подготовительные)'
+        );
+    }
+    if (settings['Ссылки']) {
+        await virtualWindow.openPage(`${sourceUnitLink}?tab=link`);
+        let sourceLinkLinks = getTableLinks(virtualWindow, '.table', 'a[data-method="delete"]');
+        let appendLinkLink = targetUnitLink.replace(/\/blocks\/\d+(\/units\/\d+)\/edit$/, '$1/link_items');
+        if (sourceLinkLinks.length > 0) { log('-- Копирую ссылки --'); }
+        for (let linkLink of sourceLinkLinks) {
+            await virtualWindow.openPage(`${linkLink}/edit`);
+            let linkName = virtualWindow.getElementValue(
+                '#methodical_materials_items_link_item_link_attributes_name'
+            );
+            let linkUrl = virtualWindow.getElementValue(
+                '#methodical_materials_items_link_item_link_attributes_url'
+            );
+            let fields = {
+                'methodical_materials_items_link_item[link_attributes][name]': linkName,
+                'methodical_materials_items_link_item[link_attributes][url]': linkUrl
+            };
+            await virtualWindow.postFormData(appendLinkLink, fields);
+        }
+    }
+    if (settings['Файлы (подготовительные)']) {
+        await сopyMethodicalFileItems(
+            virtualWindow, sourceUnitLink, targetUnitLink, 'preparation_file', 'файлы (подготовительные)',
+            { hasUserDownloadable: true }
+        );
+    }
 }
 
 // регулярки для проверки текущей страницы админки
@@ -4436,6 +4574,153 @@ for (let templateData of templatesData) {
     }
     await win.postFormData(urlDev, Object.assign({}, basicFieldsDev, dynamicFieldsDev));
 }`,
+            UP_DUPLICATE: `// Указать true или false для каждого материала
+let sourceId = 733; // ID УП откуда
+let targetId = 1162; // ID УП куда
+let settings = {
+    'Модули + уроки': true,
+    'Задачи': true,
+    'Рекомендованность к ДЗ': true,
+    'Рекомендации (методические)': true,
+    'Презентации': true,
+    'Файлы (методические)': true,
+    'Рекомендации (подготовительные)': true,
+    'Ссылки': true,
+    'Файлы (подготовительные)': true
+};
+let virtualWindow = await createWindow(-1);
+let hasConstraint = false;
+
+function getBlockLinks(virtualWindow) { return getTableLinks(virtualWindow, '.methodical_materials_blocks_table'); }
+async function getBlocks(virtualWindow) {
+    let blocks = [];
+    let blockLinks = getBlockLinks(virtualWindow);
+    for (let blockLink of blockLinks) {
+        await virtualWindow.openPage(blockLink);
+        blocks.push({
+            link: blockLink, name: virtualWindow.getElementValue('#methodical_materials_block_name'),
+            unitLinks: getTableLinks(virtualWindow), unitNames: getTableTexts(virtualWindow),
+        });
+    }
+    return blocks;
+}
+
+log('-- Ищу уроки в первой УП --');
+await virtualWindow.openPage(\`/admin/methodical_materials/programs/$\{sourceId}/edit\`);
+let sourceBlocks = await getBlocks(virtualWindow);
+log('-- Ищу модули во второй УП --');
+await virtualWindow.openPage(\`/admin/methodical_materials/programs/$\{targetId}/edit\`);
+let targetBlockLinks = getBlockLinks(virtualWindow);
+/****************************************************************/
+if (settings['Модули + уроки']) {
+    if (targetBlockLinks.length != 0) { displayLog('УП не пустой, создание уроков невозможно', 'warning'); }
+    else {
+        log('-- Создаю модули --');
+        for (let block of sourceBlocks) {
+            await virtualWindow.postFormData(
+                \`/admin/methodical_materials/programs/$\{targetId}/blocks\`,
+                { 'methodical_materials_block[name]': block.name }
+            );
+        }
+        await virtualWindow.openPage(\`/admin/methodical_materials/programs/$\{targetId}/edit\`);
+        targetBlockLinks = getBlockLinks(virtualWindow);
+        /****************************************************************/
+        if (targetBlockLinks.length != sourceBlocks.length) { log('Создались не все модули, что-то пошло не так)'); }
+        else {
+            log('-- Создаю уроки --');
+            for (let blockInd = 0; blockInd < sourceBlocks.length; blockInd++) {
+                let sourceBlock = sourceBlocks[blockInd];
+                let targetBlockLink = targetBlockLinks[blockInd];
+                for (let linkInd = 0; linkInd < sourceBlock.unitLinks.length; linkInd++) {
+                    let unitName = sourceBlock.unitNames[linkInd];
+                    let createUnitLink = targetBlockLink.replace(/\\/programs\\/\\d+(\\/blocks\\/\\d+)\\/edit$/, '$1/units');
+                    await virtualWindow.postFormData(createUnitLink, { 'methodical_materials_unit[name]': unitName });
+                }
+            }
+        }
+    }
+}
+/****************************************************************/
+await virtualWindow.openPage(\`/admin/methodical_materials/programs/$\{targetId}/edit\`);
+let targetBlocks = await getBlocks(virtualWindow);
+if (sourceBlocks.length != targetBlocks.length) {
+    displayLog('Количество модулей не совпадает, выполнение скрипта невозможно', 'danger');
+    hasConstraint = true;
+}
+else {
+    for (let blockInd = 0; blockInd < sourceBlocks.length; blockInd++) {
+        if (sourceBlocks[blockInd].unitLinks.length != targetBlocks[blockInd].unitLinks.length) {
+            displayLog(
+                \`Количество уроков в модуле $\{blockInd + 1} не совпадает, выполнение скрипта невозможно\`, 'danger'
+            );
+            hasConstraint = true;
+            break;
+        }
+    }
+}
+/****************************************************************/
+if (!hasConstraint) {
+    log('-- Начинаю обработку --');
+    for (let blockInd = 0; blockInd < sourceBlocks.length; blockInd++) {
+        for (let unitInd = 0; unitInd < sourceBlocks[blockInd].unitLinks.length; unitInd++) {
+            let sourceUnitLink = sourceBlocks[blockInd].unitLinks[unitInd];
+            let targetUnitLink = targetBlocks[blockInd].unitLinks[unitInd];
+            log(\`$\{sourceUnitLink} -> $\{targetUnitLink}\`);
+            await copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnitLink, settings);
+        }
+    }
+}`,
+            UP_MODULES_DUPLICATE: `// Указать true или false для каждого материала
+let sourceIds = [733, 3101]; // [ID УП, ID модуля] откуда
+let targetIds = [1162, 4083]; // [ID УП, ID модуля] куда
+let settings = {
+    'Уроки': true,
+    'Задачи': true,
+    'Рекомендованность к ДЗ': true,
+    'Рекомендации (методические)': true,
+    'Презентации': true,
+    'Файлы (методические)': true,
+    'Рекомендации (подготовительные)': true,
+    'Ссылки': true,
+    'Файлы (подготовительные)': true
+};
+let virtualWindow = await createWindow(-1);
+
+async function getBlock(virtualWindow, programId, blockId) {
+    let blockLink = \`/admin/methodical_materials/programs/$\{programId}/blocks/$\{blockId}/edit\`;
+    await virtualWindow.openPage(blockLink);
+    return {
+        link: blockLink, name: virtualWindow.getElementValue('#methodical_materials_block_name'),
+        unitLinks: getTableLinks(virtualWindow), unitNames: getTableTexts(virtualWindow)
+    };
+}
+
+log('-- Получаю данные исходного модуля --');
+let sourceBlock = await getBlock(virtualWindow, sourceIds[0], sourceIds[1]);
+log('-- Получаю данные целевого модуля --');
+let targetBlock = await getBlock(virtualWindow, targetIds[0], targetIds[1]);
+/****************************************************************/
+if (settings['Уроки'] && targetBlock.unitLinks.length === 0) {
+    log('-- Создаю уроки в целевом модуле --');
+    for (let unitName of sourceBlock.unitNames) {
+        let createUnitLink = targetBlock.link.replace(/\\/programs\\/\\d+(\\/blocks\\/\\d+)\\/edit$/, '$1/units');
+        await virtualWindow.postFormData(createUnitLink, { 'methodical_materials_unit[name]': unitName });
+    }
+    targetBlock = await getBlock(virtualWindow, targetIds[0], targetIds[1]);
+}
+/****************************************************************/
+if (sourceBlock.unitLinks.length !== targetBlock.unitLinks.length) {
+    displayLog(\`Количество уроков не совпадает. Выполнение скрипта невозможно\`, 'danger');
+}
+else {
+    log('-- Начинаю обработку --');
+    for (let unitInd = 0; unitInd < sourceBlock.unitLinks.length; unitInd++) {
+        let sourceUnitLink = sourceBlock.unitLinks[unitInd];
+        let targetUnitLink = targetBlock.unitLinks[unitInd];
+        log(\`Обрабатываю урок $\{unitInd + 1}: $\{sourceUnitLink} -> $\{targetUnitLink}\`);
+        await copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnitLink, settings);
+    }
+}`,
             UP_TAGING: `// Выгрузить тегирование из курса можно отсюда:
 // ${METABASE_URL}/question/48991
 let methodicalProgramId = 738; // ID УП
@@ -4506,6 +4791,10 @@ for (let resultId of resultIds) {
         createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT);
         createActionButton(groupsSubsection, 'Изменить локации', SCRIPTS.LOCATION_EDIT);
         createActionButton(methodicalProgramsSubsection, 'Тегирование УП', SCRIPTS.UP_TAGING);
+        createActionButton(methodicalProgramsSubsection, 'Скопировать материалы между УП', SCRIPTS.UP_DUPLICATE);
+        createActionButton(
+            methodicalProgramsSubsection, 'Скопировать материалы между модулями УП', SCRIPTS.UP_MODULES_DUPLICATE
+        );
         createActionButton(contentCoursesSubsection, 'Тегирование курсов', SCRIPTS.COURSE_TAGING);
 
         currentWindow.addStyle(`
@@ -4554,7 +4843,7 @@ for (let resultId of resultIds) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.72 от 26 сентября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.73 от 26 сентября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
