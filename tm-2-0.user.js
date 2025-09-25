@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.69
+// @version      0.2.0.70
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -23,9 +23,15 @@ let currentWindow;
 
 class ManagedWindow {
     _nativeWindow = null;
+    _isVirtual = false;
 
-    constructor(parent = currentWindow) {
-        this._nativeWindow = this.#getWindow(parent);
+    constructor(parent = currentWindow, htmlContent = null) {
+        this._isVirtual = (htmlContent !== null);
+        if (this._isVirtual) {
+            this._nativeWindow = this.#createVirtualWindow(htmlContent);
+        } else {
+            this._nativeWindow = this.#getWindow(parent);
+        }
         this.firstLessonNumber = 0;
         this.lastLessonNumber = null;
         this.jsLoggingConsole = this.createElement('textarea');
@@ -34,6 +40,28 @@ class ManagedWindow {
         this.subwindows = [];
         this.searchParams = new URLSearchParams(this._nativeWindow.location.search);
         return this.#setupProxy();
+    }
+
+    #createVirtualWindow(htmlContent) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlContent, 'text/html');
+        const virtualWindow = {
+            document: doc,
+            location: {
+                replace: () => { },
+                href: 'virtual://window'
+            },
+            closed: false,
+            addEventListener: () => { },
+            removeEventListener: () => { },
+            open: () => {
+                return new ManagedWindow(this, null);
+            },
+            close: () => {
+                this.closed = true;
+            }
+        };
+        return virtualWindow;
     }
 
     #getWindow(parent) {
@@ -57,13 +85,13 @@ class ManagedWindow {
         const proxyHandler = {
             get: (target, prop) => {
                 if (prop === 'nativeWindow') return target.nativeWindow;
+                if (prop === 'isVirtual') return target._isVirtual;
                 if (prop in target) return target[prop];
                 const nativeWin = target._nativeWindow;
                 if (prop in nativeWin) {
                     const value = nativeWin[prop];
                     return typeof value === 'function' ? value.bind(nativeWin) : value;
                 }
-                // Если свойство не найдено, возвращаем undefined
             },
             set: (target, prop, value) => {
                 if (prop in target) {
@@ -74,31 +102,167 @@ class ManagedWindow {
                 return true;
             }
         };
-
         return new Proxy(this, proxyHandler);
     }
 
-    async openPage(url) {
-        if (this.closed) throw new Error('Окно закрыто');
-
-        // Сброс состояния
-        if (this.location.href !== 'about:blank') {
-            this.location.replace('about:blank');
-            await sleep(100);
-            await this.waitForElementDisappear('.loaded');
+    async openPage(url, params = {}) {
+        if (this._isVirtual) {
+            // Виртуальное окно
+            try {
+                const method = params.method || 'GET';
+                const headers = params.headers || {};
+                const body = params.body || null;
+                const credentials = params.credentials || 'include';
+                if (method !== 'GET' && method !== 'HEAD') {
+                    const csrfToken = this.getCSRFToken();
+                    if (csrfToken && !headers['X-CSRF-Token']) {
+                        headers['X-CSRF-Token'] = csrfToken;
+                    }
+                }
+                let response = await executeWithRetry(async () => {
+                    return await fetch(url, {
+                        method: method,
+                        headers: headers,
+                        body: body,
+                        credentials: credentials
+                    });
+                }, 10, 3000);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.log(errorText);
+                    throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+                }
+                const html = await response.text();
+                const parser = new DOMParser();
+                const newDoc = parser.parseFromString(html, 'text/html');
+                this._nativeWindow.document = newDoc;
+                this._nativeWindow.location.href = url;
+                this.document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
+                log(`[VIRTUAL] Cтраница загружена: ${url}`);
+                return this;
+            } catch (error) {
+                log(`[VIRTUAL] Ошибка загрузки страницы ${url}: ${error.message}`);
+                throw error;
+            }
+        } else {
+            // Реальное окно
+            if (Object.keys(params).length > 0) {
+                console.warn('Параметры openPage игнорируются в реальном режиме. Используется стандартная навигация.');
+            }
+            if (this.closed) throw new Error('Окно закрыто');
+            if (this.location.href !== 'about:blank') {
+                this.location.replace('about:blank');
+                await sleep(100);
+                await this.waitForElementDisappear('.loaded');
+            }
+            if (url != 'about:blank') {
+                this.location.href = url;
+                await sleep(100);
+                await this.waitForElement('.loaded');
+                this.jsCodeArea = this.querySelector('#js_code');
+                this.jsLoggingConsole = this.querySelector('#js_console');
+                this.log('Эта страница была открыта скриптом, будьте осторожны)');
+            }
+            return this;
         }
+    }
 
-        // Основная навигация
-        if (url != 'about:blank') {
-            this.location.href = url;
-            await sleep(100);
-            await this.waitForElement('.loaded');
-            this.jsCodeArea = this.querySelector('#js_code');
-            this.jsLoggingConsole = this.querySelector('#js_console');
-            this.log('Эта страница была открыта скриптом, будьте осторожны)');
+    async postFormData(url, fields = {}, params = {}) {
+        let {
+            includeDefaultFields = true,
+            headers = { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': this.getCSRFToken() },
+            successAlertIsNessesary = true,
+            fileFields = []
+        } = params;
+        let defaultFields = {};
+        if (includeDefaultFields) {
+            defaultFields = {
+                'authenticity_token': this.getCSRFToken(),
+                'utf8': '✓'
+            }
         }
+        const allFields = { ...defaultFields, ...fields };
+        const hasFiles = fileFields.length > 0;
+        let body;
+        if (hasFiles) {
+            const formData = new FormData();
+            for (const [name, value] of Object.entries(allFields)) {
+                if (!fileFields.includes(name)) {
+                    formData.append(name, value);
+                }
+            }
+            for (const fieldName of fileFields) {
+                if (fields[fieldName]) {
+                    try {
+                        const fileUrl = fields[fieldName];
+                        const response = await fetch(fileUrl);
+                        if (!response.ok) { throw new Error(`Ошибка загрузки файла: ${response.status}`); }
+                        const blob = await response.blob();
+                        const fileName = fields[`${fieldName}_name`] || fileUrl.split('/').pop() || 'file';
+                        formData.append(fieldName, blob, fileName);
+                        log(`Файл загружен: ${fileName} (${blob.size} bytes)`);
+                    } catch (error) {
+                        throw new Error(`Ошибка загрузки файла для поля ${fieldName}: ${error.message}`);
+                    }
+                }
+            }
+            body = formData;
+        } else {
+            body = new URLSearchParams(allFields);
+            if (!headers['Content-Type']) {
+                headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            }
+        }
+        await this.openPage(url, {
+            method: 'POST',
+            headers: headers,
+            body: body
+        });
+        try {
+            await this.waitForSuccess(true);
+        }
+        catch (error) {
+            log(error.message);
+            await sleep(500);
+            log('Повторная попытка...')
+            await this.openPage(url, {
+                method: 'POST',
+                headers: headers,
+                body: new URLSearchParams(allFields)
+            });
+            if (successAlertIsNessesary) {
+                await this.waitForSuccess(true);
+            }
+        }
+    }
 
-        return this;
+    async postFormDataJSON(url, payload = {}, params = {}) {
+        let {
+            method = 'POST',
+            headers = {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': this.getCSRFToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body = payload ? JSON.stringify(payload) : null
+        } = params;
+        await this.openPage(url, { method: method, headers: headers, body: body });
+    }
+
+    getCSRFToken() {
+        try {
+            const metaToken = currentWindow.document.querySelector('meta[name="csrf-token"]');
+            if (metaToken) {
+                return metaToken.getAttribute('content');
+            }
+            return null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    getElementValue(selector) {
+        return this.querySelector(selector).value;
     }
 
     checkPath(pattern) {
@@ -125,8 +289,10 @@ class ManagedWindow {
     }
 
     async click(selector) {
-        const element = await this.waitForElement(selector);
-        element.click();
+        if (!this._isVirtual) {
+            const element = await this.waitForElement(selector);
+            element.click();
+        }
     }
 
 
@@ -139,6 +305,9 @@ class ManagedWindow {
     }
 
     async waitForElement(selector, timeout = 30000, maxRetries = 20) {
+        if (this._isVirtual) {
+            return this.querySelector(selector);
+        }
         return executeWithRetry(async () => {
             const start = Date.now();
             while (Date.now() - start < timeout) {
@@ -183,8 +352,10 @@ class ManagedWindow {
         let successAlert = this.querySelector('.alert-success:not(.alert-dismissible):not(.custom-alert)');
         if (successAlert) {
             let alertCloseButton = successAlert.querySelector('.close');
-            alertCloseButton.click();
-            await this.waitForElementDisappear('.alert-success:not(.alert-dismissible)');
+            if (!this._isVirtual) {
+                alertCloseButton.click();
+                await this.waitForElementDisappear('.alert-success:not(.alert-dismissible)');
+            }
         }
         else if (this.querySelector('.alert-danger:not(.alert-dismissible)') && skipDangerAlert == false) {
             let errorMessage = this.querySelector('.alert-danger:not(.alert-dismissible)').innerHTML;
@@ -192,9 +363,12 @@ class ManagedWindow {
                 errorMessage = errorMessage.substring(errorMessage.search('</button>') + 9);
             throw new Error(`${errorMessage}`);
         }
-        else if (!this.querySelector('.alert-danger:not(.alert-dismissible)')) {
+        else if (!this.querySelector('.alert-danger:not(.alert-dismissible)') && !this._isVirtual) {
             await sleep(500);
             await this.waitForSuccess(skipDangerAlert = skipDangerAlert);
+        }
+        else {
+            throw new Error('Не удалось найти алерт');
         }
     }
 
@@ -421,9 +595,32 @@ function createFileInput(format = 'text/csv') {
     return inp;
 }
 
-// Создание окна
-async function createWindow(parent = window) {
-    return new ManagedWindow(parent);
+async function createWindow(arg = window) {
+    // Если аргумент - объект (работаем как createManagedWindow)
+    if (typeof arg === 'object' && arg !== null) {
+        const {
+            parent = currentWindow,
+            htmlContent = null,
+            name = null,
+            isVirtual = (htmlContent !== null),
+        } = arg;
+        if (htmlContent !== null) {
+            return new ManagedWindow(parent, htmlContent);
+        } else if (isVirtual) {
+            return new ManagedWindow(parent, '');
+        }
+        else if (name) {
+            return new ManagedWindow(name);
+        } else {
+            return new ManagedWindow(parent);
+        }
+    }
+    // Если аргумент -1 (создаем виртуальное пустое окно)
+    if (arg === -1) {
+        return new ManagedWindow(currentWindow, '');
+    }
+    // Остальная логика для строк, null или undefined
+    return new ManagedWindow(arg);
 }
 
 function applyReplaceRules(str, replaceRules = []) {
@@ -4158,7 +4355,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.69 от 12 сентября 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.70 от 25 сентября 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
