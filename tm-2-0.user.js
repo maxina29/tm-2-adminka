@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.71
+// @version      0.2.0.72
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -182,13 +182,15 @@ class ManagedWindow {
             if (!headers['Content-Type']) headers['Content-Type'] = 'application/x-www-form-urlencoded';
         }
         await this.openPage(url, { method: 'POST', headers: headers, body: body });
-        try { await this.waitForSuccess(true); }
-        catch (error) {
-            log(error.message);
-            await sleep(500);
-            log('Повторная попытка...')
-            await this.openPage(url, { method: 'POST', headers: headers, body: body });
-            if (successAlertIsNessesary) await this.waitForSuccess(true);
+        if (successAlertIsNessesary) {
+            try { await this.waitForSuccess(true); }
+            catch (error) {
+                log(error.message);
+                await sleep(500);
+                log('Повторная попытка...')
+                await this.openPage(url, { method: 'POST', headers: headers, body: body });
+                await this.waitForSuccess(true);
+            }
         }
     }
 
@@ -302,12 +304,15 @@ class ManagedWindow {
                 await this.waitForElementDisappear('.alert-success:not(.alert-dismissible)');
             }
         }
-        else if (this.querySelector('.alert-danger:not(.alert-dismissible)') && skipDangerAlert == false) {
+        else if (this.querySelector('.alert-danger:not(.alert-dismissible)') &&
+            (skipDangerAlert == false || this._isVirtual)
+        ) {
             let errorMessage = this.querySelector('.alert-danger:not(.alert-dismissible)').innerHTML;
             if (errorMessage.search('</button>') != -1) {
                 errorMessage = errorMessage.substring(errorMessage.search('</button>') + 9);
             }
-            throw new Error(`${errorMessage}`);
+            if (skipDangerAlert == false) throw new Error(`${errorMessage}`);
+            else displayLog(`Пропускаю: ${errorMessage}`, 'warning');
         }
         else if (!this.querySelector('.alert-danger:not(.alert-dismissible)') && !this._isVirtual) {
             await sleep(500);
@@ -1138,7 +1143,7 @@ const pagePatterns = {
         let warningTeacherInstallments = warningTeacherCancel.cloneNode(true);
         warningTeacherInstallments.innerHTML = 'Необходимо отключить оплату по частям в отмененном курсе';
         let warningInstallmentsCancel = warningTeacherInstallments.cloneNode(true);
-        let warningTeacherMatheriny = warningTeacherCancel.cloneNode(true); 
+        let warningTeacherMatheriny = warningTeacherCancel.cloneNode(true);
         warningTeacherMatheriny.innerHTML = 'Необходимо отключить оплату маткапиталом в отмененном курсе';
         let warningMatherinyCancel = warningTeacherMatheriny.cloneNode(true);
         let warningTeacherCalendar = warningTeacherCancel.cloneNode(true);
@@ -4031,61 +4036,42 @@ ${scriptContent}`;
         originalButton.removeAttribute('data-disable-with');
         originalButton.style = 'display: none;';
         originalButton.classList.add('protected');
-        const adminSection = createCollapsibleSection(form, 'Коды для админов админки', 0);
-        const coursesSubsection = createCollapsibleSection(adminSection, 'Курсы / courses', 1);
-        const adminLessonsSubsection = createCollapsibleSection(adminSection, 'Программа / lessons', 1);
-        const groupsSubsection = createCollapsibleSection(adminSection, 'Расписание / groups', 1);
-        const teachersSubsection = createCollapsibleSection(adminSection, 'Преподаватели / teachers', 1);
-        const contentSection = createCollapsibleSection(form, 'Коды для админов контента', 0);
-        const contentLessonsSubsection = createCollapsibleSection(contentSection, 'Программа / lessons', 1);
-        const tasksSubsection = createCollapsibleSection(contentSection, 'Задачи / tasks', 1);
 
         const SCRIPTS = {
-            REP: `let taskIds = splitString(\`392219
-391517
-391516\`);
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
+            REP: `let taskIds = splitString(\`
+000000
+000000
+000000
+\`);
+let win = await createWindow(-1);
 for (let taskId of taskIds) {
     log(taskId);
-    form.action = \`/admin/tasks/$\{taskId}\`;
-    const fields = {
+    let url = \`/admin/tasks/$\{taskId}\`;
+    let fields = {
         '_method': 'patch',
         'task[coach]': true,
-        'ctask[paper_trail_event]': 'minor_update'
+        'task[paper_trail_event]': 'minor_update'
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields);
 }`,
-            TARIFF: `const pairs = [
+            TARIFF: `let pairs = [
     // [course_id, resource_id],
     [10609, 12480],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, resourceId] of pairs) {
-    log(\`$\{courseId} -> $\{resourceId}\`);
-    form.action = \`/admin/courses/$\{courseId}/connections/tariffs\`;
-    const fields = {
+let win = await createWindow(-1);
+for (let [courseId, resourceId] of pairs) {
+    log(\`$\{courseId} <- $\{resourceId}\`);
+    let url = \`/admin/courses/$\{courseId}/connections/tariffs\`;
+    let fields = {
         'courses_connection_tariff[resource_type]': 'ProductPack',
         'courses_connection_tariff[resource_id]': resourceId,
         'courses_connection_tariff[tariff_type]': 'premium',
-        'commit': 'Сохранить'
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields);
 }`,
-            TASK_INPUT: `let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-form.action = \`/admin/tasks\`;
-const fields = {
+            TASK_INPUT: `let win = await createWindow(-1);
+let url = \`/admin/tasks\`;
+let fields = {
     'task[name]': 'Вопрос №1',
     'task[task_difficulty_id]': '8', // сложность 3
     'task[discipline_ids][]': ['3'], // физика
@@ -4096,14 +4082,10 @@ const fields = {
     // ответ
     'task[text_questions_attributes][0][text_answers_attributes][0][content]': '0' 
 };
-currentWindow.updateFormFields(form, fields);
-form.submit();
-await win.waitForSuccess();`,
-            TASK_SELF: `let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-form.action = \`/admin/tasks\`;
-const fields = {
+await win.postFormData(url, fields);`,
+            TASK_SELF: `let win = await createWindow(-1);
+let url = \`/admin/tasks\`;
+let fields = {
     'task[name]': 'Вопрос №1',
     'task[task_difficulty_id]': '8', // сложность 3 
     'task[discipline_ids][]': ['3'], // физика
@@ -4116,23 +4098,10 @@ const fields = {
     'task[self_rate_questions_attributes][0][self_rate_answers_attributes][1][content]': 'Ничего не верно',
     'task[self_rate_questions_attributes][0][self_rate_answers_attributes][1][correct_ratio]': '0'
 };
-for (const [name, value] of Object.entries(fields)) {
-    let input = form.querySelector(\`[name="$\{name}"]\`);
-    if (!input) {
-        input = createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        form.appendChild(input);
-    }
-    input.value = value;
-}
-form.submit();
-await win.waitForSuccess();`,
-            TASK_SET: `let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-form.action = \`/admin/tasks\`;
-const fields = {
+await win.postFormData(url, fields);`,
+            TASK_SET: `let win = await createWindow(-1);
+let url = \`/admin/tasks\`;
+let fields = {
     'task[name]': 'Вопрос №1',
     'task[task_difficulty_id]': '8', // сложность 3
     'task[discipline_ids][]': ['3'], // физика
@@ -4150,11 +4119,13 @@ const fields = {
     'task[links_questions_attributes][0][linked_answers_attributes][3][content]': 'A4',
     'task[links_questions_attributes][0][linked_answers_attributes][3][simple_answer_attributes][content]': 'Б4',
 };
-currentWindow.updateFormFields(form, fields);
-form.submit();
-await win.waitForSuccess();`,
-            TEACHERS_EDIT: `const teachersData = {
+await win.postFormData(url, fields);`,
+            TEACHERS_EDIT: `// Можно оставить только те поля, которые нужно изменить
+// Можно добавлять другие поля из формы
+let teachersData = {
     2043: {
+        'teacher[last_name]': 'тестовна',
+        'teacher[first_name]': 'теста',
         'teacher[description]': 'Описание',
         'teacher[pdf_description]': 'Подробное описание',
         'teacher[short_description]': 'Короткое описание',
@@ -4162,195 +4133,141 @@ await win.waitForSuccess();`,
         'teacher[video_presentation_url]': 'https://test.ru',
     },
 };
-const basicFields = {
+let basicFields = {
     '_method': 'patch',
-    'commit': 'Сохранить',
 };
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const teacherId in teachersData) {
+let win = await createWindow(-1);
+for (let teacherId in teachersData) {
     log(teacherId);
-    form.action = \`/admin/teachers/$\{teacherId}\`;
-    const fields = Object.assign(teachersData[teacherId], basicFields)
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    let url = \`/admin/teachers/$\{teacherId}\`;
+    let fields = Object.assign({}, basicFields, teachersData[teacherId]);
+    await win.postFormData(url, fields);
 }`,
-            USERS_TEACHERS: `const usersTeachers = [
+            USERS_TEACHERS: `let userTeachers = [
     // [user_id, teacher_id],
     [12345678, 2043],
 ];
-const basicFields = {
+let basicFields = {
     '_method': 'patch',
-    'commit': 'Сохранить',
 };
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [userId, teacherId] of usersTeachers) {
+let win = await createWindow(-1);
+for (let [userId, teacherId] of userTeachers) {
     log(\`$\{userId} <- $\{teacherId}\`);
-    form.action = \`/admin/users/$\{userId}\`;
-    const customFields = {
-        'user[teacher_id]': teacherId
-    };
-    const fields = Object.assign(customFields, basicFields)
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    let url = \`/admin/users/$\{userId}\`;
+    let customFields = { 'user[teacher_id]': teacherId };
+    let fields = Object.assign({}, basicFields, customFields);
+    await win.postFormData(url, fields);
 }`,
-            TEACHERS_CREATE: `const teachersData = [
+            TEACHERS_CREATE: `let teachersData = [
     'Фамилия1 Имя1',
     'Фамилия2 Имя2',
 ];
-const basicFields = {
-    'commit': 'Сохранить',
-}
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const teacherFullName of teachersData) {
+let win = await createWindow(-1);
+for (let teacherFullName of teachersData) {
     log(teacherFullName);
-    const [teacherLastName, teacherFirstName] = teacherFullName.trim().split(' ');
-    const customFields = {
+    let [teacherLastName, teacherFirstName] = teacherFullName.trim().split(' ');
+    let fields = {
         'teacher[last_name]': teacherLastName,
         'teacher[first_name]': teacherFirstName,
     };
-    form.action = \`/admin/teachers\`;
-    const fields = Object.assign(customFields, basicFields)
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    let url = \`/admin/teachers\`;
+    await win.postFormData(url, fields);
 }`,
-            LESSONS_FREE: `const pairs = [
+            LESSONS_FREE: `let pairs = [
     // [course_id, lesson_id],
     [10609, 293615],
     [10609, 308300],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, lessonId] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
     log(\`$\{courseId}, $\{lessonId}\`);
-    form.action = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
-    const fields = {
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
         '_method': 'patch',
-        'lesson[free]': '1',
+        'lesson[free]': true,
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            LESSONS_REORDER: `// Урок перенесется на 10000 место
-const pairs = [
+            LESSONS_REORDER: `// Уроки перенесутся на 10000 место
+let pairs = [
     // [course_id, lesson_id],
     [10609, 338032],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, lessonId] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
     log(\`$\{courseId}, $\{lessonId}\`);
-    form.action = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}/reorder\`;
-    const fields = {
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}/reorder\`;
+    let fields = {
         'new_index': '10000',
         'reorganize_dates': 'false',
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await sleep(100);
-    await win.waitForLoad();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
             LESSONS_DELETE: `// Должны быть будущей датой и желательно в конце курса 
 // (можно перенести в конец другим скриптом)
-const pairs = [
+let pairs = [
     // [course_id, lesson_id],
     [10609, 338032],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, lessonId] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
     log(\`$\{courseId}, $\{lessonId}\`);
-    form.action = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
-    const fields = {
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
         '_method': 'delete',
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields);
 }`,
             LESSONS_DELETE_SOFT: `// Переведите все параллели этого занятия в finished/шлак заранее 
-const pairs = [
+let pairs = [
     // [course_id, lesson_id],
     [10609, 500859],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, lessonId] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
     log(\`$\{courseId}, $\{lessonId}\`);
-    form.action = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
-    const fields = {
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
         '_method': 'patch',
         'lesson[course_id]': '9118',
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            LESSONS_VIDEO: `const pairs = [
+            LESSONS_VIDEO: `let pairs = [
     // [course_id, lesson_id, video_url],
     [10609, 334928, 'https://kinescope.io/u53tsTBCQNZDaNCMuJHK11111N'],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, lessonId, videoUrl] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId, videoUrl] of pairs) {
     log(\`$\{courseId}, $\{lessonId} <- $\{videoUrl}\`);
-    form.action = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
-    const fields = {
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
         '_method': 'patch',
         'lesson[video_url]': videoUrl,
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
             RESET_SCHEDULE: `// Получить данные можно из отчета 
 // ${METABASE_URL}/question/46579
-const pairs = [
+let pairs = [
     // [group_template_id, from_lesson_number, start_from_date],
-    [28917, 1, '08.09.2025'],
-    [28965, 1, '01.09.2025'],
+    [18068,132,'04.09.2026'],
+    [26074,74,'07.09.2026'],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
+let win = await createWindow(-1);
+for (let [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
     log(\`$\{groupTemplateId}, $\{fromLessonNumber} <- $\{startFromDate}\`);
-    form.action = \`/admin/group_templates/$\{groupTemplateId}/reset_schedule\`;
-    const fields = {
-        'commit': 'Перестроить',
+    let url = \`/admin/group_templates/$\{groupTemplateId}/reset_schedule\`;
+    let fields = {
         'from_lesson_number': fromLessonNumber,
         'start_from_date': startFromDate
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields);
 }`,
             GROUP_TEMPLATES_EDIT: `// данные можно взять из таблицы
 // https://disk.360.yandex.ru/i/MPt5jaaU-LXpDw
-const templatesData = [
+let templatesData = [
+    // заменить на нужные данные в формате
     // {
     //     'course_id': 10609,
     //     'group_template_id': 18068,
@@ -4364,23 +4281,20 @@ const templatesData = [
     //     'destroy_info': ['(1,08:00)', '(3,05:00)'],
     //     'location':[5, 1, 27]
     // },
-
+    
 ];
-const basicFields = {
+let basicFields = {
     '_method': 'patch',
-    'commit': 'Сохранить',
     'reset_schedule_reason': 'other',
-    'group_template[schedule_hidden]': '0'
+    'group_template[schedule_hidden]': false,
 };
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
+let win = await createWindow(-1);
 
 function normalizeTime(timeStr) { // убираем секунды и добавляем ведущий 0
     return timeStr.split(':').slice(0, 2).join(':').replace(/^(\d{1}):/, '0$1:');
 }
 function parseDestroyInfo(str) {
-    const match = str.match(/\\((\\d+),(\\d{1,2}:\\d{2})(:\\d{2})?\\)/);
+    let match = str.match(/\\((\\d+),(\\d{1,2}:\\d{2})(:\\d{2})?\\)/);
     if (!match) return null;
     return {
         day: parseInt(match[1]),
@@ -4388,12 +4302,12 @@ function parseDestroyInfo(str) {
     };
 }
 function add3HoursWithDay(day, timeStr) {
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    let [hours, minutes] = timeStr.split(':').map(Number);
     let totalMinutes = hours * 60 + minutes + 180;
     let daysToAdd = Math.floor(totalMinutes / (24 * 60));
     totalMinutes %= 24 * 60;
-    const newHours = Math.floor(totalMinutes / 60);
-    const newMinutes = totalMinutes % 60;
+    let newHours = Math.floor(totalMinutes / 60);
+    let newMinutes = totalMinutes % 60;
     let newDay = (day + daysToAdd) % 7;
     return {
         day: newDay,
@@ -4401,29 +4315,29 @@ function add3HoursWithDay(day, timeStr) {
     };
 }
 
-for (const templateData of templatesData) {
+for (let templateData of templatesData) {
     log(\`$\{templateData.course_id}, $\{templateData.group_template_id}\`);
-    form.action = 
+    let url = 
         \`/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
-    const slotsMap = new Map();
+    let slotsMap = new Map();
     if (templateData.week_day_slots) {
         for (let i = 0; i < templateData.week_day_slots.length; i++) {
-            const day = templateData.week_day_slots[i];
-            const time = normalizeTime(
+            let day = templateData.week_day_slots[i];
+            let time = normalizeTime(
                 templateData.time_slots[Math.min(i, templateData.time_slots.length - 1)]
             );
-            const key = \`$\{day}-$\{time}\`;
+            let key = \`$\{day}-$\{time}\`;
             slotsMap.set(key, { type: 'active', day, time });
         }
     }
-    const destroySlots = [];
+    let destroySlots = [];
     if (templateData.destroy && templateData.destroy_info) {
         for (let i = 0; i < templateData.destroy.length; i++) {
-            const id = templateData.destroy[i];
-            const info = parseDestroyInfo(templateData.destroy_info[i]);
+            let id = templateData.destroy[i];
+            let info = parseDestroyInfo(templateData.destroy_info[i]);
             if (!info) continue;
-            const adjusted = add3HoursWithDay(info.day, info.time);
-            const key = \`$\{adjusted.day}-$\{adjusted.time}\`;
+            let adjusted = add3HoursWithDay(info.day, info.time);
+            let key = \`$\{adjusted.day}-$\{adjusted.time}\`;
             if (slotsMap.has(key)) {
                 slotsMap.get(key).id = id;
             } else {
@@ -4431,9 +4345,9 @@ for (const templateData of templatesData) {
             }
         }
     }
-    const dynamicFields = {};
+    let dynamicFields = {};
     let slotIndex = 0;
-    for (const [key, slot] of slotsMap.entries()) {
+    for (let [key, slot] of slotsMap.entries()) {
         dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][slot][week_day]\`] = slot.day;
         dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][slot][time]\`] = slot.time;
         if (slot.id) { // если слот с таким временем уже есть, сохраняем его через id
@@ -4441,32 +4355,26 @@ for (const templateData of templatesData) {
         }
         slotIndex++;
     }
-    for (const slot of destroySlots) {
+    for (let slot of destroySlots) {
         dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][_destroy]\`] = '1';
         dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][id]\`] = slot.id;
         slotIndex++;
     }
     if (templateData.destroy && !templateData.destroy_info) {
-        for (const id of templateData.destroy) {
+        for (let id of templateData.destroy) {
             dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][_destroy]\`] = '1';
             dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][id]\`] = id;
             slotIndex++;
         }
     }
-    if (templateData.starts_at) {
-        dynamicFields['group_template[starts_at]'] = templateData.starts_at;
-    }
-    if (templateData.teacher_id) {
-        dynamicFields['group_template[teacher_id]'] = templateData.teacher_id;
-    }
-    if (templateData.agent_id) {
-        dynamicFields['group_template[agent_id]'] = templateData.agent_id;
-    }
-    if (templateData.users_limit) {
-        dynamicFields['group_template[users_limit]'] = templateData.users_limit;
+    let params = ['starts_at', 'teacher_id', 'agent_id', 'users_limit'];
+    for (let param of params) {
+        if (templateData[param]) {
+            dynamicFields[\`group_template[$\{param}]\`] = templateData[param];
+        }
     }
     if (templateData.location) {
-        const locationFields = {
+        let locationFields = {
             0: 'group_template[default_location_id]',
             1: 'group_template[default_format_id]',
             2: 'group_template[default_studio_id]',
@@ -4478,55 +4386,43 @@ for (const templateData of templatesData) {
             }
         }
     }
-    currentWindow.updateFormFields(form, Object.assign(dynamicFields, basicFields));
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, Object.assign({}, basicFields, dynamicFields));
 }`,
             LOCATION_EDIT: `// в настройках параллели и всех занятиях, соответствующих определенному слоту
 // данные можно взять из таблицы
 // https://disk.360.yandex.ru/i/CFYefGrjHdfGIg
 // ${METABASE_URL}/question/47547?teacher_id=2363&school_year=2025
-const templatesData = [
+let templatesData = [
     // вставить из таблицы
-    { 'course_id': 10609, 'group_template_id': 18068, 'slot_id': 39461, 'location': [5, 1, 27] },
+    { 'course_id': 10609, 'group_template_id': 26074, 'slot_id': 44141, 'location': [5, 1, 27] },
 
 ];
-const basicFieldsTemplate = {
+let basicFieldsTemplate = {
     '_method': 'patch',
-    'commit': 'Сохранить',
     'reset_schedule_reason': 'other',
-    'group_template[schedule_hidden]': '0'
+    'group_template[schedule_hidden]': false,
 };
-const basicFieldsDev = {
-    '_method': 'put',
-    'commit': 'Сохранить'
+let basicFieldsDev = {
+    '_method': 'put'
 }
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-const locationFields = {
+let win = await createWindow(-1);
+let locationFields = {
     0: 'location_id',
     1: 'format_id',
     2: 'studio_id',
     3: 'admin_id'
 };
-
-for (const templateData of templatesData) {
+for (let templateData of templatesData) {
     log(\`Курс $\{templateData.course_id}, параллель $\{templateData.group_template_id}\`);
     if (templateData.slot_id) log(\`Слот $\{templateData.slot_id}\`); 
-    form.action = \`/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
-    const dynamicFieldsTemplate = {};
+    let urlTemplate = \`/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
+    let dynamicFieldsTemplate = {};
     for (let i = 0; i < templateData.location.length; i++) {
         dynamicFieldsTemplate[\`group_template[default_$\{locationFields[i]}]\`] = templateData.location[i];
     }
-    currentWindow.updateFormFields(form, Object.assign(dynamicFieldsTemplate, basicFieldsTemplate));
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
-    await sleep(100);
-    form.action = '/admin/dev_services/week_day_webinars_settings';
-    const dynamicFieldsDev = {
+    await win.postFormData(urlTemplate, Object.assign({}, basicFieldsTemplate, dynamicFieldsTemplate));
+    let urlDev = '/admin/dev_services/week_day_webinars_settings';
+    let dynamicFieldsDev = {
         'week_day_webinars_settings[group_template_id]': templateData.group_template_id
     };
     if (templateData.slot_id) {
@@ -4538,19 +4434,63 @@ for (const templateData of templatesData) {
     for (let i = 0; i < templateData.location.length; i++) {
         dynamicFieldsDev[\`week_day_webinars_settings[$\{locationFields[i]}]\`] = templateData.location[i];
     }
-    currentWindow.updateFormFields(form, Object.assign(dynamicFieldsDev, basicFieldsDev));
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
-    await sleep(100);
-}`
+    await win.postFormData(urlDev, Object.assign({}, basicFieldsDev, dynamicFieldsDev));
+}`,
+            UP_TAGING: `// Выгрузить тегирование из курса можно отсюда:
+// ${METABASE_URL}/question/48991
+let methodicalProgramId = 738; // ID УП
+let resultIds = splitString(\`
+8219
+8249
+8252
+\`);
+let win = await createWindow(-1);
+for (let resultId of resultIds) {
+    log(resultId);
+    let url = \`/admin/methodical_materials/programs/$\{methodicalProgramId}/rubricator_results\`;
+    const fields = {
+        'result_id': resultId,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+            COURSE_TAGING: `// Выгрузить тегирование из курса можно отсюда:
+// ${METABASE_URL}/question/48991
+let courseId = 10609; // ID курса куда переносим
+let resultIds = splitString(\`
+8219
+8249
+8252
+\`);
+let win = await createWindow(-1);
+for (let resultId of resultIds) {
+    log(resultId);
+    let url = \`/admin/courses/$\{courseId}/rubricator_results\`;
+    const fields = {
+        'result_id': resultId,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
         }
+
+        const adminSection = createCollapsibleSection(form, 'Коды для админов админки', 0);
+        const coursesSubsection = createCollapsibleSection(adminSection, 'Курсы / courses', 1);
+        const adminLessonsSubsection = createCollapsibleSection(adminSection, 'Программа / lessons', 1);
+        const groupsSubsection = createCollapsibleSection(adminSection, 'Расписание / groups', 1);
+        const teachersSubsection = createCollapsibleSection(adminSection, 'Преподаватели / teachers', 1);
+        const contentSection = createCollapsibleSection(form, 'Коды для админов контента', 0);
+        const contentCoursesSubsection = createCollapsibleSection(contentSection, 'Курсы / courses', 1);
+        const contentLessonsSubsection = createCollapsibleSection(contentSection, 'Программа / lessons', 1);
+        const tasksSubsection = createCollapsibleSection(contentSection, 'Задачи / tasks', 1);
+        const methodicalProgramsSubsection = createCollapsibleSection(
+            contentSection, 'Учебные программы / methodical_materials/programs', 1
+        );
+
         createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
         createActionButton(coursesSubsection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
         createActionButton(tasksSubsection, 'Создать задачу (поле ввода)', SCRIPTS.TASK_INPUT);
         createActionButton(tasksSubsection, 'Создать задачу (самооценка)', SCRIPTS.TASK_SELF);
         createActionButton(tasksSubsection, 'Создать задачу (пересечение множеств)', SCRIPTS.TASK_SET);
-        createActionButton(teachersSubsection, 'Поправить карточки преподавателей', SCRIPTS.TEACHERS_EDIT);
+        createActionButton(teachersSubsection, 'Отредактировать карточки преподавателей', SCRIPTS.TEACHERS_EDIT);
         createActionButton(
             teachersSubsection, 'Связать аккаунты агентов и карточки преподавателей', SCRIPTS.USERS_TEACHERS
         );
@@ -4565,6 +4505,9 @@ for (const templateData of templatesData) {
         createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
         createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT);
         createActionButton(groupsSubsection, 'Изменить локации', SCRIPTS.LOCATION_EDIT);
+        createActionButton(methodicalProgramsSubsection, 'Тегирование УП', SCRIPTS.UP_TAGING);
+        createActionButton(contentCoursesSubsection, 'Тегирование курсов', SCRIPTS.COURSE_TAGING);
+
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -4611,7 +4554,7 @@ for (const templateData of templatesData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.71 от 25 сентября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.72 от 26 сентября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
