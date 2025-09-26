@@ -4806,7 +4806,7 @@ for (let resultId of resultIds) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            PROMO_CODE_DELETE: `//${METABASE_URL}/question/49702?code_campaign_id=33050
+            PROMO_CODE_DELETE: `// ${METABASE_URL}/question/49702?code_campaign_id=33050
 let promoIds = splitString(\`
 23982547
 23982626
