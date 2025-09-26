@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.73
+// @version      0.2.0.74
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4385,6 +4385,57 @@ for (let [courseId, lessonId, videoUrl] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
+            LESSONS_DESCRIPTION: `// ${METABASE_URL}/question/46496?course=10609
+let pairs = [
+    // [course_id, lesson_id, description],
+    [10609, 334874, \`Описание урока\`],
+];
+let win = await createWindow(-1);
+for (let [courseId, lessonId, lessonName] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
+        '_method': 'patch',
+        'lesson[themes_as_text]': lessonName,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+            LESSONS_PREPARATION_LINKS: `// ${METABASE_URL}/question/46496?course=10609
+let lessonIds = splitString(\`
+000000
+000000
+000000
+\`);
+let linkName = 'Ссылка на распечатки';
+let linkUrl = 'https://foxford.yonote.ru/share/fedaa471-6cc8-4923-a50f-dd28a919c266/doc/matematika-mi-moro-Tk8Le2S5ar';
+let win = await createWindow(-1);
+for (let lessonId of lessonIds) {
+    log(lessonId);
+    let url = \`https://foxford.ru/admin/lessons/$\{lessonId}/preparation_materials\`;
+    let fields = {
+        '_method': 'patch',
+        'lesson[material_links_attributes][0][name]': linkName,
+        'lesson[material_links_attributes][0][url]': linkUrl,
+    };
+    await win.postFormData(url, fields);
+}`,
+            GROUP_CHANGE_DATES: `// в курсах с асинхронным доступом сохраняет статус finished
+// можно поставить только будущую дату
+// ${METABASE_URL}/question/49703?course=10609
+let pairs = [
+    // [course_id, group_id, starts_at]
+    [10609, 734410, '01.10.2026 10:00'],
+];
+let win = await createWindow(-1);
+for (let [courseId, groupId, startsAt] of pairs) {
+    log(\`$\{courseId} -> $\{groupId}, $\{startsAt}\`);
+    let url = \`/admin/courses/$\{courseId}/groups/$\{groupId}\`;
+    let fields = {
+        '_method': 'patch',
+        'group[starts_at]': startsAt,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
             RESET_SCHEDULE: `// Получить данные можно из отчета 
 // ${METABASE_URL}/question/46579
 let pairs = [
@@ -4721,7 +4772,7 @@ else {
         await copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnitLink, settings);
     }
 }`,
-            UP_TAGING: `// Выгрузить тегирование из курса можно отсюда:
+            UP_TAGING: `// Выгрузить тегирование из курса:
 // ${METABASE_URL}/question/48991
 let methodicalProgramId = 738; // ID УП
 let resultIds = splitString(\`
@@ -4733,12 +4784,12 @@ let win = await createWindow(-1);
 for (let resultId of resultIds) {
     log(resultId);
     let url = \`/admin/methodical_materials/programs/$\{methodicalProgramId}/rubricator_results\`;
-    const fields = {
+    let fields = {
         'result_id': resultId,
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            COURSE_TAGING: `// Выгрузить тегирование из курса можно отсюда:
+            COURSE_TAGING: `// Выгрузить тегирование из курса:
 // ${METABASE_URL}/question/48991
 let courseId = 10609; // ID курса куда переносим
 let resultIds = splitString(\`
@@ -4750,10 +4801,25 @@ let win = await createWindow(-1);
 for (let resultId of resultIds) {
     log(resultId);
     let url = \`/admin/courses/$\{courseId}/rubricator_results\`;
-    const fields = {
+    let fields = {
         'result_id': resultId,
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+            PROMO_CODE_DELETE: `//${METABASE_URL}/question/49702?code_campaign_id=33050
+let promoIds = splitString(\`
+23982547
+23982626
+\`);
+let codeCampaignId = 33050; 
+let win = await createWindow(-1);
+for (let promoId of promoIds) {
+    log(\`$\{codeCampaignId}, $\{promoId}\`);
+    let url = \`https://foxford.ru/admin/marketing/code_campaigns/$\{codeCampaignId}/promo_codes/$\{promoId}\`;
+    let fields = {
+        '_method': 'delete',
+    };
+    await win.postFormData(url, fields);
 }`,
         }
 
@@ -4768,6 +4834,9 @@ for (let resultId of resultIds) {
         const tasksSubsection = createCollapsibleSection(contentSection, 'Задачи / tasks', 1);
         const methodicalProgramsSubsection = createCollapsibleSection(
             contentSection, 'Учебные программы / methodical_materials/programs', 1
+        );
+        const codeCampaignsSubsection = createCollapsibleSection(
+            adminSection, 'Акции с промокодами / marketing/code_campaigns', 1
         );
 
         createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
@@ -4786,16 +4855,24 @@ for (let resultId of resultIds) {
         );
         createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
         createActionButton(adminLessonsSubsection, '«Удалить» неудаляемый урок', SCRIPTS.LESSONS_DELETE_SOFT)
+        createActionButton(adminLessonsSubsection, 'Поменять описания уроков', SCRIPTS.LESSONS_DESCRIPTION);
         createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
+        createActionButton(
+            contentLessonsSubsection, 
+            'Добавление ссылки в подготовительные материалы', 
+            SCRIPTS.LESSONS_PREPARATION_LINKS
+        );
         createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
         createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT);
         createActionButton(groupsSubsection, 'Изменить локации', SCRIPTS.LOCATION_EDIT);
+        createActionButton(groupsSubsection, 'Изменить даты начала занятий', SCRIPTS.GROUP_CHANGE_DATES);
         createActionButton(methodicalProgramsSubsection, 'Тегирование УП', SCRIPTS.UP_TAGING);
         createActionButton(methodicalProgramsSubsection, 'Скопировать материалы между УП', SCRIPTS.UP_DUPLICATE);
         createActionButton(
             methodicalProgramsSubsection, 'Скопировать материалы между модулями УП', SCRIPTS.UP_MODULES_DUPLICATE
         );
         createActionButton(contentCoursesSubsection, 'Тегирование курсов', SCRIPTS.COURSE_TAGING);
+        createActionButton(codeCampaignsSubsection, 'Удалить промокоды', SCRIPTS.PROMO_CODE_DELETE);
 
         currentWindow.addStyle(`
         .collapsible {
@@ -4843,7 +4920,7 @@ for (let resultId of resultIds) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.73 от 26 сентября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.74 от 26 сентября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
