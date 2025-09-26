@@ -4880,8 +4880,8 @@ for (let productPackId in productPackData) {
         createActionButton(adminLessonsSubsection, 'Поменять описания уроков', SCRIPTS.LESSONS_DESCRIPTION);
         createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
         createActionButton(
-            contentLessonsSubsection, 
-            'Добавление ссылки в подготовительные материалы', 
+            contentLessonsSubsection,
+            'Добавление ссылки в подготовительные материалы',
             SCRIPTS.LESSONS_PREPARATION_LINKS
         );
         createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
