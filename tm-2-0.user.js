@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.75
+// @version      0.2.0.76
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4821,6 +4821,27 @@ for (let promoId of promoIds) {
     };
     await win.postFormData(url, fields);
 }`,
+            PRODUCT_PACK_APPEND_COURSES: `// укажите accessType: premium или standard для паков;
+// specific_date_premium или specific_date_standard для подписок
+let accessType = 'premium';
+const productPackData = {
+    // productPackId : [courseId, courseId, ...],
+    8593: [10609, 15005, 12345, 12346],
+    12527: splitString(\`10609 15005\`),
+};
+let fields = {
+    '_method': 'post',
+};
+let win = await createWindow(-1);
+for (let productPackId in productPackData) {
+    for (let courseId of productPackData[productPackId]) {
+        log(\`$\{productPackId} <- $\{courseId}\`);
+        let url = \`/admin/product_packs/$\{productPackId}/product_pack_items?\` +
+            \`product_pack_item%5Baccess_name%5D=$\{accessType}&product_pack_item%5Bresource_id%5D=$\{courseId}\` +
+            \`&product_pack_item%5Bresource_type%5D=Course\`;
+        await win.postFormData(url, fields);
+    }
+}`,
         }
 
         const adminSection = createCollapsibleSection(form, 'Коды для админов админки', 0);
@@ -4838,6 +4859,7 @@ for (let promoId of promoIds) {
         const codeCampaignsSubsection = createCollapsibleSection(
             adminSection, 'Акции с промокодами / marketing/code_campaigns', 1
         );
+        const productPacksSubsection = createCollapsibleSection(adminSection, 'Комплекты занятий / product_packs', 1);
 
         createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
         createActionButton(coursesSubsection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
@@ -4873,6 +4895,7 @@ for (let promoId of promoIds) {
         );
         createActionButton(contentCoursesSubsection, 'Тегирование курсов', SCRIPTS.COURSE_TAGING);
         createActionButton(codeCampaignsSubsection, 'Удалить промокоды', SCRIPTS.PROMO_CODE_DELETE);
+        createActionButton(productPacksSubsection, 'Привязка курсов к пакам', SCRIPTS.PRODUCT_PACK_APPEND_COURSES);
 
         currentWindow.addStyle(`
         .collapsible {
@@ -4920,7 +4943,7 @@ for (let promoId of promoIds) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.75 от 26 сентября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.76 от 26 сентября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
