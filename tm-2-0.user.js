@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.76
+// @version      0.2.0.77
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -676,7 +676,23 @@ function copyElementValue(source, target) {
         if (target.tagName === 'SELECT' && target.multiple) {
             const selectedValues = new Set(Array.from(source.selectedOptions).map(opt => opt.value));
             Array.from(target.options).forEach(opt => opt.selected = false);
-            Array.from(target.options).forEach(opt => { if (selectedValues.has(opt.value)) opt.selected = true; });
+            const existingOptions = new Map();
+            Array.from(target.options).forEach(opt => { existingOptions.set(opt.value, opt); });
+            Array.from(source.options).forEach(sourceOption => {
+                if (!existingOptions.has(sourceOption.value)) {
+                    const newOption = new Option(
+                        sourceOption.text,
+                        sourceOption.value
+                    );
+                    target.add(newOption);
+                    existingOptions.set(sourceOption.value, newOption);
+                }
+            });
+            Array.from(target.options).forEach(opt => {
+                if (selectedValues.has(opt.value)) {
+                    opt.selected = true;
+                }
+            });
         }
     } else target.value = source.value;
 }
@@ -4943,7 +4959,7 @@ for (let productPackId in productPackData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.76 от 26 сентября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.77 от 26 сентября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
