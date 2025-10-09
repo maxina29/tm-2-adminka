@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.77
+// @version      0.2.0.78
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -18,6 +18,15 @@ const HOME_ID_SET = [4, 1, 1, ''];
 const SSM_ID_SET = [4, 6, 1, 4789];
 const METABASE_URL = 'https://metabase.foxford.ru';
 const FOXFORD_URL = 'https://foxford.ru';
+const LESSON_TYPE_MAP = {
+    "Нулевое": "zero",
+    "Обычное": "regular",
+    "Тест": "training",
+    "Видео": "video",
+    "Пробный экзамен": "exam_rehearsal",
+    "Только задачи": "only_tasks",
+    "Перевёрнутое": "flipped"
+};
 
 // global variables;
 let currentWindow;
@@ -2047,6 +2056,51 @@ const pagePatterns = {
     // на странице с расписанием
     if (currentWindow.checkPath(pagePatterns.groups)) {
         group_template_id.classList.add('protected');
+        let lessonRows = currentWindow.querySelectorAll('tbody:last-of-type tr');
+        for (let lessonRow of lessonRows) {
+            lessonRow.classList.add('lesson_row');
+            let firstColumn = lessonRow.querySelector('td.first_column');
+            let lessonIdElem = firstColumn.querySelector('a[name]');
+            lessonIdElem.classList.add('lesson_id');
+            let lessonId = lessonRow.querySelector('a[name]').name;
+            let lessonNumberElem = firstColumn.querySelector('.lesson_number');
+            let lessonTypeSpan = lessonNumberElem.querySelector('span');
+            lessonTypeSpan.classList.add('lesson_type');
+            let lessonTypeText = lessonTypeSpan.textContent.trim();
+            let lessonType = LESSON_TYPE_MAP[lessonTypeText];
+            if (lessonType) lessonRow.classList.add(lessonType);
+            else log(`Неизвестный тип урока: ${lessonTypeText}`);
+            let lessonIdSpan = createElement('span', 'label label-default');
+            lessonIdSpan.innerHTML = `id: ${lessonId}`;
+            lessonNumberElem.append(createElement('br'));
+            lessonNumberElem.append(lessonIdSpan);
+            let actionButtons = lessonRow.querySelector('.actions_btn');
+            let lessonHeader = actionButtons.closest('.form-group');
+            lessonHeader.classList.add('lesson_header');
+            let webinarNameElement = lessonHeader.querySelector('label');
+            let webinarName = webinarNameElement.textContent.trim();
+            if (webinarName.includes('копия')) {
+                lessonRow.classList.add('copy');
+            }
+            else {
+                lessonRow.classList.add('original');
+            }
+            let webinarButton = lessonHeader.querySelector('.actions_btn>a');
+            let webinarLabel = webinarButton.textContent.trim();
+            if (webinarButton.classList.contains('disabled') && webinarLabel == 'Без вебинара') {
+                lessonRow.classList.add('no_webinar');
+            }
+            else {
+                lessonRow.classList.add('has_webinar');
+                let statusButton = actionButtons.querySelector('.dropdown-menu li:last-of-type a');
+                statusButton.classList.add('status_btn');
+                let statusLabel = statusButton.textContent.trim();
+                let webinarStatus = statusLabel.split(': ')[1];
+                lessonRow.classList.add(webinarStatus);
+            }
+
+        }
+        log('Страница модифицирована');
         let mcid = window.location.href.match(/\d+/)[0];
         let div = createElement('div', 'adminButtons');
         let btn_return_moderators = document.createElement('button');
@@ -2359,9 +2413,6 @@ const pagePatterns = {
                     if (location && location.value != SLAG_ID_SET[0] && !(location.hasAttribute('disabled'))) {
                         ne_shlak_groups.push(lid);
                     }
-                    let span = document.createElement('span'); span.innerHTML = 'id: ' + lid;
-                    span.className = "label label-default";
-                    i.childNodes[1].appendChild(document.createElement('br')); i.childNodes[1].appendChild(span);
                 }
                 let template_teacher = document.querySelectorAll('#group_template_teacher_id')[1].value;
                 let otmena_msg = '';
@@ -2873,7 +2924,6 @@ const pagePatterns = {
             btn_prs_onclick();
         }
         if (window.location.href.match('#duration40')) { set_all_duration_at_(40); }
-        log('Страница модифицирована');
     }
 
     // на странице создания дубликата
@@ -4959,7 +5009,7 @@ for (let productPackId in productPackData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.77 от 26 сентября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.78 от 9 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
