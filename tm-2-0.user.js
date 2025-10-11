@@ -4192,8 +4192,8 @@ displayLog('Готово! Проверьте данные и сохраните'
             return variables;
         }
         let sections;
-        function createActionButton(scriptObj, key) {
-            let className = scriptObj.className ? scriptObj.className : key.toLowerCase();
+        function createActionButton(scriptObj, key = '') {
+            let className = key.toLowerCase();
             let description = scriptObj.description ? scriptObj.description : '';
             const button = createButton(scriptObj.name, () => {
                 currentWindow.jsCodeArea.value = `// ${scriptObj.name}\n`;
