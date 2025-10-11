@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.80
+// @version      0.2.0.81
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4179,6 +4179,19 @@ displayLog('Готово! Проверьте данные и сохраните'
             });
             return content;
         }
+        function buildSectionsRecursive(parent, structure, currentLevel = 0) {
+            let variables = {};
+            structure.forEach(sectionConfig => {
+                let sectionElement = createCollapsibleSection(parent, sectionConfig.title, currentLevel);
+                variables[sectionConfig.key] = sectionElement;
+                if (sectionConfig.children) {
+                    let childVariables = buildSectionsRecursive(sectionElement, sectionConfig.children, currentLevel + 1);
+                    Object.assign(variables, childVariables);
+                }
+            });
+            return variables;
+        }
+        let sections;
         function createActionButton(scriptObj, key) {
             let className = scriptObj.className ? scriptObj.className : key.toLowerCase();
             let description = scriptObj.description ? scriptObj.description : '';
@@ -4188,27 +4201,9 @@ displayLog('Готово! Проверьте данные и сохраните'
                 currentWindow.jsCodeArea.value += `${scriptObj.code}`;
             }, `btn btn-default script-btn ${className}`, false);
             button.title = description.replace(/\n\s*/ig, '; ');
-            scriptObj.parent.appendChild(button);
+            sections[scriptObj.parent].appendChild(button);
             return button;
         }
-
-        [
-            '.courses_lesson_pack_lesson_count',
-            '.courses_lesson_pack_price',
-            '.courses_lesson_pack_maternity_capital'
-        ].forEach(selector => {
-            currentWindow.querySelector(selector)?.remove();
-        });
-        ['utf8', 'authenticity_token'].forEach(name => {
-            currentWindow.querySelector(`[name = "${name}"]`)?.classList.add('protected');
-        });
-        currentWindow.querySelector('h3').innerHTML = 'Секретная страница';
-        const form = currentWindow.querySelector('form');
-        form.id = 'form';
-        const div = createElement('div');
-        div.innerHTML = 'На этой странице можно найти самые разные скрипты)';
-        const searchInput = createElement('input', 'form-control', 'margin: 10px 0; padding: 5px;');
-        searchInput.placeholder = 'Поиск скриптов...';
         function hideorShowAll(toShow) {
             document.querySelectorAll('.my-btn:not(.btn-info), .outside-collapsible').forEach(
                 btn => btn.style.display = toShow ? 'inline-block' : 'none'
@@ -4228,6 +4223,24 @@ displayLog('Готово! Проверьте данные и сохраните'
                 elem.style.display = 'inline-block';
             })
         }
+
+        [
+            '.courses_lesson_pack_lesson_count',
+            '.courses_lesson_pack_price',
+            '.courses_lesson_pack_maternity_capital'
+        ].forEach(selector => {
+            currentWindow.querySelector(selector)?.remove();
+        });
+        ['utf8', 'authenticity_token'].forEach(name => {
+            currentWindow.querySelector(`[name = "${name}"]`)?.classList.add('protected');
+        });
+        currentWindow.querySelector('h3').innerHTML = 'Секретная страница';
+        const form = currentWindow.querySelector('form');
+        form.id = 'form';
+        const div = createElement('div');
+        div.innerHTML = 'На этой странице можно найти самые разные скрипты)';
+        const searchInput = createElement('input', 'form-control', 'margin: 10px 0; padding: 5px;');
+        searchInput.placeholder = 'Поиск скриптов...';
         searchInput.addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase();
             if (term) hideorShowAll(false);
@@ -4248,23 +4261,30 @@ displayLog('Готово! Проверьте данные и сохраните'
         originalButton.style = 'display: none;';
         originalButton.classList.add('protected');
 
-        const adminSection = createCollapsibleSection(form, 'Коды для админов админки', 0);
-        const coursesSubsection = createCollapsibleSection(adminSection, 'Курсы / courses', 1);
-        const adminLessonsSubsection = createCollapsibleSection(adminSection, 'Программа / lessons', 1);
-        const groupsSubsection = createCollapsibleSection(adminSection, 'Расписание / groups', 1);
-        const teachersSubsection = createCollapsibleSection(adminSection, 'Преподаватели / teachers', 1);
-        const contentSection = createCollapsibleSection(form, 'Коды для админов контента', 0);
-        const contentCoursesSubsection = createCollapsibleSection(contentSection, 'Курсы / courses', 1);
-        const contentLessonsSubsection = createCollapsibleSection(contentSection, 'Программа / lessons', 1);
-        const tasksSubsection = createCollapsibleSection(contentSection, 'Задачи / tasks', 1);
-        const methodicalProgramsSubsection = createCollapsibleSection(
-            contentSection, 'Учебные программы / methodical_materials/programs', 1
-        );
-        const codeCampaignsSubsection = createCollapsibleSection(
-            adminSection, 'Акции с промокодами / marketing/code_campaigns', 1
-        );
-        const productPacksSubsection = createCollapsibleSection(adminSection, 'Комплекты занятий / product_packs', 1);
-
+        const sectionsStructure = [
+            {
+                title: 'Коды для админов админки',
+                key: 'admin',
+                children: [
+                    { title: 'Курсы / courses', key: 'adminCourses' },
+                    { title: 'Программа / lessons', key: 'adminLessons' },
+                    { title: 'Расписание / groups', key: 'groups' },
+                    { title: 'Преподаватели / teachers', key: 'teachers' },
+                    { title: 'Акции с промокодами / marketing/code_campaigns', key: 'codeCampaigns' },
+                    { title: 'Комплекты занятий / product_packs', key: 'productPacks' }
+                ]
+            },
+            {
+                title: 'Коды для админов контента',
+                key: 'content',
+                children: [
+                    { title: 'Курсы / courses', key: 'contentCourses' },
+                    { title: 'Программа / lessons', key: 'contentLessons' },
+                    { title: 'Задачи / tasks', key: 'tasks' },
+                    { title: 'Учебные программы / methodical_materials/programs', key: 'methodicalPrograms' }
+                ]
+            }
+        ];
         const SCRIPTS = {
             REP: {
                 name: 'Проставление галки «Репетиторская»',
@@ -4284,7 +4304,7 @@ for (let taskId of taskIds) {
     };
     await win.postFormData(url, fields);
 }`,
-                parent: tasksSubsection
+                parent: 'tasks'
             },
             TARIFF: {
                 name: 'Добавление связанных продуктов в курсы',
@@ -4303,7 +4323,7 @@ for (let [courseId, resourceId] of pairs) {
     };
     await win.postFormData(url, fields);
 }`,
-                parent: coursesSubsection
+                parent: 'adminCourses'
             },
             TASK_INPUT: {
                 name: 'Создать задачу (поле ввода)',
@@ -4321,7 +4341,7 @@ let fields = {
     'task[text_questions_attributes][0][text_answers_attributes][0][content]': '0' 
 };
 await win.postFormData(url, fields);`,
-                parent: tasksSubsection
+                parent: 'tasks'
             },
             TASK_SELF: {
                 name: 'Создать задачу (самооценка)',
@@ -4341,7 +4361,7 @@ let fields = {
     'task[self_rate_questions_attributes][0][self_rate_answers_attributes][1][correct_ratio]': '0'
 };
 await win.postFormData(url, fields);`,
-                parent: tasksSubsection
+                parent: 'tasks'
             },
             TASK_SET: {
                 name: 'Создать задачу (пересечение множеств)',
@@ -4366,7 +4386,7 @@ let fields = {
     'task[links_questions_attributes][0][linked_answers_attributes][3][simple_answer_attributes][content]': 'Б4',
 };
 await win.postFormData(url, fields);`,
-                parent: tasksSubsection
+                parent: 'tasks'
             },
             TEACHERS_EDIT: {
                 name: 'Отредактировать карточки преподавателей',
@@ -4393,7 +4413,7 @@ for (let teacherId in teachersData) {
     let fields = Object.assign({}, basicFields, teachersData[teacherId]);
     await win.postFormData(url, fields);
 }`,
-                parent: teachersSubsection
+                parent: 'teachers'
             },
             USERS_TEACHERS: {
                 name: 'Связать аккаунты агентов и карточки преподавателей',
@@ -4412,7 +4432,7 @@ for (let [userId, teacherId] of userTeachers) {
     let fields = Object.assign({}, basicFields, customFields);
     await win.postFormData(url, fields);
 }`,
-                parent: teachersSubsection
+                parent: 'teachers'
             },
             TEACHERS_CREATE: {
                 name: 'Создать карточки преподавателей',
@@ -4431,7 +4451,7 @@ for (let teacherFullName of teachersData) {
     let url = \`/admin/teachers\`;
     await win.postFormData(url, fields);
 }`,
-                parent: teachersSubsection
+                parent: 'teachers'
             },
             LESSONS_FREE: {
                 name: 'Сделать уроки бесплатными',
@@ -4450,7 +4470,7 @@ for (let [courseId, lessonId] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-                parent: adminLessonsSubsection
+                parent: 'adminLessons'
             },
             LESSONS_REORDER: {
                 name: 'Переместить уроки в конец курса (для удаления)',
@@ -4469,7 +4489,7 @@ for (let [courseId, lessonId] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-                parent: adminLessonsSubsection
+                parent: 'adminLessons'
             },
             LESSONS_DELETE: {
                 name: 'Удалить уроки',
@@ -4488,7 +4508,7 @@ for (let [courseId, lessonId] of pairs) {
     };
     await win.postFormData(url, fields);
 }`,
-                parent: adminLessonsSubsection
+                parent: 'adminLessons'
             },
             LESSONS_DELETE_SOFT: {
                 name: '«Удалить» неудаляемый урок',
@@ -4507,7 +4527,7 @@ for (let [courseId, lessonId] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-                parent: adminLessonsSubsection
+                parent: 'adminLessons'
             },
             LESSONS_VIDEO: {
                 name: 'Подгрузить ролики в уроки ПК/видео',
@@ -4525,7 +4545,7 @@ for (let [courseId, lessonId, videoUrl] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-                parent: contentLessonsSubsection
+                parent: 'contentLessons'
             },
             LESSONS_DESCRIPTION: {
                 name: 'Поменять описания уроков',
@@ -4544,7 +4564,7 @@ for (let [courseId, lessonId, lessonName] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-                parent: adminLessonsSubsection
+                parent: 'adminLessons'
             },
             LESSONS_PREPARATION_LINKS: {
                 name: 'Добавление ссылки в подготовительные материалы',
@@ -4567,7 +4587,7 @@ for (let lessonId of lessonIds) {
     };
     await win.postFormData(url, fields);
 }`,
-                parent: contentLessonsSubsection
+                parent: 'contentLessons'
             },
             GROUP_CHANGE_DATES: {
                 name: 'Изменить даты начала занятий',
@@ -4588,7 +4608,7 @@ for (let [courseId, groupId, startsAt] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-                parent: groupsSubsection
+                parent: 'groups'
             },
             RESET_SCHEDULE: {
                 name: 'Перестроить параллели',
@@ -4608,7 +4628,7 @@ for (let [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
     };
     await win.postFormData(url, fields);
 }`,
-                parent: groupsSubsection
+                parent: 'groups'
             },
             GROUP_TEMPLATES_EDIT: {
                 name: 'Изменить настройки параллели',
@@ -4735,7 +4755,7 @@ for (let templateData of templatesData) {
     }
     await win.postFormData(url, Object.assign({}, basicFields, dynamicFields));
 }`,
-                parent: groupsSubsection
+                parent: 'groups'
             },
             LOCATION_EDIT: {
                 name: 'Изменить локации',
@@ -4786,7 +4806,7 @@ for (let templateData of templatesData) {
     }
     await win.postFormData(urlDev, Object.assign({}, basicFieldsDev, dynamicFieldsDev));
 }`,
-                parent: groupsSubsection
+                parent: 'groups'
             },
             UP_DUPLICATE: {
                 name: 'Скопировать материалы между УП',
@@ -4886,7 +4906,7 @@ if (!hasConstraint) {
         }
     }
 }`,
-                parent: methodicalProgramsSubsection
+                parent: 'methodicalPrograms'
             },
             UP_MODULES_DUPLICATE: {
                 name: 'Скопировать материалы между модулями УП',
@@ -4941,7 +4961,7 @@ else {
         await copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnitLink, settings);
     }
 }`,
-                parent: methodicalProgramsSubsection
+                parent: 'methodicalPrograms'
             },
             UP_TAGING: {
                 name: 'Тегирование УП',
@@ -4962,7 +4982,7 @@ for (let resultId of resultIds) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-                parent: methodicalProgramsSubsection
+                parent: 'methodicalPrograms'
             },
             COURSE_TAGING: {
                 name: 'Тегирование курсов',
@@ -4983,7 +5003,7 @@ for (let resultId of resultIds) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-                parent: contentCoursesSubsection
+                parent: 'contentCourses'
             },
             PROMO_CODE_DELETE: {
                 name: 'Удалить промокоды',
@@ -5002,7 +5022,7 @@ for (let promoId of promoIds) {
     };
     await win.postFormData(url, fields);
 }`,
-                parent: codeCampaignsSubsection
+                parent: 'codeCampaigns'
             },
             PRODUCT_PACK_APPEND_COURSES: {
                 name: 'Привязка курсов к пакам',
@@ -5027,10 +5047,10 @@ for (let productPackId in productPackData) {
         await win.postFormData(url, fields);
     }
 }`,
-                parent: productPacksSubsection
+                parent: 'productPacks'
             },
         }
-
+        sections = buildSectionsRecursive(form, sectionsStructure);
         for (let key in SCRIPTS) {
             createActionButton(SCRIPTS[key], key);
         }
@@ -5081,7 +5101,7 @@ for (let productPackId in productPackData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.80 от 13 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.81 от 13 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
