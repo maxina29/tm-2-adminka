@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.79
+// @version      0.2.0.80
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4179,14 +4179,19 @@ displayLog('Готово! Проверьте данные и сохраните'
             });
             return content;
         }
-        function createActionButton(parent, text, scriptContent, className = '') {
-            const button = createButton(text, () => {
-                currentWindow.jsCodeArea.value = `// ${text}
-${scriptContent}`;
+        function createActionButton(scriptObj, key) {
+            let className = scriptObj.className ? scriptObj.className : key.toLowerCase();
+            let description = scriptObj.description ? scriptObj.description : '';
+            const button = createButton(scriptObj.name, () => {
+                currentWindow.jsCodeArea.value = `// ${scriptObj.name}\n`;
+                if (description) currentWindow.jsCodeArea.value += `// ${description.replace(/\n\s*/ig, '\n// ')}\n`;
+                currentWindow.jsCodeArea.value += `${scriptObj.code}`;
             }, `btn btn-default script-btn ${className}`, false);
-            parent.appendChild(button);
+            button.title = description.replace(/\n\s*/ig, '; ');
+            scriptObj.parent.appendChild(button);
             return button;
         }
+
         [
             '.courses_lesson_pack_lesson_count',
             '.courses_lesson_pack_price',
@@ -4243,8 +4248,27 @@ ${scriptContent}`;
         originalButton.style = 'display: none;';
         originalButton.classList.add('protected');
 
+        const adminSection = createCollapsibleSection(form, 'Коды для админов админки', 0);
+        const coursesSubsection = createCollapsibleSection(adminSection, 'Курсы / courses', 1);
+        const adminLessonsSubsection = createCollapsibleSection(adminSection, 'Программа / lessons', 1);
+        const groupsSubsection = createCollapsibleSection(adminSection, 'Расписание / groups', 1);
+        const teachersSubsection = createCollapsibleSection(adminSection, 'Преподаватели / teachers', 1);
+        const contentSection = createCollapsibleSection(form, 'Коды для админов контента', 0);
+        const contentCoursesSubsection = createCollapsibleSection(contentSection, 'Курсы / courses', 1);
+        const contentLessonsSubsection = createCollapsibleSection(contentSection, 'Программа / lessons', 1);
+        const tasksSubsection = createCollapsibleSection(contentSection, 'Задачи / tasks', 1);
+        const methodicalProgramsSubsection = createCollapsibleSection(
+            contentSection, 'Учебные программы / methodical_materials/programs', 1
+        );
+        const codeCampaignsSubsection = createCollapsibleSection(
+            adminSection, 'Акции с промокодами / marketing/code_campaigns', 1
+        );
+        const productPacksSubsection = createCollapsibleSection(adminSection, 'Комплекты занятий / product_packs', 1);
+
         const SCRIPTS = {
-            REP: `let taskIds = splitString(\`
+            REP: {
+                name: 'Проставление галки «Репетиторская»',
+                code: `let taskIds = splitString(\`
 000000
 000000
 000000
@@ -4260,7 +4284,11 @@ for (let taskId of taskIds) {
     };
     await win.postFormData(url, fields);
 }`,
-            TARIFF: `let pairs = [
+                parent: tasksSubsection
+            },
+            TARIFF: {
+                name: 'Добавление связанных продуктов в курсы',
+                code: `let pairs = [
     // [course_id, resource_id],
     [10609, 12480],
 ];
@@ -4275,7 +4303,11 @@ for (let [courseId, resourceId] of pairs) {
     };
     await win.postFormData(url, fields);
 }`,
-            TASK_INPUT: `let win = await createWindow(-1);
+                parent: coursesSubsection
+            },
+            TASK_INPUT: {
+                name: 'Создать задачу (поле ввода)',
+                code: `let win = await createWindow(-1);
 let url = \`/admin/tasks\`;
 let fields = {
     'task[name]': 'Вопрос №1',
@@ -4289,7 +4321,11 @@ let fields = {
     'task[text_questions_attributes][0][text_answers_attributes][0][content]': '0' 
 };
 await win.postFormData(url, fields);`,
-            TASK_SELF: `let win = await createWindow(-1);
+                parent: tasksSubsection
+            },
+            TASK_SELF: {
+                name: 'Создать задачу (самооценка)',
+                code: `let win = await createWindow(-1);
 let url = \`/admin/tasks\`;
 let fields = {
     'task[name]': 'Вопрос №1',
@@ -4305,7 +4341,11 @@ let fields = {
     'task[self_rate_questions_attributes][0][self_rate_answers_attributes][1][correct_ratio]': '0'
 };
 await win.postFormData(url, fields);`,
-            TASK_SET: `let win = await createWindow(-1);
+                parent: tasksSubsection
+            },
+            TASK_SET: {
+                name: 'Создать задачу (пересечение множеств)',
+                code: `let win = await createWindow(-1);
 let url = \`/admin/tasks\`;
 let fields = {
     'task[name]': 'Вопрос №1',
@@ -4326,9 +4366,13 @@ let fields = {
     'task[links_questions_attributes][0][linked_answers_attributes][3][simple_answer_attributes][content]': 'Б4',
 };
 await win.postFormData(url, fields);`,
-            TEACHERS_EDIT: `// Можно оставить только те поля, которые нужно изменить
-// Можно добавлять другие поля из формы
-let teachersData = {
+                parent: tasksSubsection
+            },
+            TEACHERS_EDIT: {
+                name: 'Отредактировать карточки преподавателей',
+                description: `Можно оставить только те поля, которые нужно изменить
+                    Можно добавлять другие поля из формы`,
+                code: `let teachersData = {
     2043: {
         'teacher[last_name]': 'тестовна',
         'teacher[first_name]': 'теста',
@@ -4349,7 +4393,11 @@ for (let teacherId in teachersData) {
     let fields = Object.assign({}, basicFields, teachersData[teacherId]);
     await win.postFormData(url, fields);
 }`,
-            USERS_TEACHERS: `let userTeachers = [
+                parent: teachersSubsection
+            },
+            USERS_TEACHERS: {
+                name: 'Связать аккаунты агентов и карточки преподавателей',
+                code: `let userTeachers = [
     // [user_id, teacher_id],
     [12345678, 2043],
 ];
@@ -4364,7 +4412,11 @@ for (let [userId, teacherId] of userTeachers) {
     let fields = Object.assign({}, basicFields, customFields);
     await win.postFormData(url, fields);
 }`,
-            TEACHERS_CREATE: `let teachersData = [
+                parent: teachersSubsection
+            },
+            TEACHERS_CREATE: {
+                name: 'Создать карточки преподавателей',
+                code: `let teachersData = [
     'Фамилия1 Имя1',
     'Фамилия2 Имя2',
 ];
@@ -4379,7 +4431,11 @@ for (let teacherFullName of teachersData) {
     let url = \`/admin/teachers\`;
     await win.postFormData(url, fields);
 }`,
-            LESSONS_FREE: `let pairs = [
+                parent: teachersSubsection
+            },
+            LESSONS_FREE: {
+                name: 'Сделать уроки бесплатными',
+                code: `let pairs = [
     // [course_id, lesson_id],
     [10609, 293615],
     [10609, 308300],
@@ -4394,8 +4450,12 @@ for (let [courseId, lessonId] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            LESSONS_REORDER: `// Уроки перенесутся на 10000 место
-let pairs = [
+                parent: adminLessonsSubsection
+            },
+            LESSONS_REORDER: {
+                name: 'Переместить уроки в конец курса (для удаления)',
+                description: 'Уроки перенесутся на 10000 место',
+                code: `let pairs = [
     // [course_id, lesson_id],
     [10609, 338032],
 ];
@@ -4409,9 +4469,13 @@ for (let [courseId, lessonId] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            LESSONS_DELETE: `// Должны быть будущей датой и желательно в конце курса 
-// (можно перенести в конец другим скриптом)
-let pairs = [
+                parent: adminLessonsSubsection
+            },
+            LESSONS_DELETE: {
+                name: 'Удалить уроки',
+                description: `Должны быть будущей датой и желательно в конце курса
+                    (можно перенести в конец другим скриптом)`,
+                code: `let pairs = [
     // [course_id, lesson_id],
     [10609, 338032],
 ];
@@ -4424,8 +4488,12 @@ for (let [courseId, lessonId] of pairs) {
     };
     await win.postFormData(url, fields);
 }`,
-            LESSONS_DELETE_SOFT: `// Переведите все параллели этого занятия в finished/шлак заранее 
-let pairs = [
+                parent: adminLessonsSubsection
+            },
+            LESSONS_DELETE_SOFT: {
+                name: '«Удалить» неудаляемый урок',
+                description: 'Переведите все параллели этого занятия в finished/шлак заранее',
+                code: `let pairs = [
     // [course_id, lesson_id],
     [10609, 500859],
 ];
@@ -4439,7 +4507,11 @@ for (let [courseId, lessonId] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            LESSONS_VIDEO: `let pairs = [
+                parent: adminLessonsSubsection
+            },
+            LESSONS_VIDEO: {
+                name: 'Подгрузить ролики в уроки ПК/видео',
+                code: `let pairs = [
     // [course_id, lesson_id, video_url],
     [10609, 334928, 'https://kinescope.io/u53tsTBCQNZDaNCMuJHK11111N'],
 ];
@@ -4453,7 +4525,11 @@ for (let [courseId, lessonId, videoUrl] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            LESSONS_DESCRIPTION: `// ${METABASE_URL}/question/46496?course=10609
+                parent: contentLessonsSubsection
+            },
+            LESSONS_DESCRIPTION: {
+                name: 'Поменять описания уроков',
+                code: `// ${METABASE_URL}/question/46496?course=10609
 let pairs = [
     // [course_id, lesson_id, description],
     [10609, 334874, \`Описание урока\`],
@@ -4468,7 +4544,11 @@ for (let [courseId, lessonId, lessonName] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            LESSONS_PREPARATION_LINKS: `// ${METABASE_URL}/question/46496?course=10609
+                parent: adminLessonsSubsection
+            },
+            LESSONS_PREPARATION_LINKS: {
+                name: 'Добавление ссылки в подготовительные материалы',
+                code: `// ${METABASE_URL}/question/46496?course=10609
 let lessonIds = splitString(\`
 000000
 000000
@@ -4487,9 +4567,13 @@ for (let lessonId of lessonIds) {
     };
     await win.postFormData(url, fields);
 }`,
-            GROUP_CHANGE_DATES: `// в курсах с асинхронным доступом сохраняет статус finished
-// можно поставить только будущую дату
-// ${METABASE_URL}/question/49703?course=10609
+                parent: contentLessonsSubsection
+            },
+            GROUP_CHANGE_DATES: {
+                name: 'Изменить даты начала занятий',
+                description: `в курсах с асинхронным доступом сохраняет статус finished
+                    можно поставить только будущую дату`,
+                code: `// ${METABASE_URL}/question/49703?course=10609
 let pairs = [
     // [course_id, group_id, starts_at]
     [10609, 734410, '01.10.2026 10:00'],
@@ -4504,8 +4588,11 @@ for (let [courseId, groupId, startsAt] of pairs) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            RESET_SCHEDULE: `// Получить данные можно из отчета 
-// ${METABASE_URL}/question/46579
+                parent: groupsSubsection
+            },
+            RESET_SCHEDULE: {
+                name: 'Перестроить параллели',
+                code: `// ${METABASE_URL}/question/46579
 let pairs = [
     // [group_template_id, from_lesson_number, start_from_date],
     [18068,132,'04.09.2026'],
@@ -4521,8 +4608,11 @@ for (let [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
     };
     await win.postFormData(url, fields);
 }`,
-            GROUP_TEMPLATES_EDIT: `// данные можно взять из таблицы
-// https://disk.360.yandex.ru/i/MPt5jaaU-LXpDw
+                parent: groupsSubsection
+            },
+            GROUP_TEMPLATES_EDIT: {
+                name: 'Изменить настройки параллели',
+                code: `// https://disk.360.yandex.ru/i/MPt5jaaU-LXpDw
 let templatesData = [
     // заменить на нужные данные в формате
     // {
@@ -4645,9 +4735,12 @@ for (let templateData of templatesData) {
     }
     await win.postFormData(url, Object.assign({}, basicFields, dynamicFields));
 }`,
-            LOCATION_EDIT: `// в настройках параллели и всех занятиях, соответствующих определенному слоту
-// данные можно взять из таблицы
-// https://disk.360.yandex.ru/i/CFYefGrjHdfGIg
+                parent: groupsSubsection
+            },
+            LOCATION_EDIT: {
+                name: 'Изменить локации',
+                description: 'в настройках параллели и всех занятиях, соответствующих определенному слоту',
+                code: `// https://disk.360.yandex.ru/i/CFYefGrjHdfGIg
 // ${METABASE_URL}/question/47547?teacher_id=2363&school_year=2025
 let templatesData = [
     // вставить из таблицы
@@ -4693,8 +4786,12 @@ for (let templateData of templatesData) {
     }
     await win.postFormData(urlDev, Object.assign({}, basicFieldsDev, dynamicFieldsDev));
 }`,
-            UP_DUPLICATE: `// Указать true или false для каждого материала
-let sourceId = 733; // ID УП откуда
+                parent: groupsSubsection
+            },
+            UP_DUPLICATE: {
+                name: 'Скопировать материалы между УП',
+                description: 'Указать true или false для каждого материала',
+                code: `let sourceId = 733; // ID УП откуда
 let targetId = 1162; // ID УП куда
 let settings = {
     'Модули + уроки': true,
@@ -4789,8 +4886,12 @@ if (!hasConstraint) {
         }
     }
 }`,
-            UP_MODULES_DUPLICATE: `// Указать true или false для каждого материала
-let sourceIds = [733, 3101]; // [ID УП, ID модуля] откуда
+                parent: methodicalProgramsSubsection
+            },
+            UP_MODULES_DUPLICATE: {
+                name: 'Скопировать материалы между модулями УП',
+                description: 'Указать true или false для каждого материала',
+                code: `let sourceIds = [733, 3101]; // [ID УП, ID модуля] откуда
 let targetIds = [1162, 4083]; // [ID УП, ID модуля] куда
 let settings = {
     'Уроки': true,
@@ -4840,7 +4941,11 @@ else {
         await copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnitLink, settings);
     }
 }`,
-            UP_TAGING: `// Выгрузить тегирование из курса:
+                parent: methodicalProgramsSubsection
+            },
+            UP_TAGING: {
+                name: 'Тегирование УП',
+                code: `// Выгрузить тегирование из курса:
 // ${METABASE_URL}/question/48991
 let methodicalProgramId = 738; // ID УП
 let resultIds = splitString(\`
@@ -4857,7 +4962,11 @@ for (let resultId of resultIds) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            COURSE_TAGING: `// Выгрузить тегирование из курса:
+                parent: methodicalProgramsSubsection
+            },
+            COURSE_TAGING: {
+                name: 'Тегирование курсов',
+                code: `// Выгрузить тегирование из курса:
 // ${METABASE_URL}/question/48991
 let courseId = 10609; // ID курса куда переносим
 let resultIds = splitString(\`
@@ -4874,7 +4983,11 @@ for (let resultId of resultIds) {
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            PROMO_CODE_DELETE: `// ${METABASE_URL}/question/49702?code_campaign_id=33050
+                parent: contentCoursesSubsection
+            },
+            PROMO_CODE_DELETE: {
+                name: 'Удалить промокоды',
+                code: `// ${METABASE_URL}/question/49702?code_campaign_id=33050
 let promoIds = splitString(\`
 23982547
 23982626
@@ -4889,9 +5002,13 @@ for (let promoId of promoIds) {
     };
     await win.postFormData(url, fields);
 }`,
-            PRODUCT_PACK_APPEND_COURSES: `// укажите accessType: premium или standard для паков;
-// specific_date_premium или specific_date_standard для подписок
-let accessType = 'premium';
+                parent: codeCampaignsSubsection
+            },
+            PRODUCT_PACK_APPEND_COURSES: {
+                name: 'Привязка курсов к пакам',
+                description: `укажите accessType: premium или standard для паков;
+                    specific_date_premium или specific_date_standard для подписок`,
+                code: `let accessType = 'premium';
 const productPackData = {
     // productPackId : [courseId, courseId, ...],
     8593: [10609, 15005, 12345, 12346],
@@ -4910,60 +5027,13 @@ for (let productPackId in productPackData) {
         await win.postFormData(url, fields);
     }
 }`,
+                parent: productPacksSubsection
+            },
         }
 
-        const adminSection = createCollapsibleSection(form, 'Коды для админов админки', 0);
-        const coursesSubsection = createCollapsibleSection(adminSection, 'Курсы / courses', 1);
-        const adminLessonsSubsection = createCollapsibleSection(adminSection, 'Программа / lessons', 1);
-        const groupsSubsection = createCollapsibleSection(adminSection, 'Расписание / groups', 1);
-        const teachersSubsection = createCollapsibleSection(adminSection, 'Преподаватели / teachers', 1);
-        const contentSection = createCollapsibleSection(form, 'Коды для админов контента', 0);
-        const contentCoursesSubsection = createCollapsibleSection(contentSection, 'Курсы / courses', 1);
-        const contentLessonsSubsection = createCollapsibleSection(contentSection, 'Программа / lessons', 1);
-        const tasksSubsection = createCollapsibleSection(contentSection, 'Задачи / tasks', 1);
-        const methodicalProgramsSubsection = createCollapsibleSection(
-            contentSection, 'Учебные программы / methodical_materials/programs', 1
-        );
-        const codeCampaignsSubsection = createCollapsibleSection(
-            adminSection, 'Акции с промокодами / marketing/code_campaigns', 1
-        );
-        const productPacksSubsection = createCollapsibleSection(adminSection, 'Комплекты занятий / product_packs', 1);
-
-        createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
-        createActionButton(coursesSubsection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
-        createActionButton(tasksSubsection, 'Создать задачу (поле ввода)', SCRIPTS.TASK_INPUT);
-        createActionButton(tasksSubsection, 'Создать задачу (самооценка)', SCRIPTS.TASK_SELF);
-        createActionButton(tasksSubsection, 'Создать задачу (пересечение множеств)', SCRIPTS.TASK_SET);
-        createActionButton(teachersSubsection, 'Отредактировать карточки преподавателей', SCRIPTS.TEACHERS_EDIT);
-        createActionButton(
-            teachersSubsection, 'Связать аккаунты агентов и карточки преподавателей', SCRIPTS.USERS_TEACHERS
-        );
-        createActionButton(teachersSubsection, 'Создать карточки преподавателей', SCRIPTS.TEACHERS_CREATE);
-        createActionButton(adminLessonsSubsection, 'Сделать уроки бесплатными', SCRIPTS.LESSONS_FREE);
-        createActionButton(
-            adminLessonsSubsection, 'Переместить уроки в конец курса (для удаления)', SCRIPTS.LESSONS_REORDER
-        );
-        createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
-        createActionButton(adminLessonsSubsection, '«Удалить» неудаляемый урок', SCRIPTS.LESSONS_DELETE_SOFT)
-        createActionButton(adminLessonsSubsection, 'Поменять описания уроков', SCRIPTS.LESSONS_DESCRIPTION);
-        createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
-        createActionButton(
-            contentLessonsSubsection,
-            'Добавление ссылки в подготовительные материалы',
-            SCRIPTS.LESSONS_PREPARATION_LINKS
-        );
-        createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
-        createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT);
-        createActionButton(groupsSubsection, 'Изменить локации', SCRIPTS.LOCATION_EDIT);
-        createActionButton(groupsSubsection, 'Изменить даты начала занятий', SCRIPTS.GROUP_CHANGE_DATES);
-        createActionButton(methodicalProgramsSubsection, 'Тегирование УП', SCRIPTS.UP_TAGING);
-        createActionButton(methodicalProgramsSubsection, 'Скопировать материалы между УП', SCRIPTS.UP_DUPLICATE);
-        createActionButton(
-            methodicalProgramsSubsection, 'Скопировать материалы между модулями УП', SCRIPTS.UP_MODULES_DUPLICATE
-        );
-        createActionButton(contentCoursesSubsection, 'Тегирование курсов', SCRIPTS.COURSE_TAGING);
-        createActionButton(codeCampaignsSubsection, 'Удалить промокоды', SCRIPTS.PROMO_CODE_DELETE);
-        createActionButton(productPacksSubsection, 'Привязка курсов к пакам', SCRIPTS.PRODUCT_PACK_APPEND_COURSES);
+        for (let key in SCRIPTS) {
+            createActionButton(SCRIPTS[key], key);
+        }
 
         currentWindow.addStyle(`
         .collapsible {
@@ -5011,7 +5081,7 @@ for (let productPackId in productPackData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.79 от 9 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.80 от 13 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
