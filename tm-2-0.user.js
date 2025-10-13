@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.81
+// @version      0.2.0.82
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -12,6 +12,7 @@
 
 const NO_LIVE_TEACHER_IDS = [2169, 2014, 1932, 1100, 1769, 1655, 1196, 2397, 2398, 557, 2399, 2401, 1571, 1387, 1875];
 const CANCEL_GALINA_ID = 2363;
+const CANCEL_MG_TAG_ID = 1496;
 const SLAG_ID_SET = [5, 1, 27, ''];
 const MINI_GROUPS_ID_SET = [8, 1, 60, ''];
 const HOME_ID_SET = [4, 1, 1, ''];
@@ -1247,35 +1248,81 @@ const pagePatterns = {
         log('Страница модифицирована')
     }
     // на странице редактирования курса
-    if (currentWindow.checkPath(pagePatterns.coursesEdit)) {
-        let asyncElement = currentWindow.querySelector('#course_asynchronous');
-        let teachersElement = currentWindow.querySelector('#course_merged_teacher_ids');
-        let purchaseModeElement = currentWindow.querySelector('#course_purchase_mode');
-        let publishedElement = currentWindow.querySelector('#course_published');
-        let visibleInListElement = currentWindow.querySelector('#course_visible_in_list');
-        let installmentElement = currentWindow.querySelector('#course_installment_enabled');
-        let maternityCapitalElement = currentWindow.querySelector('#course_maternity_capital');
-        let fullNameElement = currentWindow.querySelector('#course_full_name');
-        let nameElement = currentWindow.querySelector('#course_name');
-        let subtitleElement = currentWindow.querySelector('#course_subtitle');
-        let visibleInCalendarElement = currentWindow.querySelector('#course_visible_in_calendar');
-        asyncElement.onchange = checkAsynchronousCourse;
-        teachersElement.onchange = () => { checkAsynchronousCourse(); checkCanceledCourse(); };
-        purchaseModeElement.onchange = checkCanceledCourse;
-        publishedElement.onchange = () => { checkAsynchronousCourse(); checkCanceledCourse(); };
-        visibleInListElement.onchange = checkCanceledCourse;
-        installmentElement.onchange = checkCanceledCourse;
-        maternityCapitalElement.onchange = checkCanceledCourse;
-        visibleInCalendarElement.onchange = checkCanceledCourse;
-        let warningTeachersNoLive = createElement('div', '', 'color:orange;font-size: 11px; top: 3px');
-        warningTeachersNoLive.hidden = true;
-        warningTeachersNoLive.innerHTML = 'В неасинхронном курсе должны быть только живые преподаватели';
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeachersNoLive);
-        let warningAsyncNoLive = warningTeachersNoLive.cloneNode(true);
-        currentWindow.querySelector('.course_asynchronous').firstChild.appendChild(warningAsyncNoLive);
+    if (currentWindow.checkPath(pagePatterns.coursesEdit) ||
+        currentWindow.checkPath(pagePatterns.miniGroupsEdit)
+    ) {
+        function createWarningElement(text) {
+            const element = createElement('div', '', 'color:orange;font-size: 11px; top: 3px');
+            element.hidden = true;
+            element.innerHTML = text;
+            return element;
+        };
+
+        const elements = {
+            async: currentWindow.querySelector('#course_asynchronous'),
+            teachers: currentWindow.querySelector('#course_merged_teacher_ids'),
+            tags: currentWindow.querySelector('#course_tag_ids'),
+            purchaseMode: currentWindow.querySelector('#course_purchase_mode'),
+            published: currentWindow.querySelector('#course_published'),
+            visibleInList: currentWindow.querySelector('#course_visible_in_list'),
+            installment: currentWindow.querySelector('#course_installment_enabled'),
+            maternityCapital: currentWindow.querySelector('#course_maternity_capital'),
+            fullName: currentWindow.querySelector('#course_full_name'),
+            name: currentWindow.querySelector('#course_name'),
+            subtitle: currentWindow.querySelector('#course_subtitle'),
+            visibleInCalendar: currentWindow.querySelector('#course_visible_in_calendar')
+        };
+        if (elements.async) elements.async.onchange = checkAsynchronousCourse;
+        [elements.teachers, elements.published].forEach(element => {
+            if (element) element.onchange = () => { checkAsynchronousCourse(); checkCanceledCourse(); }
+        });
+        [
+            elements.purchaseMode, elements.visibleInList, elements.installment,
+            elements.maternityCapital, elements.visibleInCalendar, elements.tags
+        ].forEach(element => { if (element) element.onchange = checkCanceledCourse; });
+
+        const warningTexts = {
+            asyncNoLive: 'В неасинхронном курсе должны быть только живые преподаватели',
+            cancelPurchashing: 'В отмененном курсе необходимо отключить приобретение',
+            cancelPublished: 'Отмененный курс необходимо распубликовать',
+            cancelInList: 'Отмененный курс необходимо убрать из каталога',
+            cancelInstallments: 'Необходимо отключить оплату по частям в отмененном курсе',
+            cancelMaternityCapital: 'Необходимо отключить оплату маткапиталом в отмененном курсе',
+            cancelVisibleInCalendar: 'Необходимо отключить отображение в календаре отмененного курса',
+            cancelNames: 'В названиях курса необходимо указать, что курс отменен',
+        };
+        const teacherWarnings = {
+            saveReminder: createWarningElement('Не забудьте сохранить изменения :)'),
+        };
+        if (elements.teachers) {
+            teacherWarnings.cancelTeacher = createWarningElement(
+                'В отмененном курсе преподавателем не может быть других преподавателей, кроме Галины Отменной'
+            );
+        }
+        else {
+            teacherWarnings.cancelTeacher = createWarningElement(
+                'В отмененном курсе не может быть других тегов, кроме Отменённая МГ'
+            );
+        }
+        const warnings = {};
+        for (let key in warningTexts) {
+            teacherWarnings[key] = createWarningElement(warningTexts[key]);
+            if (elements.teachers) elements.teachers.parentNode.append(teacherWarnings[key]);
+            else elements.tags.parentNode.append(teacherWarnings[key]);
+            warnings[key] = createWarningElement(warningTexts[key]);
+        }
+        if (elements.async) elements.async.parentNode.after(warnings.asyncNoLive);
+        elements.purchaseMode.after(warnings.cancelPurchashing);
+        elements.published.parentNode.after(warnings.cancelPublished);
+        elements.visibleInList.parentNode.after(warnings.cancelInList);
+        elements.installment.parentNode.after(warnings.cancelInstallments);
+        elements.maternityCapital.parentNode.after(warnings.cancelMaternityCapital);
+        elements.visibleInCalendar.parentNode.after(warnings.cancelVisibleInCalendar);
+        elements.fullName.after(warnings.cancelNames);
+
         function checkAsynchronousCourse() {
-            if (!asyncElement.checked && publishedElement.checked) {
-                let noLiveTeachersInCourse = teachersElement.value.split(',').filter(x => {
+            if (!elements.async.checked && elements.published.checked) {
+                let noLiveTeachersInCourse = elements.teachers.value.split(',').filter(x => {
                     for (let i of NO_LIVE_TEACHER_IDS) {
                         if (x == i) return true;
                     }
@@ -1283,62 +1330,24 @@ const pagePatterns = {
                 });
                 if (noLiveTeachersInCourse.length) {
                     // Преподаватель должен быть живой, так как курс асинхронный
-                    warningTeachersNoLive.hidden = false; warningAsyncNoLive.hidden = false;
+                    teacherWarnings.asyncNoLive.hidden = false; warnings.asyncNoLive.hidden = false;
                 }
-                else { warningTeachersNoLive.hidden = true; warningAsyncNoLive.hidden = true; }
+                else { teacherWarnings.asyncNoLive.hidden = true; warnings.asyncNoLive.hidden = true; }
             }
-            else { warningTeachersNoLive.hidden = true; warningAsyncNoLive.hidden = true; }
+            else { teacherWarnings.asyncNoLive.hidden = true; warnings.asyncNoLive.hidden = true; }
         }
-        checkAsynchronousCourse();
-        let warningTeacherCancel = createElement('div', '', 'color:orange;font-size: 11px; top: 3px');
-        warningTeacherCancel.hidden = true;
-        warningTeacherCancel.innerHTML =
-            'В отмененном курсе преподавателем не может быть других преподавателей, кроме Галины Отменной';
-        let warningTeacherPurchashing = warningTeacherCancel.cloneNode(true);
-        warningTeacherPurchashing.innerHTML = 'В отмененном курсе необходимо отключить приобретение';
-        let warningPurchashingCancel = warningTeacherPurchashing.cloneNode(true);
-        let warningTeacherPublished = warningTeacherCancel.cloneNode(true);
-        warningTeacherPublished.innerHTML = 'Отмененный курс необходимо распубликовать';
-        let warningPublishedCancel = warningTeacherPublished.cloneNode(true);
-        let warningTeacherInList = warningTeacherCancel.cloneNode(true);
-        warningTeacherInList.innerHTML = 'Отмененный курс необходимо убрать из каталога';
-        let warningInListCancel = warningTeacherInList.cloneNode(true);
-        let warningTeacherInstallments = warningTeacherCancel.cloneNode(true);
-        warningTeacherInstallments.innerHTML = 'Необходимо отключить оплату по частям в отмененном курсе';
-        let warningInstallmentsCancel = warningTeacherInstallments.cloneNode(true);
-        let warningTeacherMatheriny = warningTeacherCancel.cloneNode(true);
-        warningTeacherMatheriny.innerHTML = 'Необходимо отключить оплату маткапиталом в отмененном курсе';
-        let warningMatherinyCancel = warningTeacherMatheriny.cloneNode(true);
-        let warningTeacherCalendar = warningTeacherCancel.cloneNode(true);
-        warningTeacherCalendar.innerHTML = 'Необходимо отключить отображение в календаре отмененного курса';
-        let warningCalendarCancel = warningTeacherCalendar.cloneNode(true);
-        let warningCourseName = warningTeacherCancel.cloneNode(true);
-        warningCourseName.innerHTML = 'В названиях курса необходимо указать, что курс отменен';
-        let saveReminder = warningTeacherCancel.cloneNode(true);
-        saveReminder.innerHTML = 'Не забудьте сохранить изменения :)';
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherPurchashing);
-        currentWindow.querySelector(".course_purchase_mode").childNodes[1].appendChild(warningPurchashingCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherPublished);
-        publishedElement.parentNode.parentNode.appendChild(warningPublishedCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherInList);
-        visibleInListElement.parentNode.parentNode.appendChild(warningInListCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherInstallments);
-        installmentElement.parentNode.parentNode.appendChild(warningInstallmentsCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherMatheriny);
-        maternityCapitalElement.parentNode.parentNode.appendChild(warningMatherinyCancel);
-        visibleInCalendarElement.parentNode.parentNode.appendChild(warningCalendarCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherCalendar);
+        if (elements.teachers) checkAsynchronousCourse();
         const cancelButtonOnClick = () => {
-            teachersElement.value = CANCEL_GALINA_ID;
-            purchaseModeElement.value = 'disabled';
+            if (elements.teachers) elements.teachers.value = CANCEL_GALINA_ID;
+            else elements.tags.value = CANCEL_MG_TAG_ID;
+            elements.purchaseMode.value = 'disabled';
             let x = currentWindow.querySelector('#s2id_course_purchase_mode').firstChild.childNodes[1];
             x.innerHTML = x.innerHTML.replace('Включено', 'Отключено');
-            publishedElement.checked = false;
-            visibleInListElement.checked = false;
-            installmentElement.checked = false;
-            maternityCapitalElement.checked = false;
-            visibleInCalendarElement.checked = false;
+            elements.published.checked = false;
+            elements.visibleInList.checked = false;
+            elements.installment.checked = false;
+            elements.maternityCapital.checked = false;
+            elements.visibleInCalendar.checked = false;
             let a = currentWindow.querySelectorAll(
                 '#s2id_course_merged_teacher_ids .select2-search-choice.ui-sortable-handle'
             );
@@ -1346,100 +1355,125 @@ const pagePatterns = {
                 if (el.outerHTML && el.innerHTML.match(/Отменная Г./)) { }
                 else { el.hidden = true; }
             }
-            saveReminder.hidden = false;
-            if (nameElement.value.search('Отмен') == -1 && nameElement.value.search('НЕАКТУАЛЬН') == -1) {
-                nameElement.value = 'Отмененный курс. ' + nameElement.value;
-                nameElement.value = nameElement.value.substring(0, 35);
+            teacherWarnings.saveReminder.hidden = false;
+            if (elements.name.value.search('Отмен') == -1 && elements.name.value.search('НЕАКТУАЛЬН') == -1) {
+                elements.name.value = 'Отмененный курс. ' + elements.name.value;
+                elements.name.value = elements.name.value.substring(0, 35);
             }
-            if (fullNameElement.value.search('Отмен') == -1 && nameElement.value.search('НЕАКТУАЛЬН') == -1) {
-                fullNameElement.value = 'Отмененный курс. ' + fullNameElement.value;
-                fullNameElement.value = fullNameElement.value.substring(0, 512);
+            if (elements.fullName.value.search('Отмен') == -1 && elements.name.value.search('НЕАКТУАЛЬН') == -1) {
+                elements.fullName.value = 'Отмененный курс. ' + elements.fullName.value;
+                elements.fullName.value = elements.fullName.value.substring(0, 512);
             }
-            if (subtitleElement.value.search('Отмен') == -1 && nameElement.value.search('НЕАКТУАЛЬН') == -1) {
-                subtitleElement.value = 'Отмененный курс. ' + subtitleElement.value;
-                subtitleElement.value = subtitleElement.value.substring(0, 57);
+            if (elements.subtitle.value.search('Отмен') == -1 && elements.name.value.search('НЕАКТУАЛЬН') == -1) {
+                elements.subtitle.value = 'Отмененный курс. ' + elements.subtitle.value;
+                elements.subtitle.value = elements.subtitle.value.substring(0, 57);
             }
-            checkAsynchronousCourse();
+            if (elements.teachers) checkAsynchronousCourse();
             checkCanceledCourse();
         }
         let cancelCourseButton = createButton('Доотменить', cancelButtonOnClick, 'btn-default', false);
         cancelCourseButton.style = 'display:none';
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(saveReminder);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(cancelCourseButton);
+        if (elements.teachers) elements.teachers.parentNode.append(cancelCourseButton);
+        else elements.tags.parentNode.append(cancelCourseButton);
         function checkCanceledCourse() {
-            let teachersList = teachersElement.value.split(',');
-            let cancelTeachersList = teachersList.filter(x => {
-                if (x == CANCEL_GALINA_ID) return true;
-                return false;
-            });
-            let hasCancelGalinaInTeachers = cancelTeachersList.length > 0;
-            if (hasCancelGalinaInTeachers) { // Галя, у нас отмена
+            let isCanceled = false;
+            let manyItems = false;
+            if (elements.teachers) {
+                let teachersList = elements.teachers.value.split(',');
+                let cancelTeachersList = teachersList.filter(x => {
+                    if (x == CANCEL_GALINA_ID) return true;
+                    return false;
+                });
+                isCanceled = cancelTeachersList.length > 0;
+                manyItems = teachersList.length > 1;
+            }
+            else {
+                let tagsList = elements.tags.value.split(',');
+                let cancelTagsList = tagsList.filter(x => {
+                    if (x == CANCEL_MG_TAG_ID) return true;
+                    return false;
+                });
+                isCanceled = cancelTagsList.length > 0;
+                manyItems = tagsList.length > 1;
+            }
+            if (isCanceled) { // Галя, у нас отмена
                 let hasProblems = false;
                 // есть другие преподаватели кроме Галины
-                if (teachersList.length > 1) { warningTeacherCancel.hidden = false; hasProblems = true; }
-                else { warningTeacherCancel.hidden = true }
+                if (manyItems) { teacherWarnings.cancelTeacher.hidden = false; hasProblems = true; }
+                else { teacherWarnings.cancelTeacher.hidden = true }
                 // включено приобретение
-                if (purchaseModeElement.value != 'disabled') {
-                    warningTeacherPurchashing.hidden = false;
-                    warningPurchashingCancel.hidden = false;
+                if (elements.purchaseMode.value != 'disabled') {
+                    teacherWarnings.cancelPurchashing.hidden = false;
+                    warnings.cancelPurchashing.hidden = false;
                     hasProblems = true;
                 }
-                else { warningTeacherPurchashing.hidden = true; warningPurchashingCancel.hidden = true }
+                else { teacherWarnings.cancelPurchashing.hidden = true; warnings.cancelPurchashing.hidden = true }
                 // опубликован
-                if (publishedElement.checked) {
-                    warningTeacherPublished.hidden = false;
-                    warningPublishedCancel.hidden = false;
+                if (elements.published.checked) {
+                    teacherWarnings.cancelPublished.hidden = false;
+                    warnings.cancelPublished.hidden = false;
                     hasProblems = true;
                 }
-                else { warningTeacherPublished.hidden = true; warningPublishedCancel.hidden = true }
+                else { teacherWarnings.cancelPublished.hidden = true; warnings.cancelPublished.hidden = true }
                 // в каталоге
-                if (visibleInListElement.checked) {
-                    warningTeacherInList.hidden = false;
-                    warningInListCancel.hidden = false;
+                if (elements.visibleInList.checked) {
+                    teacherWarnings.cancelInList.hidden = false;
+                    warnings.cancelInList.hidden = false;
                     hasProblems = true;
                 }
-                else { warningTeacherInList.hidden = true; warningInListCancel.hidden = true }
+                else { teacherWarnings.cancelInList.hidden = true; warnings.cancelInList.hidden = true }
                 // оплата по частям
-                if (installmentElement.checked) {
-                    warningTeacherInstallments.hidden = false;
-                    warningInstallmentsCancel.hidden = false;
+                if (elements.installment.checked) {
+                    teacherWarnings.cancelInstallments.hidden = false;
+                    warnings.cancelInstallments.hidden = false;
                     hasProblems = true;
                 }
-                else { warningTeacherInstallments.hidden = true; warningInstallmentsCancel.hidden = true }
+                else { teacherWarnings.cancelInstallments.hidden = true; warnings.cancelInstallments.hidden = true }
                 // оплата маткапиталом
-                if (maternityCapitalElement.checked) {
-                    warningTeacherMatheriny.hidden = false;
-                    warningMatherinyCancel.hidden = false;
+                if (elements.maternityCapital.checked) {
+                    teacherWarnings.cancelMaternityCapital.hidden = false;
+                    warnings.cancelMaternityCapital.hidden = false;
                     hasProblems = true;
                 }
-                else { warningTeacherMatheriny.hidden = true; warningMatherinyCancel.hidden = true }
+                else { 
+                    teacherWarnings.cancelMaternityCapital.hidden = true; 
+                    warnings.cancelMaternityCapital.hidden = true; 
+                }
                 // в календаре
-                if (visibleInCalendarElement.checked) {
-                    warningTeacherCalendar.hidden = false;
-                    warningCalendarCancel.hidden = false;
+                if (elements.visibleInCalendar.checked) {
+                    teacherWarnings.cancelVisibleInCalendar.hidden = false;
+                    warnings.cancelVisibleInCalendar.hidden = false;
                     hasProblems = true;
                 }
-                else { warningTeacherCalendar.hidden = true; warningCalendarCancel.hidden = true }
+                else { 
+                    teacherWarnings.cancelVisibleInCalendar.hidden = true; 
+                    warnings.cancelVisibleInCalendar.hidden = true;
+                }
                 // имя без отмен
-                if ((nameElement.value.search('Отмен') != -1 && nameElement.value.search('НЕАКТУАЛЬН') != -1) ||
-                    (fullNameElement.value.search('Отмен') != -1 && fullNameElement.value.search('НЕАКТУАЛЬН') != -1)) {
-                    warningCourseName.hidden = false;
+                if ((elements.name.value.search('Отмен') == -1 && elements.name.value.search('НЕАКТУАЛЬН') == -1) ||
+                    (
+                        elements.fullName.value.search('Отмен') == -1 && 
+                        elements.fullName.value.search('НЕАКТУАЛЬН') == -1
+                    )
+                ) {
+                    teacherWarnings.cancelNames.hidden = false;
+                    warnings.cancelNames.hidden = false;
                     hasProblems = true;
                 }
-                else { warningCourseName.hidden = true; }
+                else { teacherWarnings.cancelNames.hidden = true; warnings.cancelNames.hidden = true; }
                 // хотя бы 1 не как надо
                 if (hasProblems) { cancelCourseButton.style = ''; }
                 else { cancelCourseButton.style = 'display:none'; }
             }
             else {
-                warningTeacherCancel.hidden = true; warningTeacherPurchashing.hidden = true;
-                warningPurchashingCancel.hidden = true;
-                warningTeacherPublished.hidden = true; warningPublishedCancel.hidden = true;
-                warningTeacherInList.hidden = true; warningInListCancel.hidden = true;
-                warningTeacherInstallments.hidden = true; warningInstallmentsCancel.hidden = true;
-                warningTeacherMatheriny.hidden = true; warningMatherinyCancel.hidden = true;
-                warningTeacherCalendar.hidden = true; warningCalendarCancel.hidden = true;
-                warningCourseName.hidden = true;
+                teacherWarnings.cancelTeacher.hidden = true; teacherWarnings.cancelPurchashing.hidden = true;
+                warnings.cancelPurchashing.hidden = true;
+                teacherWarnings.cancelPublished.hidden = true; warnings.cancelPublished.hidden = true;
+                teacherWarnings.cancelInList.hidden = true; warnings.cancelInList.hidden = true;
+                teacherWarnings.cancelInstallments.hidden = true; warnings.cancelInstallments.hidden = true;
+                teacherWarnings.cancelMaternityCapital.hidden = true; warnings.cancelMaternityCapital.hidden = true;
+                teacherWarnings.cancelVisibleInCalendar.hidden = true; warnings.cancelVisibleInCalendar.hidden = true;
+                teacherWarnings.cancelNames.hidden = true; warnings.cancelNames.hidden = true;
                 cancelCourseButton.style = 'display:none';
             }
         }
@@ -1489,9 +1523,7 @@ const pagePatterns = {
         buttonArea.appendChild(copyLandingButton);
         let titleArea = currentWindow.querySelector('.courses');
         titleArea.insertBefore(buttonArea, titleArea.childNodes[1]);
-        if (currentWindow.checkPath(pagePatterns.coursesEdit)) {
-            log('Страница модифицирована');
-        }
+        log('Страница модифицирована');
     }
     // на странице создания курса
     if (currentWindow.checkPath(pagePatterns.coursesNew) ||
@@ -5101,7 +5133,7 @@ for (let productPackId in productPackData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.81 от 13 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.82 от 13 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
