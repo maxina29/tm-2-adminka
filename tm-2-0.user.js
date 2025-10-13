@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.83
+// @version      0.2.0.84
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1307,9 +1307,11 @@ const pagePatterns = {
         const warnings = {};
         for (let key in warningTexts) {
             teacherWarnings[key] = createWarningElement(warningTexts[key]);
+            warnings[key] = createWarningElement(warningTexts[key]);
+        }
+        for (let key in teacherWarnings) {
             if (elements.teachers) elements.teachers.parentNode.append(teacherWarnings[key]);
             else elements.tags.parentNode.append(teacherWarnings[key]);
-            warnings[key] = createWarningElement(warningTexts[key]);
         }
         if (elements.async) elements.async.parentNode.after(warnings.asyncNoLive);
         elements.purchaseMode.after(warnings.cancelPurchashing);
@@ -1435,9 +1437,9 @@ const pagePatterns = {
                     warnings.cancelMaternityCapital.hidden = false;
                     hasProblems = true;
                 }
-                else { 
-                    teacherWarnings.cancelMaternityCapital.hidden = true; 
-                    warnings.cancelMaternityCapital.hidden = true; 
+                else {
+                    teacherWarnings.cancelMaternityCapital.hidden = true;
+                    warnings.cancelMaternityCapital.hidden = true;
                 }
                 // в календаре
                 if (elements.visibleInCalendar.checked) {
@@ -1445,14 +1447,14 @@ const pagePatterns = {
                     warnings.cancelVisibleInCalendar.hidden = false;
                     hasProblems = true;
                 }
-                else { 
-                    teacherWarnings.cancelVisibleInCalendar.hidden = true; 
+                else {
+                    teacherWarnings.cancelVisibleInCalendar.hidden = true;
                     warnings.cancelVisibleInCalendar.hidden = true;
                 }
                 // имя без отмен
                 if ((elements.name.value.search('Отмен') == -1 && elements.name.value.search('НЕАКТУАЛЬН') == -1) ||
                     (
-                        elements.fullName.value.search('Отмен') == -1 && 
+                        elements.fullName.value.search('Отмен') == -1 &&
                         elements.fullName.value.search('НЕАКТУАЛЬН') == -1
                     )
                 ) {
@@ -5133,7 +5135,7 @@ for (let productPackId in productPackData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.83 от 13 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.84 от 13 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
