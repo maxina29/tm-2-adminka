@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.86
+// @version      0.2.0.87
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2828,41 +2828,39 @@ const pagePatterns = {
             async function handleButtonClick({ target }) {
                 const location = target.dataset.location;
                 const locationId = target.dataset.locationId;
-                const groupId = getGroupId();
+                const groupTemplateId = getGroupTemplateId();
 
-                if (!groupId) {
+                if (!groupTemplateId) {
                     alert('Не удалось получить ID параллели!');
                     return;
                 }
 
-                const url = buildUrl(groupId, location);
+                const url = buildUrl(groupTemplateId, location);
                 await openAndCloseWindow(url);
-                await changeGroupLocations(location, locationId);
+                await changeGroupTemplateLocations(location, locationId);
             }
 
-            async function changeGroupLocations(location, locationId) {
-                let groupLocation = currentWindow.querySelector(
+            async function changeGroupTemplateLocations(location, locationId) {
+                let groupTemplateLocation = currentWindow.querySelector(
                     '[id^="location_selector_"][name="group_template[default_location_id]"]'
                 );
-                console.log(groupLocation);
-                console.log(location);
-                groupLocation.value = locationId[0];
+                groupTemplateLocation.value = locationId[0];
                 await sleep(500);
-                let groupwebinar = currentWindow.querySelector('select[name="group_template[default_studio_id]"]');
-                groupwebinar.value = groupwebinar.options[1].value;
+                let groupTemplateStudio = currentWindow.querySelector('select[name="group_template[default_studio_id]"]');
+                groupTemplateStudio.value = groupTemplateStudio.options[1].value;
 
-                groupwebinar.closest('form').querySelector('[type="submit"]').click();
+                groupTemplateStudio.closest('form').querySelector('[type="submit"]').click();
             }
 
-            function getGroupId() {
+            function getGroupTemplateId() {
                 return currentWindow.group_template_id.value;
             }
 
-            function buildUrl(groupId, location) {
+            function buildUrl(groupTemplateId, location) {
                 const baseUrl = '/admin/dev_services';
                 const params = new URLSearchParams({
                     only_week_day_webinars_settings: true,
-                    select_group_template: groupId,
+                    select_group_template: groupTemplateId,
                     location: location,
                     auto_validate: true
                 });
@@ -5180,7 +5178,7 @@ for (let courseId of courseIds) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.86 от 14 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.87 от 14 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
