@@ -2791,14 +2791,14 @@ const pagePatterns = {
 
         async function changeWebinarLocations() {
             const MINI_GROUP_BUTTONS = [
-                { text: 'Мини-группы', location: 'mini' , locationId: MINI_GROUPS_ID_SET},
-                { text: 'Шлак', location: 'slag', locationId: SLAG_ID_SET},
+                { text: 'Мини-группы', location: 'mini', locationId: MINI_GROUPS_ID_SET },
+                { text: 'Шлак', location: 'slag', locationId: SLAG_ID_SET },
             ];
             const WEBINAR_GROUP_BUTTONS = [
-                { text: 'Шлак', location: 'slag', locationId: SLAG_ID_SET},
-                { text: 'Дом', location: 'home', locationId: HOME_ID_SET},
-                { text: 'ССМ', location: 'ssm', locationId: SSM_ID_SET}
-            ]
+                { text: 'Шлак', location: 'slag', locationId: SLAG_ID_SET },
+                { text: 'Дом', location: 'home', locationId: HOME_ID_SET },
+                { text: 'ССМ', location: 'ssm', locationId: SSM_ID_SET }
+            ];
 
             const container = currentWindow.querySelector('.adminButtons');
             const miniGroupFlag = Boolean(currentWindow.querySelector('input[name="group_template[agent_id]"]'));
@@ -2826,46 +2826,46 @@ const pagePatterns = {
                 return btn;
             }
 
-            async function handleButtonClick({ target}) {
+            async function handleButtonClick({ target }) {
                 const location = target.dataset.location;
                 const locationId = target.dataset.locationId;
-                const groupId = getGroupId();
+                const groupTemplateId = getGroupTemplateId();
 
-                if (!groupId) {
+                if (!groupTemplateId) {
                     alert('Не удалось получить ID параллели!');
                     return;
                 }
 
-                const url = buildUrl(groupId, location);
+                const url = buildUrl(groupTemplateId, location);
                 await openAndCloseWindow(url);
-                changeGroupLocations(location, locationId)
+                await changeGroupTemplateLocations(location, locationId);
             }
 
-            async function changeGroupLocations(location, locationId) {
-                let groupLocation = currentWindow.querySelector('[id^="location_selector_"][name="group_template[default_location_id]"]')
-                console.log(groupLocation)
-                console.log(location)
-                groupLocation.value = locationId[0];
-                await sleep(500)
-                let groupwebinar = currentWindow.querySelector('select[name="group_template[default_studio_id]"]')
-                groupwebinar.value = groupwebinar.options[1].value;
-                                
-                groupwebinar.closest('form').querySelector('[type="submit"]').click();
+            async function changeGroupTemplateLocations(location, locationId) {
+                let groupTemplateLocation = currentWindow.querySelector(
+                    '[id^="location_selector_"][name="group_template[default_location_id]"]'
+                );
+                groupTemplateLocation.value = locationId[0];
+                await sleep(500);
+                let groupTemplateStudio = currentWindow.querySelector('select[name="group_template[default_studio_id]"]');
+                groupTemplateStudio.value = groupTemplateStudio.options[1].value;
+
+                groupTemplateStudio.closest('form').querySelector('[type="submit"]').click();
             }
 
-            function getGroupId() {
+            function getGroupTemplateId() {
                 return currentWindow.group_template_id.value;
             }
 
-            function buildUrl(groupId, location) {
+            function buildUrl(groupTemplateId, location) {
                 const baseUrl = '/admin/dev_services';
                 const params = new URLSearchParams({
                     only_week_day_webinars_settings: true,
-                    select_group_template: groupId,
+                    select_group_template: groupTemplateId,
                     location: location,
                     auto_validate: true
                 });
-                log(`${baseUrl}?${params}`)
+                log(`${baseUrl}?${params}`);
                 return `${baseUrl}?${params}`;
             }
 
