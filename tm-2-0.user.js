@@ -2790,19 +2790,19 @@ const pagePatterns = {
 
         async function changeWebinarLocations() {
             const MINI_GROUP_BUTTONS = [
-                { text: 'Мини-группы', location: 'mini' },
-                { text: 'Шлак', location: 'slag' },
+                { text: 'Мини-группы', location: 'mini', locationId: MINI_GROUPS_ID_SET },
+                { text: 'Шлак', location: 'slag', locationId: SLAG_ID_SET },
             ];
-            const NOT_MINI_GROUP_BUTTONS = [
-                { text: 'Шлак', location: 'slag' },
-                { text: 'Дом', location: 'home' },
-                { text: 'ССМ', location: 'ssm' }
-            ]
+            const WEBINAR_GROUP_BUTTONS = [
+                { text: 'Шлак', location: 'slag', locationId: SLAG_ID_SET },
+                { text: 'Дом', location: 'home', locationId: HOME_ID_SET },
+                { text: 'ССМ', location: 'ssm', locationId: SSM_ID_SET }
+            ];
 
             const container = currentWindow.querySelector('.adminButtons');
             const miniGroupFlag = Boolean(currentWindow.querySelector('input[name="group_template[agent_id]"]'));
             if (!miniGroupFlag) {
-                initButtons(NOT_MINI_GROUP_BUTTONS);
+                initButtons(WEBINAR_GROUP_BUTTONS);
             }
             else if (!container) {
                 displayLog('Контейнер для кнопок не найден', 'danger');
@@ -2817,15 +2817,17 @@ const pagePatterns = {
                 });
             }
 
-            function createLocationButton({ text, location }) {
+            function createLocationButton({ text, location, locationId }) {
                 const btn = createButton(text, async () => { })
                 btn.dataset.location = location;
+                btn.dataset.locationId = locationId;
                 btn.addEventListener('click', handleButtonClick);
                 return btn;
             }
 
-            function handleButtonClick({ target }) {
+            async function handleButtonClick({ target }) {
                 const location = target.dataset.location;
+                const locationId = target.dataset.locationId;
                 const groupId = getGroupId();
 
                 if (!groupId) {
@@ -2834,7 +2836,22 @@ const pagePatterns = {
                 }
 
                 const url = buildUrl(groupId, location);
-                openAndCloseWindow(url);
+                await openAndCloseWindow(url);
+                await changeGroupLocations(location, locationId);
+            }
+
+            async function changeGroupLocations(location, locationId) {
+                let groupLocation = currentWindow.querySelector(
+                    '[id^="location_selector_"][name="group_template[default_location_id]"]'
+                );
+                console.log(groupLocation);
+                console.log(location);
+                groupLocation.value = locationId[0];
+                await sleep(500);
+                let groupwebinar = currentWindow.querySelector('select[name="group_template[default_studio_id]"]');
+                groupwebinar.value = groupwebinar.options[1].value;
+
+                groupwebinar.closest('form').querySelector('[type="submit"]').click();
             }
 
             function getGroupId() {
@@ -2849,14 +2866,14 @@ const pagePatterns = {
                     location: location,
                     auto_validate: true
                 });
-                log(`${baseUrl}?${params}`)
+                log(`${baseUrl}?${params}`);
                 return `${baseUrl}?${params}`;
             }
 
             // Открытие новой вкладки
             async function openAndCloseWindow(url) {
                 let win = await createWindow();
-                await win.openPage(url, '_blank');
+                await win.openPage(url);
                 await win.waitForSuccess();
                 if (!win.closed) win.close();
             }
