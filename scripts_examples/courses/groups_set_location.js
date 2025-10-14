@@ -18,3 +18,15 @@ for (let courseId of courseIds) {
     selectElement.closest('form').querySelector('[type="submit"]').click();
     await tempWindow.waitForSuccess();
 }
+
+
+function findInSelect2Display(searchText) {
+  const select2Display = document.getElementById('select2-chosen-2');
+  if (select2Display.textContent.includes(searchText)) {
+    return select2Display;
+  }
+  return null;
+}
+
+const displayElement = findInSelect2Display('Отменная');
+console.log('Текст отображается в Select2:', displayElement);
