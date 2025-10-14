@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.60
+// @version      0.2.0.85
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -12,10 +12,22 @@
 
 const NO_LIVE_TEACHER_IDS = [2169, 2014, 1932, 1100, 1769, 1655, 1196, 2397, 2398, 557, 2399, 2401, 1571, 1387, 1875];
 const CANCEL_GALINA_ID = 2363;
+const CANCEL_MG_TAG_ID = 1496;
 const SLAG_ID_SET = [5, 1, 27, ''];
 const MINI_GROUPS_ID_SET = [8, 1, 60, ''];
 const HOME_ID_SET = [4, 1, 1, ''];
 const SSM_ID_SET = [4, 6, 1, 4789];
+const METABASE_URL = 'https://metabase.foxford.ru';
+const FOXFORD_URL = 'https://foxford.ru';
+const LESSON_TYPE_MAP = {
+    "Нулевое": "zero",
+    "Обычное": "regular",
+    "Тест": "training",
+    "Видео": "video",
+    "Пробный экзамен": "exam_rehearsal",
+    "Только задачи": "only_tasks",
+    "Перевёрнутое": "flipped"
+};
 
 // global variables;
 let currentWindow;
@@ -23,9 +35,12 @@ let currentWindow;
 
 class ManagedWindow {
     _nativeWindow = null;
+    _isVirtual = false;
 
-    constructor(parent = currentWindow) {
-        this._nativeWindow = this.#getWindow(parent);
+    constructor(parent = currentWindow, htmlContent = null) {
+        this._isVirtual = (htmlContent !== null);
+        if (this._isVirtual) this._nativeWindow = this.#createVirtualWindow(htmlContent);
+        else { this._nativeWindow = this.#getWindow(parent); }
         this.firstLessonNumber = 0;
         this.lastLessonNumber = null;
         this.jsLoggingConsole = this.createElement('textarea');
@@ -36,18 +51,25 @@ class ManagedWindow {
         return this.#setupProxy();
     }
 
+    #createVirtualWindow(htmlContent) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlContent, 'text/html');
+        const virtualWindow = {
+            document: doc, closed: false, location: { replace: () => { }, href: 'virtual://window' },
+            addEventListener: () => { }, removeEventListener: () => { },
+            open: () => { return new ManagedWindow(this, null); }, close: () => { this.closed = true; }
+        };
+        return virtualWindow;
+    }
+
     #getWindow(parent) {
         if (parent === null) return window;
         if (typeof parent === 'string') {
-            if (!currentWindow.subwindows) {
-                currentWindow.subwindows = [];
-            }
+            if (!currentWindow.subwindows) currentWindow.subwindows = [];
             currentWindow.subwindows.push(this);
             return window.open('about:blank', parent);
         }
-        if (!parent.subwindows) {
-            parent.subwindows = [];
-        }
+        if (!parent.subwindows) parent.subwindows = [];
         parent.subwindows.push(this);
         return parent.open('about:blank');
     }
@@ -57,13 +79,13 @@ class ManagedWindow {
         const proxyHandler = {
             get: (target, prop) => {
                 if (prop === 'nativeWindow') return target.nativeWindow;
+                if (prop === 'isVirtual') return target._isVirtual;
                 if (prop in target) return target[prop];
                 const nativeWin = target._nativeWindow;
                 if (prop in nativeWin) {
                     const value = nativeWin[prop];
                     return typeof value === 'function' ? value.bind(nativeWin) : value;
                 }
-                // Если свойство не найдено, возвращаем undefined
             },
             set: (target, prop, value) => {
                 if (prop in target) {
@@ -74,42 +96,151 @@ class ManagedWindow {
                 return true;
             }
         };
-
         return new Proxy(this, proxyHandler);
     }
 
-    async openPage(url) {
-        if (this.closed) throw new Error('Окно закрыто');
-
-        // Сброс состояния
-        if (this.location.href !== 'about:blank') {
-            this.location.replace('about:blank');
-            await sleep(100);
-            await this.waitForElementDisappear('.loaded');
+    async openPage(url, params = {}) {
+        if (this._isVirtual) {
+            // Виртуальное окно
+            try {
+                const method = params.method || 'GET';
+                const headers = params.headers || {};
+                const body = params.body || null;
+                const credentials = params.credentials || 'include';
+                if (method !== 'GET' && method !== 'HEAD') {
+                    const csrfToken = this.getCSRFToken();
+                    if (csrfToken && !headers['X-CSRF-Token']) headers['X-CSRF-Token'] = csrfToken;
+                }
+                let response = await executeWithRetry(async () => {
+                    return await fetch(url, { method: method, headers: headers, body: body, credentials: credentials });
+                }, 10, 3000);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.log(errorText);
+                    throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+                }
+                const html = await response.text();
+                const parser = new DOMParser();
+                const newDoc = parser.parseFromString(html, 'text/html');
+                this._nativeWindow.document = newDoc;
+                this._nativeWindow.location.href = url;
+                this.document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
+                log(`[VIRTUAL] Cтраница загружена: ${url}`);
+                return this;
+            } catch (error) {
+                log(`[VIRTUAL] Ошибка загрузки страницы ${url}: ${error.message}`);
+                throw error;
+            }
+        } else {
+            // Реальное окно
+            if (Object.keys(params).length > 0) {
+                console.warn('Параметры openPage игнорируются в реальном режиме. Используется стандартная навигация.');
+            }
+            if (this.closed) throw new Error('Окно закрыто');
+            if (this.location.href !== 'about:blank') {
+                this.location.replace('about:blank');
+                await sleep(100);
+                await this.waitForElementDisappear('.loaded');
+            }
+            if (url != 'about:blank') {
+                this.location.href = url;
+                await sleep(100);
+                await this.waitForElement('.loaded');
+                this.jsCodeArea = this.querySelector('#js_code');
+                this.jsLoggingConsole = this.querySelector('#js_console');
+                this.log('Эта страница была открыта скриптом, будьте осторожны)');
+            }
+            return this;
         }
-
-        // Основная навигация
-        if (url != 'about:blank') {
-            this.location.href = url;
-            await sleep(100);
-            await this.waitForElement('.loaded');
-            this.jsCodeArea = this.querySelector('#js_code');
-            this.jsLoggingConsole = this.querySelector('#js_console');
-            this.log('Эта страница была открыта скриптом, будьте осторожны)');
-        }
-
-        return this;
     }
+
+    async postFormData(url, fields = {}, params = {}) {
+        let {
+            includeDefaultFields = true,
+            headers = { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': this.getCSRFToken() },
+            successAlertIsNessesary = true,
+            fileFields = []
+        } = params;
+        let defaultFields = {};
+        if (includeDefaultFields) defaultFields = { 'authenticity_token': this.getCSRFToken(), 'utf8': '✓' };
+        const allFields = { ...defaultFields, ...fields };
+        const hasFiles = fileFields.length > 0;
+        let body;
+        if (hasFiles) {
+            const formData = new FormData();
+            for (const [name, value] of Object.entries(allFields)) {
+                if (!fileFields.includes(name)) {
+                    if (Array.isArray(value)) value.forEach(v => formData.append(name, v));
+                    else formData.append(name, value);
+                }
+            }
+            for (const fieldName of fileFields) {
+                if (fields[fieldName]) {
+                    try {
+                        const fileUrl = fields[fieldName];
+                        const response = await fetch(fileUrl);
+                        if (!response.ok) throw new Error(`Ошибка загрузки файла: ${response.status}`);
+                        const blob = await response.blob();
+                        const fileName = fields[`${fieldName}_name`] || fileUrl.split('/').pop() || 'file';
+                        formData.append(fieldName, blob, fileName);
+                        log(`Файл загружен: ${fileName} (${blob.size} bytes)`);
+                    } catch (error) {
+                        throw new Error(`Ошибка загрузки файла для поля ${fieldName}: ${error.message}`);
+                    }
+                }
+            }
+            body = formData;
+        } else {
+            let urlParams = new URLSearchParams();
+            for (const [name, value] of Object.entries(allFields)) {
+                if (Array.isArray(value)) value.forEach(v => urlParams.append(name, v));
+                else urlParams.append(name, value);
+            }
+            body = urlParams;
+            if (!headers['Content-Type']) headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        }
+        await this.openPage(url, { method: 'POST', headers: headers, body: body });
+        if (successAlertIsNessesary) {
+            try { await this.waitForSuccess(true); }
+            catch (error) {
+                log(error.message);
+                await sleep(500);
+                log('Повторная попытка...')
+                await this.openPage(url, { method: 'POST', headers: headers, body: body });
+                await this.waitForSuccess(true);
+            }
+        }
+    }
+
+    async postFormDataJSON(url, payload = {}, params = {}) {
+        let {
+            method = 'POST',
+            headers = {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': this.getCSRFToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body = payload ? JSON.stringify(payload) : null
+        } = params;
+        await this.openPage(url, { method: method, headers: headers, body: body });
+    }
+
+    getCSRFToken() {
+        try {
+            const metaToken = currentWindow.document.querySelector('meta[name="csrf-token"]');
+            if (metaToken) return metaToken.getAttribute('content');
+            return null;
+        } catch (error) { return null; }
+    }
+
+    getElementValue(selector) { return this.querySelector(selector).value; }
 
     checkPath(pattern) {
         const currentLocation = this.location.href;
-        if (pattern instanceof RegExp) {
-            return pattern.test(currentLocation);
-        }
+        if (pattern instanceof RegExp) return pattern.test(currentLocation);
         return currentLocation === pattern;
     }
 
-    // Дополнительные методы
     async close() {
         if (!this._nativeWindow.closed) {
             this._nativeWindow.close();
@@ -125,8 +256,10 @@ class ManagedWindow {
     }
 
     async click(selector) {
-        const element = await this.waitForElement(selector);
-        element.click();
+        if (!this._isVirtual) {
+            const element = await this.waitForElement(selector);
+            element.click();
+        }
     }
 
 
@@ -139,6 +272,7 @@ class ManagedWindow {
     }
 
     async waitForElement(selector, timeout = 30000, maxRetries = 20) {
+        if (this._isVirtual) return this.querySelector(selector);
         return executeWithRetry(async () => {
             const start = Date.now();
             while (Date.now() - start < timeout) {
@@ -183,23 +317,29 @@ class ManagedWindow {
         let successAlert = this.querySelector('.alert-success:not(.alert-dismissible):not(.custom-alert)');
         if (successAlert) {
             let alertCloseButton = successAlert.querySelector('.close');
-            alertCloseButton.click();
-            await this.waitForElementDisappear('.alert-success:not(.alert-dismissible)');
+            if (!this._isVirtual) {
+                alertCloseButton.click();
+                await this.waitForElementDisappear('.alert-success:not(.alert-dismissible)');
+            }
         }
-        else if (this.querySelector('.alert-danger:not(.alert-dismissible)') && skipDangerAlert == false) {
+        else if (this.querySelector('.alert-danger:not(.alert-dismissible)') &&
+            (skipDangerAlert == false || this._isVirtual)
+        ) {
             let errorMessage = this.querySelector('.alert-danger:not(.alert-dismissible)').innerHTML;
-            if (errorMessage.search('</button>') != -1)
+            if (errorMessage.search('</button>') != -1) {
                 errorMessage = errorMessage.substring(errorMessage.search('</button>') + 9);
-            throw new Error(`${errorMessage}`);
+            }
+            if (skipDangerAlert == false) throw new Error(`${errorMessage}`);
+            else displayLog(`Пропускаю: ${errorMessage}`, 'warning');
         }
-        else if (!this.querySelector('.alert-danger:not(.alert-dismissible)')) {
+        else if (!this.querySelector('.alert-danger:not(.alert-dismissible)') && !this._isVirtual) {
             await sleep(500);
             await this.waitForSuccess(skipDangerAlert = skipDangerAlert);
         }
+        else throw new Error('Не удалось найти алерт');
     }
 
     async waitForAnyElement(selectors, timeout = 30000) {
-        //return executeWithRetry(async () => {
         const start = Date.now();
         while (Date.now() - start < timeout) {
             for (let selector of selectors) {
@@ -212,43 +352,30 @@ class ManagedWindow {
             await sleep(100);
         }
         throw new Error(`Ни один из элементов не найден за ${timeout} мс`);
-        //});
     }
 
     async log(s) {
-        if (s && s !== '[object Promise]') {
-            this.jsLoggingConsole.value += s + '\n';
-        }
+        if (s && s !== '[object Promise]') this.jsLoggingConsole.value += `${s}\n`;
     }
 
-    querySelector(s) {
-        return this.document.querySelector(s);
-    }
+    querySelector(s) { return this.document.querySelector(s); }
 
-    querySelectorAll(s) {
-        return this.document.querySelectorAll(s);
-    }
+    querySelectorAll(s) { return this.document.querySelectorAll(s); }
 
     async clearAll() {
         this.document.documentElement.innerHTML = '';
-        this.document.head.innerHTML = '<link rel="stylesheet" media="all" href="https://assets-foxford-ru.ngcdn.ru/assets/admin-ae2dc560fd6ba1ec7257653c297ebb617601ca617c1b9e7306b37dcea79e795b.css">';
+        this.document.head.innerHTML =
+            `<link rel="stylesheet" media="all" href="https://assets-foxford-ru.ngcdn.ru/assets/` +
+            `admin-ae2dc560fd6ba1ec7257653c297ebb617601ca617c1b9e7306b37dcea79e795b.css">`;
     }
 
-    get document() {
-        return this._nativeWindow.document;
-    }
+    get document() { return this._nativeWindow.document; }
 
-    get body() {
-        return this.document.body;
-    }
+    get body() { return this.document.body; }
 
-    get head() {
-        return this.document.head;
-    }
+    get head() { return this.document.head; }
 
-    createElement(tagName) {
-        return this.document.createElement(tagName);
-    }
+    createElement(tagName) { return this.document.createElement(tagName); }
 
     addStyle(style) {
         const sheet = new CSSStyleSheet();
@@ -257,9 +384,7 @@ class ManagedWindow {
     }
 
     updateFormFields(form, fields) {
-        for (const input of form.querySelectorAll('input:not(.protected)')) {
-            input.remove();
-        }
+        for (const input of form.querySelectorAll('input:not(.protected)')) input.remove();
         for (const [name, value] of Object.entries(fields)) {
             let input = form.querySelector(`[name="${name}"]`);
             input = createElement('input');
@@ -271,9 +396,7 @@ class ManagedWindow {
     }
 
     async closeSubwindows() {
-        for (let win of this.subwindows) {
-            await win.close();
-        }
+        for (let win of this.subwindows) await win.close();
         this.subwindows = [];
     }
 
@@ -322,9 +445,7 @@ Object.defineProperty(HTMLInputElement.prototype, 'value', {
     set: function (value) {
         const oldValue = this.value;
         inputDescriptor.set.call(this, value);
-        if (oldValue !== value) {
-            this.dispatchEvent(new Event('change', { bubbles: true }));
-        }
+        if (oldValue !== value) this.dispatchEvent(new Event('change', { bubbles: true }));
     }
 });
 */
@@ -335,17 +456,13 @@ Object.defineProperty(HTMLTextAreaElement.prototype, 'value', {
     set: function (value) {
         const oldValue = this.value;
         textareaDescriptor.set.call(this, value);
-        if (oldValue !== value) {
-            this.dispatchEvent(new Event('change', { bubbles: true }));
-        }
+        if (oldValue !== value) this.dispatchEvent(new Event('change', { bubbles: true }));
     }
 });
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-function checkBotApprove() {
-    return currentWindow.querySelector('.bot-approve') !== null;
-}
+function checkBotApprove() { return currentWindow.querySelector('.bot-approve') !== null; }
 
 async function displayError(err, comment = '', time = 3000) {
     console.error(err);
@@ -354,13 +471,11 @@ async function displayError(err, comment = '', time = 3000) {
 }
 
 async function displayLog(message, type = 'success', time = 3000) {
-    try {
-        currentWindow.log(message);
-    }
-    catch (e) {
-        console.error('Логирование во внутреннюю консоль невозможно', e);
-    }
-    const displayAlert = createElement('div', `alert alert-${type} custom-alert`, 'position:fixed; top:0%; width:100%; z-index:9999;');
+    try { currentWindow.log(message); }
+    catch (e) { console.error('Логирование во внутреннюю консоль невозможно', e); }
+    const displayAlert = createElement(
+        'div', `alert alert-${type} custom-alert`, 'position:fixed; top:0%; width:100%; z-index:9999;'
+    );
     displayAlert.textContent = message;
     currentWindow.body.appendChild(displayAlert);
     setTimeout(() => displayAlert.remove(), time);
@@ -371,9 +486,7 @@ function log(s) {
 }
 
 function createButton(btnLabel, onClickFunction = null, className = '', isRealButton = true, isAsyncFunction = true) {
-    if (onClickFunction == null) {
-        onClickFunction = async () => { };
-    }
+    if (onClickFunction == null) onClickFunction = async () => { };
     let button = createElement(isRealButton ? 'button' : 'a', `my-btn btn ${className}`, 'margin:2px;');
     button.textContent = btnLabel;
     button.onclick = onClickFunction;
@@ -387,7 +500,9 @@ function createElement(elementTag, elementClassName = '', elementStyle = '') {
     return element;
 }
 
-function createFormElement(form, elementTag, elementText, elementID, placeholder = '', classes = true, beforeChild = null) {
+function createFormElement(
+    form, elementTag, elementText, elementID, placeholder = '', classes = true, beforeChild = null
+) {
     let div = createElement('div', 'form-group');
     let element = createElement(elementTag, `form-control ${elementTag}`);
     let label = createElement('label', 'control-label');
@@ -395,21 +510,15 @@ function createFormElement(form, elementTag, elementText, elementID, placeholder
         element.className += ' col-sm-9';
         label.className += ' col-sm-3';
     }
-    else {
-        div.style = 'display:inline;';
-    }
+    else div.style = 'display:inline;';
     element.id = elementID;
     element.placeholder = placeholder;
     label.htmlFor = elementID;
     label.id = 'lbl_' + elementID;
     label.textContent = elementText;
     div.append(label, element);
-    if (beforeChild) {
-        form.insertBefore(div, beforeChild);
-    }
-    else {
-        form.appendChild(div);
-    }
+    if (beforeChild) form.insertBefore(div, beforeChild);
+    else form.appendChild(div);
     return element;
 }
 
@@ -421,16 +530,35 @@ function createFileInput(format = 'text/csv') {
     return inp;
 }
 
-// Создание окна
-async function createWindow(parent = window) {
-    return new ManagedWindow(parent);
+async function createWindow(arg = window) {
+    if (typeof arg === 'object' && arg !== null) {
+        const {
+            parent = currentWindow,
+            htmlContent = null,
+            name = null,
+            isVirtual = (htmlContent !== null),
+        } = arg;
+        if (htmlContent !== null) {
+            return new ManagedWindow(parent, htmlContent);
+        } else if (isVirtual) {
+            return new ManagedWindow(parent, '');
+        }
+        else if (name) {
+            return new ManagedWindow(name);
+        } else {
+            return new ManagedWindow(parent);
+        }
+    }
+    if (arg === -1) {
+        return new ManagedWindow(currentWindow, '');
+    }
+    // Остальная логика для строк, null или undefined
+    return new ManagedWindow(arg);
 }
 
 function applyReplaceRules(str, replaceRules = []) {
     let result = str;
-    for (const [key, value] of Object.entries(replaceRules)) {
-        result = result.replace(key, value);
-    }
+    for (const [key, value] of Object.entries(replaceRules)) result = result.replace(key, value);
     return result;
 }
 
@@ -507,19 +635,11 @@ async function processDynamicFields(sourceForm, targetForm, params = null) {
         const createdGroups = [];
         for (let i = 0; i < indexes.length; i++) {
             addButton.click();
-            await waitForAddedNode({
-                parent: targetForm,
-                recursive: true,
-                includeIframes: true,
-                minWait: 300
-            });
+            await waitForAddedNode({ parent: targetForm, recursive: true, includeIframes: true, minWait: 300 });
             const allGroups = targetForm.querySelectorAll(`[id*="${association}_attributes_"]`);
             const newGroup = allGroups[allGroups.length - 1].closest('.fields');
-            if (newGroup && !createdGroups.includes(newGroup)) {
-                createdGroups.push(newGroup);
-            } else {
-                displayLog("Не удалось найти новую группу после клика", 'warning');
-            }
+            if (newGroup && !createdGroups.includes(newGroup)) createdGroups.push(newGroup);
+            else displayLog("Не удалось найти новую группу после клика", 'warning');
         }
         for (let i = 0; i < indexes.length; i++) {
             const sourceGroup = sourceFields[indexes[i]];
@@ -541,9 +661,8 @@ async function processDynamicFields(sourceForm, targetForm, params = null) {
 function findFormElement(form, sourceElement, replaceRules = {}) {
     let targetElement = null;
     if (sourceElement.id) {
-        try {
-            targetElement = form.querySelector(`#${applyReplaceRules(sourceElement.id, replaceRules)}`);
-        } catch { }
+        try { targetElement = form.querySelector(`#${applyReplaceRules(sourceElement.id, replaceRules)}`); }
+        catch { }
     }
     if (!targetElement && sourceElement.name) {
         const newName = applyReplaceRules(sourceElement.name, replaceRules);
@@ -561,37 +680,39 @@ async function copyFieldData(sourceElement, targetElement) {
         displayLog('Элементы разного типа', 'warning');
         return;
     }
-
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(sourceElement.tagName)) {
-        if (sourceElement.type === 'file') {
-            copyFileElement(sourceElement, targetElement);
-        } else {
-            copyElementValue(sourceElement, targetElement);
-        }
-    } else if (sourceElement.tagName === 'IFRAME') {
-        await copyIframeContent(sourceElement, targetElement);
+        if (sourceElement.type === 'file') copyFileElement(sourceElement, targetElement);
+        else copyElementValue(sourceElement, targetElement);
     }
-    else {
-        displayLog('Неизвестный вид элемента', 'warning');
-    }
+    else if (sourceElement.tagName === 'IFRAME') await copyIframeContent(sourceElement, targetElement);
+    else displayLog('Неизвестный вид элемента', 'warning');
 }
 
 function copyElementValue(source, target) {
-    if (target.type === 'checkbox' || target.type === 'radio') {
-        target.checked = source.checked;
-    } else if (source.tagName === 'SELECT' && source.multiple) {
+    if (target.type === 'checkbox' || target.type === 'radio') target.checked = source.checked;
+    else if (source.tagName === 'SELECT' && source.multiple) {
         if (target.tagName === 'SELECT' && target.multiple) {
-            const selectedValues = new Set(
-                Array.from(source.selectedOptions).map(opt => opt.value)
-            );
+            const selectedValues = new Set(Array.from(source.selectedOptions).map(opt => opt.value));
             Array.from(target.options).forEach(opt => opt.selected = false);
+            const existingOptions = new Map();
+            Array.from(target.options).forEach(opt => { existingOptions.set(opt.value, opt); });
+            Array.from(source.options).forEach(sourceOption => {
+                if (!existingOptions.has(sourceOption.value)) {
+                    const newOption = new Option(
+                        sourceOption.text,
+                        sourceOption.value
+                    );
+                    target.add(newOption);
+                    existingOptions.set(sourceOption.value, newOption);
+                }
+            });
             Array.from(target.options).forEach(opt => {
-                if (selectedValues.has(opt.value)) opt.selected = true;
+                if (selectedValues.has(opt.value)) {
+                    opt.selected = true;
+                }
             });
         }
-    } else {
-        target.value = source.value;
-    }
+    } else target.value = source.value;
 }
 
 function copyFileElement(sourceInput, targetInput) {
@@ -612,9 +733,7 @@ function waitForAddedNode({ parent = document, recursive = true, includeIframes 
             if (elapsed >= minWait) {
                 if (observer) observer.disconnect();
                 resolve();
-            } else {
-                setTimeout(check, 50);
-            }
+            } else setTimeout(check, 50);
         };
         observer = new MutationObserver(mutations => {
             for (const mutation of mutations) {
@@ -633,9 +752,7 @@ function waitForAddedNode({ parent = document, recursive = true, includeIframes 
                     if (iframe.contentDocument) {
                         observer.observe(iframe.contentDocument.body, { childList: true, subtree: true });
                     }
-                } catch (e) {
-                    // Игнорируем ошибки CORS
-                }
+                } catch (e) { } // Игнорируем ошибки CORS
             }
         }
         // Гарантированное завершение
@@ -652,17 +769,12 @@ async function copyIframeContent(sourceIframe, targetIframe) {
             try {
                 const sourceBody = sourceIframe.contentDocument?.body;
                 const targetBody = targetIframe.contentDocument?.body;
-
                 if (sourceBody && targetBody) {
                     targetBody.innerHTML = sourceBody.innerHTML;
                     log(`Содержимое iframe скопировано: ${sourceIframe.id}`);
                     resolve();
-                } else {
-                    setTimeout(checkContent, 100);
-                }
-            } catch (e) {
-                setTimeout(checkContent, 100);
-            }
+                } else setTimeout(checkContent, 100);
+            } catch (e) { setTimeout(checkContent, 100); }
         };
         checkContent();
     });
@@ -685,7 +797,6 @@ async function cloneResource(sourceWin, targetWin, editUrl, newUrl, params = nul
 
 function CSVToArray(CSV_string, delimiter = ',') {
     delimiter = (delimiter || ","); // user-supplied delimeter or default comma
-
     var pattern = new RegExp( // regular expression to parse the CSV values.
         ( // Delimiters:
             "(\\" + delimiter + "|\\r?\\n|\\r|^)" +
@@ -695,7 +806,6 @@ function CSVToArray(CSV_string, delimiter = ',') {
             "([^\"\\" + delimiter + "\\r\\n]*))"
         ), "gi"
     );
-
     var rows = [[]]; // array to hold our data. First row is column headers.
     // array to hold our individual pattern matching groups:
     var matches = false; // false if we don't find any matches
@@ -725,6 +835,47 @@ function CSVToArray(CSV_string, delimiter = ',') {
     return rows; // Return the parsed data Array
 }
 
+async function getCsvFromMetabase(question_id, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+        let tempWindow = window.open(`${METABASE_URL}/question/${question_id}?get_data`, 'metabaseWindow');
+
+        function messageHandler(event) {
+            if (event.origin !== METABASE_URL) return;
+            if (event.data.type === 'FROM_METABASE_CSV_DATA') {
+                cleanup();
+                resolve(event.data.payload);
+            }
+        }
+
+        function cleanup() {
+            window.removeEventListener('message', messageHandler);
+            if (timeoutId) clearTimeout(timeoutId);
+            if (tempWindow) tempWindow.close();
+        }
+
+        const timeoutId = setTimeout(() => {
+            cleanup();
+            displayError(new Error(
+                `Для работы скрипта необходимо:\n` +
+                `1) авторизоваться в ${METABASE_URL}/\n` +
+                `2) установить скрипт ${FOXFORD_URL}/tampermoney_script_metabase.user.js`
+            ));
+            resolve('');
+        }, timeout);
+        window.addEventListener('message', messageHandler);
+    });
+}
+
+function setCsvFileByContent(fileInput, csvContent) {
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const file = new File([blob], 'fake_file.csv', { type: 'text/csv' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    fileInput.files = dataTransfer.files;
+    const changeEvent = new Event('change', { bubbles: true });
+    fileInput.dispatchEvent(changeEvent);
+}
+
 async function createJsConsoles() {
     currentWindow.jsCodeArea.rows = 1;
     currentWindow.jsCodeArea.cols = 1;
@@ -737,9 +888,9 @@ async function createJsConsoles() {
             displayLog('Скрипт уже запущен, если хотите запустить другой, обновите страницу', 'danger');
             return
         }
-        function clear() {
-            currentWindow.jsLoggingConsole.value = '';
-        }
+
+        function clear() { currentWindow.jsLoggingConsole.value = ''; }
+
         try {
             clear();
             const codeToExecute = `
@@ -750,7 +901,7 @@ async function createJsConsoles() {
                         displayLog('Выполнение скрипта завершено', 'success', 1000);
                     } catch (e) { displayError(e, 'при выполнении скрипта'); } 
                     finally {
-                        (async () => await currentWindow.closeSubwindows())();
+                        await currentWindow.closeSubwindows();
                         currentWindow.isRunningScript = false; 
                     }
                 })();`;
@@ -758,37 +909,33 @@ async function createJsConsoles() {
             result.then(val => {
                 if (val !== undefined) currentWindow.log(String(val));
             }).catch(e => currentWindow.log(String(e)));
-        } catch (e) {
-            currentWindow.log(String(e));
-        }
+        } catch (e) { currentWindow.log(String(e)); }
     }
 
     const runButton = createButton('Запустить', run_script, 'btn-info');
     runButton.style = 'align-self: center; margin-left: 20px; margin-right:20px;';
-
     currentWindow.jsLoggingConsole.rows = 1;
     currentWindow.jsLoggingConsole.cols = 1;
     currentWindow.jsLoggingConsole.id = 'js_console';
     currentWindow.jsLoggingConsole.disabled = true;
-    currentWindow.jsLoggingConsole.style = 'min-height:75px; min-width:400px; max-width:1000px; max-height:500px; background-color:white;';
+    currentWindow.jsLoggingConsole.style =
+        'min-height:75px; min-width:400px; max-width:1000px; max-height:500px; background-color:white;';
     currentWindow.jsLoggingConsole.placeholder = 'Консоль';
-
     try {
         let body = currentWindow.body;
-        let divForConsoles = createElement('div', '', 'display: flex; flex-direction: row; justify-content: center; position: sticky; top:0; background:white; z-index:1049;');
+        let divForConsoles = createElement(
+            'div', '',
+            `display: flex; flex-direction: row; justify-content: center; position: sticky; top:0; 
+                background:white; z-index:1049;`
+        );
         divForConsoles.appendChild(currentWindow.jsCodeArea);
         divForConsoles.appendChild(runButton);
         divForConsoles.appendChild(currentWindow.jsLoggingConsole);
         body.insertBefore(divForConsoles, body.firstChild);
-
-    } catch (e) {
-        displayError(e, 'Не могу добавить некоторые поля');
-    }
+    } catch (e) { displayError(e, 'Не могу добавить некоторые поля'); }
 }
 
-function splitString(str) {
-    return str.split(/[\s,.;]+/).filter(Boolean);
-}
+function splitString(str) { return str.split(/[\s,.;]+/).filter(Boolean); }
 
 function getBaseUrl(url) {
     // Находим первое число в URL и оставляем все до него включительно
@@ -799,71 +946,50 @@ function getBaseUrl(url) {
 async function fillFormFromSearchParams() {
     const stopParams = ['only_copy', 'only_week_day_webinars_settings', 'utf8', 'commit'];
     const params = currentWindow.searchParams;
-    if (stopParams.some(param => params.has(param)) || params.size == 0) {
-        return;
-    }
+    if (stopParams.some(param => params.has(param)) || params.size == 0) return;
     const formId = params.get('form_id');
     const formAction = params.get('form_action');
     let form;
-    if (formId) {
-        form = currentWindow.querySelector(`form#${formId}`);
-    }
-    else if (formAction) {
-        form = currentWindow.querySelector(`form[action="${formAction}"]`);
-    }
-    else {
-        form = currentWindow.querySelector('form');
-    }
+    if (formId) form = currentWindow.querySelector(`form#${formId}`);
+    else if (formAction) form = currentWindow.querySelector(`form[action="${formAction}"]`);
+    else form = currentWindow.querySelector('form');
     if (!form) {
         const errorMsg = formId ? `Форма с ID "${formId}"` :
-            formAction ? `Форма с action "${formAction}"` :
-                "Ни одна форма";
+            formAction ? `Форма с action "${formAction}"` : "Ни одна форма";
         displayError(`${errorMsg} не найдена`);
         return;
     }
-    else {
-        log('Начинаю автозаполнение формы');
-    }
-
+    else log('Начинаю автозаполнение формы');
     for (const [param, value] of params.entries()) {
         if (['form_id', 'form_action', 'action', 'action_target', 'button', 'auto_submit'].includes(param)) continue;
         const field = form.querySelector(`#${param}:not(.protected)`);
-        if (field) {
-            fillFieldByType(field, value);
-        }
+        if (field) fillFieldByType(field, value);
     }
-
     const action = params.get('action');
     const actionTarget = params.get('action_target');
     const buttonClass = params.get('button');
     const autoSubmit = params.has('auto_submit');
     if (action === 'click' && actionTarget) {
-        const element = form.querySelector(`#${actionTarget}`) ||
-            currentWindow.querySelector(`#${actionTarget}`);
+        const element = form.querySelector(`#${actionTarget}`) || currentWindow.querySelector(`#${actionTarget}`);
         log(`Нажимаю на элемент #${actionTarget}`);
         if (element) element.click();
     }
     else if (action === 'click' && buttonClass) {
-        const button = form.querySelector(`.${buttonClass}`) ||
-            currentWindow.querySelector(`.${buttonClass}`);
+        const button = form.querySelector(`.${buttonClass}`) || currentWindow.querySelector(`.${buttonClass}`);
         log(`Нажимаю на кнопку .${buttonClass}`);
         if (button) button.click();
     }
     if (action === 'submit' || autoSubmit) {
         const submitButton = form.querySelector('input[type="submit"], button[type="submit"]');
         log(`Автоматическа отправка формы`);
-        if (submitButton) {
-            submitButton.click();
-        } else {
-            form.submit();
-        }
+        if (submitButton) submitButton.click();
+        else form.submit();
     }
 }
 
 function fillFieldByType(field, value) {
     const tagName = field.tagName;
     const type = field.type ? field.type.toLowerCase() : '';
-
     try {
         if (tagName === 'SELECT' && field.multiple) {
             const values = value.split(',');
@@ -873,9 +999,7 @@ function fillFieldByType(field, value) {
                     field.add(newOption);
                 }
             });
-            Array.from(field.options).forEach(option => {
-                option.selected = values.includes(option.value);
-            });
+            Array.from(field.options).forEach(option => { option.selected = values.includes(option.value); });
         }
         else if (tagName === 'SELECT') {
             if (!Array.from(field.options).some(opt => opt.value === value)) {
@@ -884,26 +1008,154 @@ function fillFieldByType(field, value) {
             }
             field.value = value;
         }
-        else if (type === 'checkbox') {
-            field.checked = ['1', 'true', 'on'].includes(value.toLowerCase());
-        }
+        else if (type === 'checkbox') field.checked = ['1', 'true', 'on'].includes(value.toLowerCase());
         else if (type === 'radio') {
             const radioGroup = field.form.querySelectorAll(`[name="${field.name}"][type="radio"]`);
-            radioGroup.forEach(radio => {
-                radio.checked = (radio.value === value);
-            });
+            radioGroup.forEach(radio => { radio.checked = (radio.value === value); });
         }
-        else if (type === 'file') {
-            displayLog('Файловые поля не могут быть заполнены через URL параметры', 'warning');
-        }
-        else {
-            field.value = value;
-        }
+        else if (type === 'file') displayLog('Файловые поля не могут быть заполнены через URL параметры', 'warning');
+        else field.value = value;
         const changeEvent = new Event('change', { bubbles: true });
         field.dispatchEvent(changeEvent);
         log(`Заполнено поле ${field.id}: ${value}`);
-    } catch (e) {
-        displayError(e, `Ошибка при заполнении поля ${field.id}`);
+    } catch (e) { displayError(e, `Ошибка при заполнении поля ${field.id}`); }
+}
+
+function matchNumber(str) { return str.match(/\d+/g)[0]; }
+
+function getTableLinks(virtualWindow, tableSelector = '.table', elementSelector = 'a[href$="edit"]') {
+    return Array.from(virtualWindow.querySelectorAll(`${tableSelector} tbody tr ${elementSelector}`))
+        .map(link => link.href);
+}
+
+function getTableTexts(virtualWindow, elementSelector = '') {
+    return Array.from(virtualWindow.querySelectorAll(`.table tbody tr ${elementSelector}`))
+        .map(element => element.textContent);
+}
+
+async function copyMethodicalRecomendationItems(virtualWindow, sourceUnitLink, targetUnitLink, tabName, tabTitle) {
+    await virtualWindow.openPage(`${sourceUnitLink}?tab=${tabName}`);
+    let sourceLinks = getTableLinks(virtualWindow, '.table', 'a[data-method="delete"]');
+    let appendTextLink = targetUnitLink.replace(/\/blocks\/\d+(\/units\/\d+)\/edit$/, `$1/${tabName}_items`);
+    if (sourceLinks.length > 0) { log(`-- Копирую ${tabTitle} --`); }
+    for (let sourceLink of sourceLinks) {
+        await virtualWindow.openPage(`${sourceLink}/edit`);
+        let sourceText = virtualWindow.getElementValue(
+            `#methodical_materials_items_${tabName}_item_text_attachment_attributes_content`
+        );
+        await virtualWindow.postFormData(
+            appendTextLink,
+            { [`methodical_materials_items_${tabName}_item[text_attachment_attributes][content]`]: sourceText }
+        );
+    }
+}
+
+async function сopyMethodicalFileItems(virtualWindow, sourceUnitLink, targetUnitLink, tabName, tabTitle, options = {}) {
+    let { hasUserDownloadable = false } = options;
+    await virtualWindow.openPage(`${sourceUnitLink}?tab=${tabName}`);
+    let sourceLinks = getTableLinks(virtualWindow, '.table', 'a[data-method="delete"]');
+    let sourceFileLinks = getTableLinks(virtualWindow, '.table', 'a[target="_blank"]');
+    let appendFileLink = targetUnitLink.replace(/\/blocks\/\d+(\/units\/\d+)\/edit$/, `$1/${tabName}_items`);
+    if (sourceLinks.length > 0) { log(`-- Копирую ${tabTitle} --`); }
+    for (let ind = 0; ind < sourceLinks.length; ind++) {
+        let sourceLink = sourceLinks[ind];
+        let sourceFileLink = sourceFileLinks[ind];
+        await virtualWindow.openPage(`${sourceLink}/edit`);
+        let sourceName = virtualWindow.getElementValue(
+            `#methodical_materials_items_${tabName}_item_attachment_attributes_name`
+        );
+        let fields = {
+            [`methodical_materials_items_${tabName}_item[attachment_attributes][name]`]: sourceName,
+            [`methodical_materials_items_${tabName}_item[attachment_attributes][file]`]: sourceFileLink
+        };
+        if (!hasUserDownloadable) {
+            let sourceUserDownloadable = virtualWindow.getElementValue(
+                `#methodical_materials_items_${tabName}_item_user_downloadable`
+            );
+            fields[`methodical_materials_items_${tabName}_item[user_downloadable]`] = sourceUserDownloadable;
+        }
+        await virtualWindow.postFormData(
+            appendFileLink, fields,
+            { fileFields: [`methodical_materials_items_${tabName}_item[attachment_attributes][file]`] }
+        );
+    }
+}
+
+async function copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnitLink, settings) {
+    if (settings['Задачи'] || settings['Рекомендованность к ДЗ']) {
+        await virtualWindow.openPage(`${sourceUnitLink}?tab=task`);
+        let sourceTaskLinks = getTableLinks(virtualWindow);
+        let sourceTaskRecommendations = getTableTexts(virtualWindow, '.homework_recommendation_text');
+        if (settings['Задачи']) {
+            if (sourceTaskLinks.length > 0) { log('-- Копирую задачи --'); }
+            for (let taskLink of sourceTaskLinks) {
+                let taskId = matchNumber(taskLink);
+                let appendTaskLink = targetUnitLink.replace(
+                    /\/blocks\/\d+(\/units\/\d+)\/edit$/, `$1/task_bindings?task_id=${taskId}`
+                );
+                await virtualWindow.postFormData(appendTaskLink, {}, { successAlertIsNessesary: false });
+            }
+        }
+        if (settings['Рекомендованность к ДЗ']) {
+            await virtualWindow.openPage(`${targetUnitLink}?tab=task`);
+            let targetTaskRecommendationLinks = getTableLinks(
+                virtualWindow, '.table', 'a[href$="toggle_homework_recommendation"]'
+            );
+            let targetTaskRecommendations = getTableTexts(virtualWindow, '.homework_recommendation_text');
+            if (sourceTaskRecommendations.length != targetTaskRecommendations.length) {
+                displayLog('Количество задач в ДЗ в уроках не совпадает, пропускаем их', 'warning');
+            }
+            else {
+                log('-- Проверяю рекомендованность к ДЗ --');
+                for (let taskInd = 0; taskInd < sourceTaskRecommendations.length; taskInd++) {
+                    if (sourceTaskRecommendations[taskInd] != targetTaskRecommendations[taskInd]) {
+                        await virtualWindow.postFormDataJSON(targetTaskRecommendationLinks[taskInd]);
+                    }
+                }
+            }
+        }
+    }
+    if (settings['Рекомендации (методические)']) {
+        await copyMethodicalRecomendationItems(
+            virtualWindow, sourceUnitLink, targetUnitLink, 'text', 'рекомендации (методические)'
+        );
+    }
+    if (settings['Презентации']) {
+        await сopyMethodicalFileItems(virtualWindow, sourceUnitLink, targetUnitLink, 'presentation', 'презентации');
+    }
+    if (settings['Файлы (методические)']) {
+        await сopyMethodicalFileItems(virtualWindow, sourceUnitLink, targetUnitLink, 'file', 'файлы (методические)');
+    }
+    if (settings['Рекомендации (подготовительные)']) {
+        await copyMethodicalRecomendationItems(
+            virtualWindow, sourceUnitLink, targetUnitLink, 'preparation_text', 'рекомендации (подготовительные)'
+        );
+    }
+    if (settings['Ссылки']) {
+        await virtualWindow.openPage(`${sourceUnitLink}?tab=link`);
+        let sourceLinkLinks = getTableLinks(virtualWindow, '.table', 'a[data-method="delete"]');
+        let appendLinkLink = targetUnitLink.replace(/\/blocks\/\d+(\/units\/\d+)\/edit$/, '$1/link_items');
+        if (sourceLinkLinks.length > 0) { log('-- Копирую ссылки --'); }
+        for (let linkLink of sourceLinkLinks) {
+            await virtualWindow.openPage(`${linkLink}/edit`);
+            let linkName = virtualWindow.getElementValue(
+                '#methodical_materials_items_link_item_link_attributes_name'
+            );
+            let linkUrl = virtualWindow.getElementValue(
+                '#methodical_materials_items_link_item_link_attributes_url'
+            );
+            let fields = {
+                'methodical_materials_items_link_item[link_attributes][name]': linkName,
+                'methodical_materials_items_link_item[link_attributes][url]': linkUrl
+            };
+            await virtualWindow.postFormData(appendLinkLink, fields);
+        }
+    }
+    if (settings['Файлы (подготовительные)']) {
+        await сopyMethodicalFileItems(
+            virtualWindow, sourceUnitLink, targetUnitLink, 'preparation_file', 'файлы (подготовительные)',
+            { hasUserDownloadable: true }
+        );
     }
 }
 
@@ -915,7 +1167,7 @@ const pagePatterns = {
     coursesNew: /admin\/courses\/new/,
     miniGroupsEdit: /admin\/mini_groups\/\d*\/edit/, /* пока не используется */
     miniGroupsNew: /admin\/mini_groups\/new/,
-    lessons: /lessons[#$]?$/,
+    lessons: /lessons(#|$)/,
     lessonsOrder: /lessons_order$/,
     lessonTasks: /admin\/lessons\/\d*\/lesson_tasks/,
     groups: /groups([?#]|$)/,
@@ -926,15 +1178,18 @@ const pagePatterns = {
     // обучение - тесты
     trainingsTaskTemplates: /trainings\/\d*\/task_templates/,
     trainingsIndividualTasks: /trainings\/task_templates\/\d*\/individual_tasks/,
-    // практика - задачи
-    taskPreviewAnswers: /admin\/tasks\/\d*\/preview#ans/,
-    tasksEdit: /admin\/tasks\/(?:codes\/|essays\/)?\d*\/edit/,
     // обучение - мероприятия
     eventsNew: /admin\/events\/new/,
     eventsEdit: /admin\/events\/\d*\/edit/,
+    // практика - задачи
+    taskPreviewAnswers: /admin\/tasks\/\d*\/preview#ans/,
+    tasksEdit: /admin\/tasks\/(?:codes\/|essays\/)?\d*\/edit/,
     // практика - учебные программы
     methodicalBlockEdit: /methodical_materials\/programs\/[\d]*\/blocks\/\d*\/edit/,
     methodicalLinkCreateVideo: /methodical_materials\/units\/\d*\/link_items\/new#szh/,
+    // пользователи - учащиеся
+    usersCoursesReplace: /admin\/users_courses\/\d*\/replace/,
+    massCourseAccess: /admin\/mass_course_access$/,
     // эдш - типы продуктов
     gridsCreate: /externship\/product_types\/\d*\/grids\/new/,
     gridsEdit: /externship\/product_types\/\d*\/grids\/\d*\/edit/,
@@ -944,9 +1199,9 @@ const pagePatterns = {
     devServices: /admin\/dev_services([?#]|$)/,
     webinar: /admin\/courses\/\d*\/groups\/\d*$/,
     eventWebinar: /admin\/events\/\d*/,
-    massChange: 'https://foxford.ru/admin/mass_change',
-    secretPage: /https:\/\/foxford.ru\/admin\/courses\/15005\/lesson_packs\/new/,
-    index: 'https://foxford.ru/admin',
+    massChange: `${FOXFORD_URL}/admin/mass_change`,
+    secretPage: /admin\/courses\/15005\/lesson_packs\/new/,
+    index: `${FOXFORD_URL}/admin`,
     hasAnchor: /#/
 };
 
@@ -958,7 +1213,8 @@ const pagePatterns = {
     // создаем поле для js-кода, кнопку запуска и нашу консоль
     if (!currentWindow.checkPath(pagePatterns.taskPreviewAnswers) &&
         !currentWindow.checkPath(pagePatterns.webinar) &&
-        !currentWindow.checkPath(pagePatterns.eventWebinar)) {
+        !currentWindow.checkPath(pagePatterns.eventWebinar)
+    ) {
         createJsConsoles();
         if (currentWindow.checkPath(pagePatterns.hasAnchor)) {
             let anchorElement;
@@ -991,162 +1247,252 @@ const pagePatterns = {
     if (currentWindow.checkPath(pagePatterns.courses)) {
         let idSearchButton = createButton('Найти по ID', async () => { }, 'btn-default', false);
         const idElement = currentWindow.querySelector('#q_id_eq');
-        idSearchButton.href = 'https://foxford.ru/admin/courses?q%5Bid_eq%5D=' + idElement.value;
+        idSearchButton.href = '/admin/courses?q%5Bid_eq%5D=' + idElement.value;
         idElement.style = 'width:52%;';
         idElement.parentNode.style = 'margin-right:-7pt;';
-        idElement.onchange = function () { idSearchButton.href = 'https://foxford.ru/admin/courses?q%5Bid_eq%5D=' + idElement.value; }
+        idElement.onchange = function () {
+            idSearchButton.href = `/admin/courses?q%5Bid_eq%5D=${idElement.value}`;
+        }
         currentWindow.querySelector('.q_id_eq').appendChild(idSearchButton);
         log('Страница модифицирована')
     }
     // на странице редактирования курса
-    if (currentWindow.checkPath(pagePatterns.coursesEdit)) {
-        let asyncElement = currentWindow.querySelector('#course_asynchronous');
-        let teachersElement = currentWindow.querySelector('#course_merged_teacher_ids');
-        let purchaseModeElement = currentWindow.querySelector('#course_purchase_mode');
-        let publishedElement = currentWindow.querySelector('#course_published');
-        let visibleInListElement = currentWindow.querySelector('#course_visible_in_list');
-        let installmentElement = currentWindow.querySelector('#course_installment_enabled');
-        let maternityCapitalElement = currentWindow.querySelector('#course_maternity_capital');
-        let fullNameElement = currentWindow.querySelector('#course_full_name');
-        let nameElement = currentWindow.querySelector('#course_name');
-        let subtitleElement = currentWindow.querySelector('#course_subtitle');
-        let visibleInCalendarElement = currentWindow.querySelector('#course_visible_in_calendar');
-        asyncElement.onchange = checkAsynchronousCourse;
-        teachersElement.onchange = () => { checkAsynchronousCourse(); checkCanceledCourse(); };
-        purchaseModeElement.onchange = checkCanceledCourse;
-        publishedElement.onchange = () => { checkAsynchronousCourse(); checkCanceledCourse(); };
-        visibleInListElement.onchange = checkCanceledCourse;
-        installmentElement.onchange = checkCanceledCourse;
-        maternityCapitalElement.onchange = checkCanceledCourse;
-        visibleInCalendarElement.onchange = checkCanceledCourse;
-        let warningTeachersNoLive = createElement('div', '', 'color:orange;font-size: 11px; top: 3px');
-        warningTeachersNoLive.hidden = true;
-        warningTeachersNoLive.innerHTML = 'В неасинхронном курсе должны быть только живые преподаватели';
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeachersNoLive);
-        let warningAsyncNoLive = warningTeachersNoLive.cloneNode(true);
-        currentWindow.querySelector('.course_asynchronous').firstChild.appendChild(warningAsyncNoLive);
+    if (currentWindow.checkPath(pagePatterns.coursesEdit) ||
+        currentWindow.checkPath(pagePatterns.miniGroupsEdit)
+    ) {
+        function createWarningElement(text) {
+            const element = createElement('div', '', 'color:orange;font-size: 11px; top: 3px');
+            element.hidden = true;
+            element.innerHTML = text;
+            return element;
+        };
+
+        const elements = {
+            async: currentWindow.querySelector('#course_asynchronous'),
+            teachers: currentWindow.querySelector('#course_merged_teacher_ids'),
+            tags: currentWindow.querySelector('#course_tag_ids'),
+            purchaseMode: currentWindow.querySelector('#course_purchase_mode'),
+            published: currentWindow.querySelector('#course_published'),
+            visibleInList: currentWindow.querySelector('#course_visible_in_list'),
+            installment: currentWindow.querySelector('#course_installment_enabled'),
+            maternityCapital: currentWindow.querySelector('#course_maternity_capital'),
+            fullName: currentWindow.querySelector('#course_full_name'),
+            name: currentWindow.querySelector('#course_name'),
+            subtitle: currentWindow.querySelector('#course_subtitle'),
+            visibleInCalendar: currentWindow.querySelector('#course_visible_in_calendar')
+        };
+        if (elements.async) elements.async.onchange = checkAsynchronousCourse;
+        [elements.teachers, elements.published].forEach(element => {
+            if (element) element.onchange = () => { checkAsynchronousCourse(); checkCanceledCourse(); }
+        });
+        [
+            elements.purchaseMode, elements.visibleInList, elements.installment,
+            elements.maternityCapital, elements.visibleInCalendar, elements.tags
+        ].forEach(element => { if (element) element.onchange = checkCanceledCourse; });
+
+        const warningTexts = {
+            asyncNoLive: 'В неасинхронном курсе должны быть только живые преподаватели',
+            cancelPurchashing: 'В отмененном курсе необходимо отключить приобретение',
+            cancelPublished: 'Отмененный курс необходимо распубликовать',
+            cancelInList: 'Отмененный курс необходимо убрать из каталога',
+            cancelInstallments: 'Необходимо отключить оплату по частям в отмененном курсе',
+            cancelMaternityCapital: 'Необходимо отключить оплату маткапиталом в отмененном курсе',
+            cancelVisibleInCalendar: 'Необходимо отключить отображение в календаре отмененного курса',
+            cancelNames: 'В названиях курса необходимо указать, что курс отменен',
+        };
+        const teacherWarnings = {
+            saveReminder: createWarningElement('Не забудьте сохранить изменения :)'),
+        };
+        if (elements.teachers) {
+            teacherWarnings.cancelTeacher = createWarningElement(
+                'В отмененном курсе преподавателем не может быть других преподавателей, кроме Галины Отменной'
+            );
+        }
+        else {
+            teacherWarnings.cancelTeacher = createWarningElement(
+                'В отмененном курсе не может быть других тегов, кроме Отменённая МГ'
+            );
+        }
+        const warnings = {};
+        for (let key in warningTexts) {
+            teacherWarnings[key] = createWarningElement(warningTexts[key]);
+            warnings[key] = createWarningElement(warningTexts[key]);
+        }
+        for (let key in teacherWarnings) {
+            if (elements.teachers) elements.teachers.parentNode.append(teacherWarnings[key]);
+            else elements.tags.parentNode.append(teacherWarnings[key]);
+        }
+        if (elements.async) elements.async.parentNode.after(warnings.asyncNoLive);
+        elements.purchaseMode.after(warnings.cancelPurchashing);
+        elements.published.parentNode.after(warnings.cancelPublished);
+        elements.visibleInList.parentNode.after(warnings.cancelInList);
+        elements.installment.parentNode.after(warnings.cancelInstallments);
+        elements.maternityCapital.parentNode.after(warnings.cancelMaternityCapital);
+        elements.visibleInCalendar.parentNode.after(warnings.cancelVisibleInCalendar);
+        elements.fullName.after(warnings.cancelNames);
+
         function checkAsynchronousCourse() {
-            if (!asyncElement.checked && publishedElement.checked) {
-                let noLiveTeachersInCourse = teachersElement.value.split(',').filter(x => { for (let i of NO_LIVE_TEACHER_IDS) { if (x == i) { return true } } return false });
+            if (!elements.async.checked && elements.published.checked) {
+                let noLiveTeachersInCourse = elements.teachers.value.split(',').filter(x => {
+                    for (let i of NO_LIVE_TEACHER_IDS) {
+                        if (x == i) return true;
+                    }
+                    return false;
+                });
                 if (noLiveTeachersInCourse.length) {
                     // Преподаватель должен быть живой, так как курс асинхронный
-                    warningTeachersNoLive.hidden = false; warningAsyncNoLive.hidden = false;
+                    teacherWarnings.asyncNoLive.hidden = false; warnings.asyncNoLive.hidden = false;
                 }
-                else { warningTeachersNoLive.hidden = true; warningAsyncNoLive.hidden = true; }
+                else { teacherWarnings.asyncNoLive.hidden = true; warnings.asyncNoLive.hidden = true; }
             }
-            else { warningTeachersNoLive.hidden = true; warningAsyncNoLive.hidden = true; }
+            else { teacherWarnings.asyncNoLive.hidden = true; warnings.asyncNoLive.hidden = true; }
         }
-        checkAsynchronousCourse();
-        let warningTeacherCancel = createElement('div', '', 'color:orange;font-size: 11px; top: 3px');
-        warningTeacherCancel.hidden = true;
-        warningTeacherCancel.innerHTML = 'В отмененном курсе преподавателем не может быть других преподавателей, кроме Галины Отменной';
-        let warningTeacherPurchashing = warningTeacherCancel.cloneNode(true); warningTeacherPurchashing.innerHTML = 'В отмененном курсе необходимо отключить приобретение';
-        let warningPurchashingCancel = warningTeacherPurchashing.cloneNode(true);
-        let warningTeacherPublished = warningTeacherCancel.cloneNode(true); warningTeacherPublished.innerHTML = 'Отмененный курс необходимо распубликовать';
-        let warningPublishedCancel = warningTeacherPublished.cloneNode(true);
-        let warningTeacherInList = warningTeacherCancel.cloneNode(true); warningTeacherInList.innerHTML = 'Отмененный курс необходимо убрать из каталога';
-        let warningInListCancel = warningTeacherInList.cloneNode(true);
-        let warningTeacherInstallments = warningTeacherCancel.cloneNode(true); warningTeacherInstallments.innerHTML = 'Необходимо отключить оплату по частям в отмененном курсе';
-        let warningInstallmentsCancel = warningTeacherInstallments.cloneNode(true);
-        let warningTeacherMatheriny = warningTeacherCancel.cloneNode(true); warningTeacherMatheriny.innerHTML = 'Необходимо отключить оплату маткапиталом в отмененном курсе';
-        let warningMatherinyCancel = warningTeacherMatheriny.cloneNode(true);
-        let warningTeacherCalendar = warningTeacherCancel.cloneNode(true); warningTeacherCalendar.innerHTML = 'Необходимо отключить отображение в календаре отмененного курса';
-        let warningCalendarCancel = warningTeacherCalendar.cloneNode(true);
-        let warningCourseName = warningTeacherCancel.cloneNode(true); warningCourseName.innerHTML = 'В названиях курса необходимо указать, что курс отменен';
-        let saveReminder = warningTeacherCancel.cloneNode(true); saveReminder.innerHTML = 'Не забудьте сохранить изменения :)';
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherPurchashing);
-        currentWindow.querySelector(".course_purchase_mode").childNodes[1].appendChild(warningPurchashingCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherPublished);
-        publishedElement.parentNode.parentNode.appendChild(warningPublishedCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherInList);
-        visibleInListElement.parentNode.parentNode.appendChild(warningInListCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherInstallments);
-        installmentElement.parentNode.parentNode.appendChild(warningInstallmentsCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherMatheriny);
-        maternityCapitalElement.parentNode.parentNode.appendChild(warningMatherinyCancel);
-        visibleInCalendarElement.parentNode.parentNode.appendChild(warningCalendarCancel);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(warningTeacherCalendar);
+        if (elements.teachers) checkAsynchronousCourse();
         const cancelButtonOnClick = () => {
-            teachersElement.value = CANCEL_GALINA_ID;
-            purchaseModeElement.value = 'disabled';
+            if (elements.teachers) elements.teachers.value = CANCEL_GALINA_ID;
+            else elements.tags.value = CANCEL_MG_TAG_ID;
+            elements.purchaseMode.value = 'disabled';
             let x = currentWindow.querySelector('#s2id_course_purchase_mode').firstChild.childNodes[1];
             x.innerHTML = x.innerHTML.replace('Включено', 'Отключено');
-            publishedElement.checked = false;
-            visibleInListElement.checked = false;
-            installmentElement.checked = false;
-            maternityCapitalElement.checked = false;
-            visibleInCalendarElement.checked = false;
-            let a = currentWindow.querySelectorAll('#s2id_course_merged_teacher_ids .select2-search-choice.ui-sortable-handle');
+            elements.published.checked = false;
+            elements.visibleInList.checked = false;
+            elements.installment.checked = false;
+            elements.maternityCapital.checked = false;
+            elements.visibleInCalendar.checked = false;
+            let a = currentWindow.querySelectorAll(
+                '#s2id_course_merged_teacher_ids .select2-search-choice.ui-sortable-handle'
+            );
             for (let el of a) {
                 if (el.outerHTML && el.innerHTML.match(/Отменная Г./)) { }
                 else { el.hidden = true; }
             }
-            saveReminder.hidden = false;
-            if (nameElement.value.search('Отмен') == -1 && nameElement.value.search('НЕАКТУАЛЬН') == -1) {
-                nameElement.value = 'Отмененный курс. ' + nameElement.value;
-                nameElement.value = nameElement.value.substring(0, 35);
+            teacherWarnings.saveReminder.hidden = false;
+            if (elements.name.value.search('Отмен') == -1 && elements.name.value.search('НЕАКТУАЛЬН') == -1) {
+                elements.name.value = 'Отмененный курс. ' + elements.name.value;
+                elements.name.value = elements.name.value.substring(0, 35);
             }
-            if (fullNameElement.value.search('Отмен') == -1 && nameElement.value.search('НЕАКТУАЛЬН') == -1) {
-                fullNameElement.value = 'Отмененный курс. ' + fullNameElement.value;
-                fullNameElement.value = fullNameElement.value.substring(0, 512);
+            if (elements.fullName.value.search('Отмен') == -1 && elements.name.value.search('НЕАКТУАЛЬН') == -1) {
+                elements.fullName.value = 'Отмененный курс. ' + elements.fullName.value;
+                elements.fullName.value = elements.fullName.value.substring(0, 512);
             }
-            if (subtitleElement.value.search('Отмен') == -1 && nameElement.value.search('НЕАКТУАЛЬН') == -1) {
-                subtitleElement.value = 'Отмененный курс. ' + subtitleElement.value;
-                subtitleElement.value = subtitleElement.value.substring(0, 57);
+            if (elements.subtitle.value.search('Отмен') == -1 && elements.name.value.search('НЕАКТУАЛЬН') == -1) {
+                elements.subtitle.value = 'Отмененный курс. ' + elements.subtitle.value;
+                elements.subtitle.value = elements.subtitle.value.substring(0, 57);
             }
-            checkAsynchronousCourse();
+            if (elements.teachers) checkAsynchronousCourse();
             checkCanceledCourse();
         }
         let cancelCourseButton = createButton('Доотменить', cancelButtonOnClick, 'btn-default', false);
         cancelCourseButton.style = 'display:none';
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(saveReminder);
-        currentWindow.querySelector(".course_merged_teacher_ids").childNodes[1].appendChild(cancelCourseButton);
+        if (elements.teachers) elements.teachers.parentNode.append(cancelCourseButton);
+        else elements.tags.parentNode.append(cancelCourseButton);
         function checkCanceledCourse() {
-            let teachersList = teachersElement.value.split(',');
-            let cancelTeachersList = teachersList.filter(x => { if (x == CANCEL_GALINA_ID) { return true } return false });
-            let hasCancelGalinaInTeachers = cancelTeachersList.length > 0;
-            if (hasCancelGalinaInTeachers) { // Галя, у нас отмена
+            let isCanceled = false;
+            let manyItems = false;
+            if (elements.teachers) {
+                let teachersList = elements.teachers.value.split(',');
+                let cancelTeachersList = teachersList.filter(x => {
+                    if (x == CANCEL_GALINA_ID) return true;
+                    return false;
+                });
+                isCanceled = cancelTeachersList.length > 0;
+                manyItems = teachersList.length > 1;
+            }
+            else {
+                let tagsList = Array.from(elements.tags.selectedOptions).map(x => x.value);
+                let cancelTagsList = tagsList.filter(x => {
+                    if (x == CANCEL_MG_TAG_ID) return true;
+                    return false;
+                });
+                isCanceled = cancelTagsList.length > 0;
+                manyItems = tagsList.length > 1;
+            }
+            if (isCanceled) { // Галя, у нас отмена
                 let hasProblems = false;
                 // есть другие преподаватели кроме Галины
-                if (teachersList.length > 1) { warningTeacherCancel.hidden = false; hasProblems = true; }
-                else { warningTeacherCancel.hidden = true }
+                if (manyItems) { teacherWarnings.cancelTeacher.hidden = false; hasProblems = true; }
+                else { teacherWarnings.cancelTeacher.hidden = true }
                 // включено приобретение
-                if (purchaseModeElement.value != 'disabled') { warningTeacherPurchashing.hidden = false; warningPurchashingCancel.hidden = false; hasProblems = true; }
-                else { warningTeacherPurchashing.hidden = true; warningPurchashingCancel.hidden = true }
+                if (elements.purchaseMode.value != 'disabled') {
+                    teacherWarnings.cancelPurchashing.hidden = false;
+                    warnings.cancelPurchashing.hidden = false;
+                    hasProblems = true;
+                }
+                else { teacherWarnings.cancelPurchashing.hidden = true; warnings.cancelPurchashing.hidden = true }
                 // опубликован
-                if (publishedElement.checked) { warningTeacherPublished.hidden = false; warningPublishedCancel.hidden = false; hasProblems = true; }
-                else { warningTeacherPublished.hidden = true; warningPublishedCancel.hidden = true }
+                if (elements.published.checked) {
+                    teacherWarnings.cancelPublished.hidden = false;
+                    warnings.cancelPublished.hidden = false;
+                    hasProblems = true;
+                }
+                else { teacherWarnings.cancelPublished.hidden = true; warnings.cancelPublished.hidden = true }
                 // в каталоге
-                if (visibleInListElement.checked) { warningTeacherInList.hidden = false; warningInListCancel.hidden = false; hasProblems = true; }
-                else { warningTeacherInList.hidden = true; warningInListCancel.hidden = true }
+                if (elements.visibleInList.checked) {
+                    teacherWarnings.cancelInList.hidden = false;
+                    warnings.cancelInList.hidden = false;
+                    hasProblems = true;
+                }
+                else { teacherWarnings.cancelInList.hidden = true; warnings.cancelInList.hidden = true }
                 // оплата по частям
-                if (installmentElement.checked) { warningTeacherInstallments.hidden = false; warningInstallmentsCancel.hidden = false; hasProblems = true; }
-                else { warningTeacherInstallments.hidden = true; warningInstallmentsCancel.hidden = true }
+                if (elements.installment.checked) {
+                    teacherWarnings.cancelInstallments.hidden = false;
+                    warnings.cancelInstallments.hidden = false;
+                    hasProblems = true;
+                }
+                else { teacherWarnings.cancelInstallments.hidden = true; warnings.cancelInstallments.hidden = true }
                 // оплата маткапиталом
-                if (maternityCapitalElement.checked) { warningTeacherMatheriny.hidden = false; warningMatherinyCancel.hidden = false; hasProblems = true; }
-                else { warningTeacherMatheriny.hidden = true; warningMatherinyCancel.hidden = true }
+                if (elements.maternityCapital.checked) {
+                    teacherWarnings.cancelMaternityCapital.hidden = false;
+                    warnings.cancelMaternityCapital.hidden = false;
+                    hasProblems = true;
+                }
+                else {
+                    teacherWarnings.cancelMaternityCapital.hidden = true;
+                    warnings.cancelMaternityCapital.hidden = true;
+                }
                 // в календаре
-                if (visibleInCalendarElement.checked) { warningTeacherCalendar.hidden = false; warningCalendarCancel.hidden = false; hasProblems = true; }
-                else { warningTeacherCalendar.hidden = true; warningCalendarCancel.hidden = true }
+                if (elements.visibleInCalendar.checked) {
+                    teacherWarnings.cancelVisibleInCalendar.hidden = false;
+                    warnings.cancelVisibleInCalendar.hidden = false;
+                    hasProblems = true;
+                }
+                else {
+                    teacherWarnings.cancelVisibleInCalendar.hidden = true;
+                    warnings.cancelVisibleInCalendar.hidden = true;
+                }
                 // имя без отмен
-                if ((nameElement.value.search('Отмен') != -1 && nameElement.value.search('НЕАКТУАЛЬН') != -1) || (fullNameElement.value.search('Отмен') != -1 && fullNameElement.value.search('НЕАКТУАЛЬН') != -1)) { warningCourseName.hidden = false; hasProblems = true; }
-                else { warningCourseName.hidden = true; }
+                if ((elements.name.value.search('Отмен') == -1 && elements.name.value.search('НЕАКТУАЛЬН') == -1) ||
+                    (
+                        elements.fullName.value.search('Отмен') == -1 &&
+                        elements.fullName.value.search('НЕАКТУАЛЬН') == -1
+                    )
+                ) {
+                    teacherWarnings.cancelNames.hidden = false;
+                    warnings.cancelNames.hidden = false;
+                    hasProblems = true;
+                }
+                else { teacherWarnings.cancelNames.hidden = true; warnings.cancelNames.hidden = true; }
                 // хотя бы 1 не как надо
                 if (hasProblems) { cancelCourseButton.style = ''; }
                 else { cancelCourseButton.style = 'display:none'; }
             }
             else {
-                warningTeacherCancel.hidden = true; warningTeacherPurchashing.hidden = true; warningPurchashingCancel.hidden = true;
-                warningTeacherPublished.hidden = true; warningPublishedCancel.hidden = true; warningTeacherInList.hidden = true; warningInListCancel.hidden = true;
-                warningTeacherInstallments.hidden = true; warningInstallmentsCancel.hidden = true; warningTeacherMatheriny.hidden = true; warningMatherinyCancel.hidden = true;
-                warningTeacherCalendar.hidden = true; warningCalendarCancel.hidden = true; warningCourseName.hidden = true;
+                teacherWarnings.cancelTeacher.hidden = true; teacherWarnings.cancelPurchashing.hidden = true;
+                warnings.cancelPurchashing.hidden = true;
+                teacherWarnings.cancelPublished.hidden = true; warnings.cancelPublished.hidden = true;
+                teacherWarnings.cancelInList.hidden = true; warnings.cancelInList.hidden = true;
+                teacherWarnings.cancelInstallments.hidden = true; warnings.cancelInstallments.hidden = true;
+                teacherWarnings.cancelMaternityCapital.hidden = true; warnings.cancelMaternityCapital.hidden = true;
+                teacherWarnings.cancelVisibleInCalendar.hidden = true; warnings.cancelVisibleInCalendar.hidden = true;
+                teacherWarnings.cancelNames.hidden = true; warnings.cancelNames.hidden = true;
                 cancelCourseButton.style = 'display:none';
             }
         }
         checkCanceledCourse();
         let buttonArea = createElement('div');
-        let copyLandingButton = createButton('Скопировать данные для лендинга из другого курса (кроме цен)', async () => { });
+        let copyLandingButton = createButton(
+            'Скопировать данные для лендинга из другого курса (кроме цен)', async () => { }
+        );
         copyLandingButton.hidden = false;
         // по хорошему обновить эту функцию или убрать совсем
         copyLandingButton.onclick = async () => {
@@ -1154,22 +1500,29 @@ const pagePatterns = {
                 let isConfirmed = true;
                 let hasBotApproval = checkBotApprove();
                 if (!hasBotApproval) {
-                    isConfirmed = confirm('Внимание! Данные подставятся, но не будут сохранены автоматически. Проверьте правильность переноса, а потом нажмите «Сохранить»\n' +
-                        'Перенесутся названия, подзаголовок, описание, экспресс-надпись, теги для каталога, адрес для редиректа, 3 буллита и 3 смысловых блока (не сработает на тренажерных курсах и курсах Ф.Учителю)\n' +
-                        'НЕ переносятся цены, галочки, FAQ и PDF - программа');
+                    isConfirmed = confirm(
+                        'Внимание! Данные подставятся, но не будут сохранены автоматически. Проверьте правильность ' +
+                        'переноса, а потом нажмите «Сохранить»\nПеренесутся названия, подзаголовок, описание, ' +
+                        'экспресс-надпись, теги для каталога, адрес для редиректа, 3 буллита и 3 смысловых блока ' +
+                        '(не сработает на тренажерных курсах и курсах Ф.Учителю)\nНЕ переносятся цены, галочки, FAQ ' +
+                        'и PDF - программа'
+                    );
                 }
                 if (!isConfirmed) { return }
                 let originalCourseId = prompt('Введите ID курса, из которого нужно взять данные для лендинга');
                 let secondaryWindow = await createWindow();
-                await secondaryWindow.openPage('https://foxford.ru/admin/new_courses/' + originalCourseId + '/edit');
+                await secondaryWindow.openPage(`/admin/courses/${originalCourseId}/edit`);
                 await secondaryWindow.waitForElement('[name="course[landing_programs_attributes][2][body]"]');
-                let textAttributesList = ['course_name', 'course_subtitle', 'course_full_name', 'course_description', 'course_promo_label', 'course_catalog_tag_ids',
-                    'course_landing_url', 'course_timing_title', 'course_timing_description', 'course_landing_programs_attributes_0_title',
+                let textAttributesList = ['course_name', 'course_subtitle', 'course_full_name', 'course_description',
+                    'course_promo_label', 'course_catalog_tag_ids',
+                    'course_landing_url', 'course_timing_title', 'course_timing_description',
+                    'course_landing_programs_attributes_0_title',
                     'course_landing_programs_attributes_1_title', 'course_landing_programs_attributes_2_title',
                     'course_landing_programs_attributes_0_body', 'course_landing_programs_attributes_1_body',
                     'course_landing_programs_attributes_2_body', 'course_landing_features_attributes_0_title',
                     'course_landing_features_attributes_1_title', 'course_landing_features_attributes_2_title',
-                    'course_landing_features_attributes_0_body', 'course_landing_features_attributes_1_body', 'course_landing_features_attributes_2_body'];
+                    'course_landing_features_attributes_0_body', 'course_landing_features_attributes_1_body',
+                    'course_landing_features_attributes_2_body'];
                 for (let attr of textAttributesList) {
                     currentWindow.querySelector(`#${attr}`).value = secondaryWindow.querySelector(`#${attr}`).value
                 }
@@ -1181,13 +1534,12 @@ const pagePatterns = {
         buttonArea.appendChild(copyLandingButton);
         let titleArea = currentWindow.querySelector('.courses');
         titleArea.insertBefore(buttonArea, titleArea.childNodes[1]);
-        if (currentWindow.checkPath(pagePatterns.coursesEdit)) {
-            log('Страница модифицирована');
-        }
+        log('Страница модифицирована');
     }
     // на странице создания курса
     if (currentWindow.checkPath(pagePatterns.coursesNew) ||
-        currentWindow.checkPath(pagePatterns.miniGroupsNew)) {
+        currentWindow.checkPath(pagePatterns.miniGroupsNew)
+    ) {
         let mainDiv = createElement('div', 'form-group boolean optional create-course-tm-options');
         let col12Div = createElement('div', 'col-sm-12');
         let checkboxDiv = createElement('div', 'checkbox');
@@ -1197,7 +1549,10 @@ const pagePatterns = {
         let helpBlock = createElement('div', 'help-block', 'display:none;');
         checkboxInput.type = 'checkbox';
         checkboxSpan.innerHTML = 'Создать несколько одинаковых курсов';
-        helpBlock.innerHTML = 'Чтобы создать несколько одинаковых курсов, нажимай на «Создать курс» с зажатой клавишей Cmd(Mac) / Ctrl(Win) нужное количество раз. Форма выше не очистится, в нее можно будет внести правки и затем создать еще несколько курсов таким же способом';
+        helpBlock.innerHTML =
+            'Чтобы создать несколько одинаковых курсов, нажимай на «Создать курс» с зажатой клавишей Cmd(Mac) / ' +
+            'Ctrl(Win) нужное количество раз. Форма выше не очистится, в нее можно будет внести правки и затем ' +
+            'создать еще несколько курсов таким же способом';
         mainDiv.appendChild(col12Div);
         col12Div.appendChild(checkboxDiv);
         checkboxDiv.appendChild(labelElement);
@@ -1208,15 +1563,11 @@ const pagePatterns = {
         checkboxInput.addEventListener('change', async () => {
             if (checkboxInput.checked) {
                 helpBlock.style = '';
-                for (let saveButton of saveButtons) {
-                    saveButton.removeAttribute('data-disable-with');
-                }
+                for (let saveButton of saveButtons) saveButton.removeAttribute('data-disable-with');
             }
             else {
                 helpBlock.style = 'display:none;';
-                for (let saveButton of saveButtons) {
-                    saveButton.setAttribute('data-disable-with', 'Курс создается');
-                }
+                for (let saveButton of saveButtons) saveButton.setAttribute('data-disable-with', 'Курс создается');
             }
         });
         let formActionArea = currentWindow.querySelector('.form_actions');
@@ -1236,22 +1587,40 @@ const pagePatterns = {
         let div = createElement('div');
         let lessonIntervalForm = createElement('form');
         lessonIntervalForm.appendChild(status);
-        let selectFirstLesson = createFormElement(lessonIntervalForm, 'select', 'Массовые правки вносятся с ', 'tm_from_lesson', '', false);
+        let selectFirstLesson = createFormElement(
+            lessonIntervalForm, 'select', 'Массовые правки вносятся с ', 'tm_from_lesson', '', false
+        );
         let selectLastLesson = createFormElement(lessonIntervalForm, 'select', ' по ', 'tm_last_lesson', '', false);
-        selectFirstLesson.style = 'margin:5pt; max-width:150px; display: inline;'; selectLastLesson.style = 'margin:5pt; max-width:150px; display: inline;';
+        selectFirstLesson.style = 'margin:5pt; max-width:150px; display: inline;';
+        selectLastLesson.style = 'margin:5pt; max-width:150px; display: inline;';
         selectFirstLesson.onchange = async () => { currentWindow.firstLessonNumber = Number(selectFirstLesson.value); };
         selectLastLesson.onchange = async () => { currentWindow.lastLessonNumber = Number(selectLastLesson.value); };
         let spn = createElement('span');
         spn.innerHTML = '(включительно)';
         lessonIntervalForm.appendChild(spn);
-        let lessonNumbersList = _.toArray(currentWindow.querySelector('.lessons-list').childNodes).map(lesson => { let lessonTitle = lesson.querySelector('.panel-title').innerHTML; let backspaceSecondIndex = lessonTitle.indexOf(' ', lessonTitle.indexOf(' ') + 1); return lessonTitle.substring(0, backspaceSecondIndex) });
+        let lessonNumbersList = Array.from(currentWindow.querySelector('.lessons-list').childNodes).map(
+            lesson => {
+                let lessonTitle = lesson.querySelector('.panel-title').innerHTML;
+                let backspaceSecondIndex = lessonTitle.indexOf(' ', lessonTitle.indexOf(' ') + 1);
+                return lessonTitle.substring(0, backspaceSecondIndex)
+            }
+        );
         for (let lessonNumberIndex = 0; lessonNumberIndex < lessonNumbersList.length; lessonNumberIndex++) {
             let optionFirst = createElement('option'); let optionLast = createElement('option');
-            optionFirst.value = lessonNumberIndex; optionFirst.innerHTML = lessonNumbersList[lessonNumberIndex]; selectFirstLesson.appendChild(optionFirst);
-            optionLast.value = lessonNumberIndex; optionLast.innerHTML = lessonNumbersList[lessonNumberIndex]; selectLastLesson.appendChild(optionLast);
-            const lessonDescription = currentWindow.querySelector('.lessons-list').childNodes[lessonNumberIndex].querySelector('textarea');
+            optionFirst.value = lessonNumberIndex; optionFirst.innerHTML = lessonNumbersList[lessonNumberIndex];
+            selectFirstLesson.appendChild(optionFirst);
+            optionLast.value = lessonNumberIndex; optionLast.innerHTML = lessonNumbersList[lessonNumberIndex];
+            selectLastLesson.appendChild(optionLast);
+            const lessonDescription =
+                currentWindow.querySelector('.lessons-list').childNodes[lessonNumberIndex].querySelector('textarea');
             // убираем по одной кавычке из описания с каждого края --- защита от гугл-таблиц
-            lessonDescription.onchange = selfi => { let self = selfi.currentTarget; if (self.value[0] == '"') { self.value = self.value.substring(1, self.value.length) }; if (self.value[self.value.length - 1] == '"') { self.value = self.value.substring(0, self.value.length - 1) } }
+            lessonDescription.onchange = selfi => {
+                let self = selfi.currentTarget;
+                if (self.value[0] == '"') self.value = self.value.substring(1, self.value.length);
+                if (self.value[self.value.length - 1] == '"') {
+                    self.value = self.value.substring(0, self.value.length - 1)
+                }
+            }
         }
         selectFirstLesson.value = 0;
         selectLastLesson.value = lessonNumbersList.length - 1;
@@ -1275,7 +1644,9 @@ const pagePatterns = {
         checkNoWebinarButton.onclick = async () => {
             let isConfirmed = true;
             if (!checkBotApprove()) {
-                isConfirmed = confirm('Галочка «Без вебинара» будет проставлена на выбранных занятиях, если есть возможность её поставить');
+                isConfirmed = confirm(
+                    'Галочка «Без вебинара» будет проставлена на выбранных занятиях, если есть возможность её поставить'
+                );
             }
             if (isConfirmed) {
                 try {
@@ -1289,7 +1660,8 @@ const pagePatterns = {
                             let saveButton = lessonElement.querySelector('.btn-success');
                             saveButton.style = '';
                             saveButton.click();
-                            let lessonNumAndId = lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
+                            let lessonNumAndId =
+                                lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
                             log(lessonNumAndId[1] + ' ' + lessonNumAndId[lessonNumAndId.length - 1]);
                             await currentWindow.waitForElement(`#${lessonElement.id} .btn-success:not([style=""])`);
                         }
@@ -1315,7 +1687,8 @@ const pagePatterns = {
                             let saveButton = lessonElement.querySelector('.btn-success');
                             saveButton.style = '';
                             saveButton.click();
-                            let lessonNumAndId = lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
+                            let lessonNumAndId =
+                                lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
                             log(lessonNumAndId[1] + ' ' + lessonNumAndId[lessonNumAndId.length - 1]);
                             await currentWindow.waitForElement(`#${lessonElement.id} .btn-success:not([style=""])`);
                         }
@@ -1341,7 +1714,8 @@ const pagePatterns = {
                             let saveButton = lessonElement.querySelector('.btn-success');
                             saveButton.style = '';
                             saveButton.click();
-                            let lessonNumAndId = lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
+                            let lessonNumAndId =
+                                lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
                             log(lessonNumAndId[lessonNumAndId.length - 1]);
                             await currentWindow.waitForElement(`#${lessonElement.id} .btn-success:not([style=""])`);
                         }
@@ -1368,14 +1742,16 @@ const pagePatterns = {
                             let taskRedElement = redLinkElement.innerHTML.match('задач');
                             let conspectRedElenent = redLinkElement.innerHTML.match('раздел');
                             if (taskRedElement !== null) {
-                                let taskCheckbox = lessonElement.querySelector('[name="lesson[task_expected]"][type="checkbox"]');
+                                let taskCheckbox =
+                                    lessonElement.querySelector('[name="lesson[task_expected]"][type="checkbox"]');
                                 if (taskCheckbox !== null && taskCheckbox.checked) {
                                     taskCheckbox.checked = '';
                                     hasChanges = true;
                                 }
                             }
                             if (conspectRedElenent !== null) {
-                                let conspectCheckbox = lessonElement.querySelector('[name="lesson[conspect_expected]"][type="checkbox"]');
+                                let conspectCheckbox =
+                                    lessonElement.querySelector('[name="lesson[conspect_expected]"][type="checkbox"]');
                                 if (conspectCheckbox !== null && conspectCheckbox.checked) {
                                     conspectCheckbox.checked = '';
                                     hasChanges = true;
@@ -1386,7 +1762,8 @@ const pagePatterns = {
                             let saveButton = lessonElement.querySelector('.btn-success');
                             saveButton.style = '';
                             saveButton.click();
-                            let lessonNumAndId = lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
+                            let lessonNumAndId =
+                                lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
                             let lessonId = lessonNumAndId[lessonNumAndId.length - 1];
                             log(lessonId);
                             await currentWindow.waitForElement(`#${lessonElement.id} .btn-success:not([style=""])`);
@@ -1414,14 +1791,16 @@ const pagePatterns = {
                             let taskGreenElement = greenLinkElement.innerHTML.match('задач');
                             let conspectGreenElenent = greenLinkElement.innerHTML.match('раздел');
                             if (taskGreenElement !== null) {
-                                let taskCheckbox = lessonElement.querySelector('[name="lesson[task_expected]"][type="checkbox"]');
+                                let taskCheckbox =
+                                    lessonElement.querySelector('[name="lesson[task_expected]"][type="checkbox"]');
                                 if (taskCheckbox !== null && !taskCheckbox.checked) {
                                     taskCheckbox.checked = true;
                                     hasChanges = true;
                                 }
                             }
                             if (conspectGreenElenent !== null) {
-                                let conspectCheckbox = lessonElement.querySelector('[name="lesson[conspect_expected]"][type="checkbox"]');
+                                let conspectCheckbox =
+                                    lessonElement.querySelector('[name="lesson[conspect_expected]"][type="checkbox"]');
                                 if (conspectCheckbox !== null && !conspectCheckbox.checked) {
                                     conspectCheckbox.checked = true;
                                     hasChanges = true;
@@ -1432,7 +1811,8 @@ const pagePatterns = {
                             let saveButton = lessonElement.querySelector('.btn-success');
                             saveButton.style = '';
                             saveButton.click();
-                            let lessonNumAndId = lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
+                            let lessonNumAndId =
+                                lessonElement.querySelector('.panel-title').innerHTML.match(/\b\d+\b/g);
                             let lessonId = lessonNumAndId[lessonNumAndId.length - 1];
                             log(lessonId);
                             await currentWindow.waitForElement(`#${lessonElement.id} .btn-success:not([style=""])`);
@@ -1447,9 +1827,16 @@ const pagePatterns = {
             let isConfirmed = true;
             let hasBotApproval = checkBotApprove();
             if (!hasBotApproval) {
-                isReadWarning = confirm('Внимание! Занятия в выбранном диапазоне будут удалены невозвратно\nЕсли вы указали все уроки, то после удаления курс будет автоматически распубликован');
+                isReadWarning = confirm(
+                    'Внимание! Занятия в выбранном диапазоне будут удалены невозвратно\n' +
+                    'Если вы указали все уроки, то после удаления курс будет автоматически распубликован'
+                );
                 if (isReadWarning) {
-                    isConfirmed = confirm('Для работы скрипта будет временно открыта новая вкладка\nРекомендуется заранее перенести все удаляемые занятия в конец курса\nЗанятия должны стоять будущей датой чтобы админка могла их удалить')
+                    isConfirmed = confirm(
+                        'Для работы скрипта будет временно открыта новая вкладка\n' +
+                        'Рекомендуется заранее перенести все удаляемые занятия в конец курса\n' +
+                        'Занятия должны стоять будущей датой чтобы админка могла их удалить'
+                    );
                 }
             }
             if (isReadWarning && isConfirmed) {
@@ -1551,7 +1938,10 @@ const pagePatterns = {
                 let todo = true;
                 let hasBotApproval = checkBotApprove();
                 if (!hasBotApproval) {
-                    todo = confirm('Названия и описания выбранных занятий будут заменены на новые, старые названия будут утеряны безвозвратно');
+                    todo = confirm(
+                        'Названия и описания выбранных занятий будут заменены на новые, старые названия будут ' +
+                        'утеряны безвозвратно'
+                    );
                 }
                 if (!todo) { return }
                 let reader = new FileReader();
@@ -1560,21 +1950,25 @@ const pagePatterns = {
                     let k = currentWindow.firstLessonNumber;
                     let n = currentWindow.lastLessonNumber;
                     let lessonRows = currentWindow.querySelectorAll('.row.lesson');
-                    let lessons = _.toArray(lessonRows).slice(1);
+                    let lessons = Array.from(lessonRows).slice(1);
                     let z = -1;
                     for (var singleRow = 0; singleRow < Math.min(allRows.length, n - k + 1); singleRow++) {
                         let i = singleRow + k;
                         let rowCells = allRows[singleRow];
                         for (var rowCell = 0; rowCell < rowCells.length; rowCell++) {
                             if (rowCell == 0 && rowCells[rowCell]) {
-                                currentWindow.querySelectorAll('[name="lesson[name]"]')[i + 1].value = rowCells[rowCell];
+                                currentWindow.querySelectorAll('[name="lesson[name]"]')[i + 1].value =
+                                    rowCells[rowCell];
                             }
                             if (rowCell == 1 && rowCells[rowCell]) {
-                                currentWindow.querySelectorAll('[name="lesson[themes_as_text]"]')[i + 1].value = rowCells[rowCell];
+                                currentWindow.querySelectorAll('[name="lesson[themes_as_text]"]')[i + 1].value =
+                                    rowCells[rowCell];
                             }
                             if (rowCell == 2 && rowCells[rowCell]) {
                                 try {
-                                    currentWindow.querySelectorAll('[name="lesson[name]"]')[i + 1].parentNode.parentNode.parentNode.parentNode.querySelectorAll('[name="lesson[video_url]"]')[0].value = rowCells[rowCell];
+                                    currentWindow.querySelectorAll('[name="lesson[name]"]')[i + 1]
+                                        .parentNode.parentNode.parentNode.parentNode
+                                        .querySelectorAll('[name="lesson[video_url]"]')[0].value = rowCells[rowCell];
                                 }
                                 catch (e) {
                                 }
@@ -1603,8 +1997,11 @@ const pagePatterns = {
             div.appendChild(inp); div.appendChild(btn);
         }
         div.appendChild(lessonIntervalForm); div.appendChild(adminkaFeatures); div.appendChild(contentFeatures);
-        adminkaFeatures.appendChild(lessonsFromCsvButton); adminkaFeatures.appendChild(checkNoWebinarButton); adminkaFeatures.appendChild(uncheckNoWebinarButton); adminkaFeatures.appendChild(clearDeadlineButton); contentFeatures.appendChild(clearExtraTicksButton); contentFeatures.appendChild(checkMissTicksButton);
-        adminkaFeatures.appendChild(deleteLessonsButton); adminkaFeatures.appendChild(makeFreeButton); adminkaFeatures.appendChild(makePaidButton);
+        adminkaFeatures.appendChild(lessonsFromCsvButton); adminkaFeatures.appendChild(checkNoWebinarButton);
+        adminkaFeatures.appendChild(uncheckNoWebinarButton); adminkaFeatures.appendChild(clearDeadlineButton);
+        contentFeatures.appendChild(clearExtraTicksButton); contentFeatures.appendChild(checkMissTicksButton);
+        adminkaFeatures.appendChild(deleteLessonsButton); adminkaFeatures.appendChild(makeFreeButton);
+        adminkaFeatures.appendChild(makePaidButton);
         let x;
         try {
             x = document.getElementsByClassName('course-settings')[0].parentNode;
@@ -1613,7 +2010,11 @@ const pagePatterns = {
             x = document.getElementsByClassName('lesson_course_id')[0].parentNode.parentNode;
         }
         x.insertBefore(div, x.childNodes[2]);
-        if (window.location.href.match('#csv')) { document.querySelector('.csv-btn').classList.add('bot-approve'); btn_show_onclick(); btn_csv_onclick(); }
+        if (window.location.href.match('#csv')) {
+            document.querySelector('.csv-btn').classList.add('bot-approve');
+            btn_show_onclick();
+            btn_csv_onclick();
+        }
         log('Страница модифицирована');
     }
     // на странице изменения порядка уроков
@@ -1637,9 +2038,16 @@ const pagePatterns = {
             async function masssettime() {
                 log('Запущено проставление дат');
                 let today = new Date();
-                let date = prompt("Введите дату, которую нужно проставить у всех безвебинарных занятий:", (today.getDate() - 1) + "." + (today.getMonth() + 1) + "." + today.getFullYear() + ' ' + today.getHours() + ':00');
+                let date = prompt(
+                    "Введите дату, которую нужно проставить у всех безвебинарных занятий:",
+                    `${today.getDate() - 1}.${today.getMonth() + 1}.${today.getFullYear()} ${today.getHours()}:00'`
+                );
                 //log(1);
-                let sleeptime = parseInt(prompt('Укажите время задержки между нажатиями на кнопки в милисекундах\nПри слишком маленькой задержке данные могут не успеть сохраниться', 300));
+                let sleeptime = parseInt(prompt(
+                    'Укажите время задержки между нажатиями на кнопки в милисекундах\nПри слишком маленькой ' +
+                    'задержке данные могут не успеть сохраниться',
+                    300
+                ));
                 if (checkbox0.checked) { checkbox0.click(); }
                 if (!checkbox1.checked) { checkbox1.click(); }
                 if (!isNaN(sleeptime)) { await sleep(sleeptime); } else { await sleep(300); }
@@ -1691,6 +2099,53 @@ const pagePatterns = {
     // на странице с расписанием
     if (currentWindow.checkPath(pagePatterns.groups)) {
         group_template_id.classList.add('protected');
+        let lessonRows = currentWindow.querySelectorAll('tbody:last-of-type tr');
+        for (let lessonRow of lessonRows) {
+            lessonRow.classList.add('lesson_row');
+            let firstColumn = lessonRow.querySelector('td.first_column');
+            let lessonIdElem = firstColumn.querySelector('a[name]');
+            lessonIdElem.classList.add('lesson_id');
+            let lessonId = lessonRow.querySelector('a[name]').name;
+            let lessonNumberElem = firstColumn.querySelector('.lesson_number');
+            let lessonTypeSpan = lessonNumberElem.querySelector('span');
+            lessonTypeSpan.classList.add('lesson_type');
+            let lessonTypeText = lessonTypeSpan.textContent.trim();
+            let lessonType = LESSON_TYPE_MAP[lessonTypeText];
+            if (lessonType) lessonRow.classList.add(lessonType);
+            else log(`Неизвестный тип урока: ${lessonTypeText}`);
+            let lessonIdSpan = createElement('span', 'label label-default');
+            lessonIdSpan.innerHTML = `id: ${lessonId}`;
+            lessonNumberElem.append(createElement('br'));
+            lessonNumberElem.append(lessonIdSpan);
+            let actionButtons = lessonRow.querySelector('.actions_btn');
+            let lessonHeader = actionButtons.closest('.form-group');
+            lessonHeader.classList.add('lesson_header');
+            let webinarNameElement = lessonHeader.querySelector('label');
+            let webinarName = webinarNameElement.textContent.trim();
+            if (webinarName.includes('копия')) {
+                lessonRow.classList.add('copy');
+            }
+            else {
+                lessonRow.classList.add('original');
+            }
+            let webinarButton = lessonHeader.querySelector('.actions_btn>a');
+            let webinarLabel = webinarButton.textContent.trim();
+            if (webinarButton.classList.contains('disabled') && webinarLabel == 'Без вебинара') {
+                lessonRow.classList.add('no_webinar');
+            }
+            else {
+                lessonRow.classList.add('has_webinar');
+                let statusButton = actionButtons.querySelector(
+                    '.actions_btn .btn-group:last-child .dropdown-menu li:last-of-type a'
+                );
+                statusButton.classList.add('status_btn');
+                let statusLabel = statusButton.textContent.trim();
+                let webinarStatus = statusLabel.split(': ')[1];
+                lessonRow.classList.add(webinarStatus);
+            }
+
+        }
+        log('Страница модифицирована');
         let mcid = window.location.href.match(/\d+/)[0];
         let div = createElement('div', 'adminButtons');
         let btn_return_moderators = document.createElement('button');
@@ -1706,37 +2161,54 @@ const pagePatterns = {
         btn_prs.innerHTML = '↑ Перестроить ↑';
         let btn_group_lessons;
         btn_show.onclick = function () {
-            btn_show.hidden = true; btn_masscopy.hidden = false; btn_group_lessons.hidden = false; btn_hide.hidden = false;
+            btn_show.hidden = true; btn_masscopy.hidden = false; btn_group_lessons.hidden = false;
+            btn_hide.hidden = false;
         }
         btn_hide.onclick = function () {
-            btn_show.hidden = false; btn_masscopy.hidden = true; btn_group_lessons.hidden = true; btn_hide.hidden = true;
+            btn_show.hidden = false; btn_masscopy.hidden = true; btn_group_lessons.hidden = true;
+            btn_hide.hidden = true;
         }
         btn_masscopy.onclick = function () {
-            let cid = prompt('Процесс будет запущен в отдельной вкладке, не закрывайте ее до завершения процесса\nБудут скопированы все вебинарные занятия из другого курса в этот курс\nМожет потребоваться разрешение показывать сайту всплывающие окна\nВведите ID курса из которого необходимо скопировать записи:');
+            let cid = prompt(
+                'Процесс будет запущен в отдельной вкладке, не закрывайте ее до завершения процесса\n' +
+                'Будут скопированы все вебинарные занятия из другого курса в этот курс\n' +
+                'Может потребоваться разрешение показывать сайту всплывающие окна\n' +
+                'Введите ID курса из которого необходимо скопировать записи:'
+            );
             if (parseInt(cid)) {
                 btn_masscopy.disabled = true; btn_masscopy.style = 'color:gray';
                 async function masscopygroups() {
-                    let sleeptime = parseInt(prompt('Укажите время задержки между вводом данных в девсервис в милисекундах\nВажно, чтобы за это время страница дев-сервисов успевала прогрузиться', 6000));
+                    let sleeptime = parseInt(prompt(
+                        'Укажите время задержки между вводом данных в девсервис в милисекундах\n' +
+                        'Важно, чтобы за это время страница дев-сервисов успевала прогрузиться',
+                        6000
+                    ));
                     log('В процессе переноса записей из курса ' + cid);
                     let win1 = window.open('about:blank', 'adminka_course_from');
                     let win2 = window.open('about:blank', 'adminka_dev_services');
-                    win1.location.href = 'https://foxford.ru/admin/courses/' + cid + '/groups';
-                    win2.location.href = 'https://foxford.ru/admin/dev_services';
+                    win1.location.href = `/admin/courses/${cid}/groups`;
+                    win2.location.href = '/admin/dev_services';
                     await sleep(10000);
                     let res0 = document.querySelectorAll('[id^="group_"][id$="_toolbar"]');
                     let res1 = win1.document.querySelectorAll('[id^="group_"][id$="_toolbar"]');
-                    if (res0.length != res1.length && res0.length != res1.length + 1) { log('Количество занятий в курсах отличается больше, чем на 1, перенос отменён'); }
+                    if (res0.length != res1.length && res0.length != res1.length + 1) {
+                        log('Количество занятий в курсах отличается больше, чем на 1, перенос отменён');
+                    }
                     else {
                         let skipgroup = null;
                         if (res0.length == res1.length + 1) {
-                            skipgroup = parseInt(prompt('В курсе на 1 занятие больше, чем в исходном, укажите номер занятия, которое нужно пропустить:'));
+                            skipgroup = parseInt(prompt(
+                                'В курсе на 1 занятие больше, чем в исходном, укажите номер занятия, которое нужно ' +
+                                'пропустить:'
+                            ));
                         }
-                        if (res0.length == res1.length + 1 && (skipgroup > res0.length || skipgroup == null || isNaN(skipgroup))) {
+                        if (res0.length == res1.length + 1 &&
+                            (skipgroup > res0.length || skipgroup == null || isNaN(skipgroup))
+                        ) {
                             log('Занятия, которое нужно пропустить, не существует, перенос отменен');
                         }
                         else if (res0.length == res1.length || res0.length == res1.length + 1) {
                             log('Буду переносить');
-                            //res[i].firstChild.firstChild.innerHTML --- статус i-го занятия «Без вебинара»/«Запись»/«Без записи»/«Вебинар»
                             for (let i = 0; i < res0.length; i++) {
                                 if (i + 1 != skipgroup) {
                                     let id0 = res0[i].id.match(/\d+/)[0];
@@ -1770,7 +2242,8 @@ const pagePatterns = {
                                     }
                                     if (!isNaN(sleeptime)) { await sleep(sleeptime); } else { await sleep(6000); }
                                     let alert = win2.document.getElementsByClassName('alert')[0];
-                                    try { log(alert.innerHTML.replace(/<button(.*?)\/button>/, '')); } catch (e) { log(e); }
+                                    try { log(alert.innerHTML.replace(/<button(.*?)\/button>/, '')); }
+                                    catch (e) { log(e); }
                                 }
                             }
                             log('Копирование записей завершено, через 10 секунд страница будет перезагружена');
@@ -1824,15 +2297,25 @@ const pagePatterns = {
             btn_group_lessons_onclick.style = 'display:none';
             let todoshka = true;
             if (!hasBotApproval) {
-                todoshka = confirm('Можно использовать если \n - ВСЕ групповые встречи стоят после ближайшего занятия по расписанию \n - на 20:00 ничего не стоит или стоят ТОЛЬКО прошлые групповые встречи \nСтраница программы будет открыта в новой вкладке, не закрывайте ее заранее\nЕсли страница не открываются, разрешите сайту работать со всплывающими окнами\nСкрипт НЕ работает, если первым занятием стоит вводное или пробник на ту же ДАТУ, что и следующее занятие (можно поменять на другую ДАТУ и сработает, время не учитывается)');
+                todoshka = confirm(
+                    'Можно использовать если\n - ВСЕ групповые встречи стоят после ближайшего занятия по ' +
+                    'расписанию\n - на 20:00 ничего не стоит или стоят ТОЛЬКО прошлые групповые встречи\nСтраница ' +
+                    'программы будет открыта в новой вкладке, не закрывайте ее заранее\nЕсли страница не ' +
+                    'открываются, разрешите сайту работать со всплывающими окнами\nСкрипт НЕ работает, если первым ' +
+                    'занятием стоит вводное или пробник на ту же ДАТУ, что и следующее занятие (можно поменять на ' +
+                    'другую ДАТУ и сработает, время не учитывается)'
+                );
             }
             if (todoshka) {
                 let href = window.location.href;
                 let win = window.open('about:blank', 'adminka_lessons');
                 //win.blur(); window.focus();
                 win.location.href = href.substring(0, href.search(/groups/) - 1) + '/lessons';
-                while (!win.document.querySelectorAll('#lesson_name').length || _.toArray(win.document.querySelectorAll('#lesson_name')).map(i => i.value).filter(i => i.search(/Группов/) != -1).length < 3) { await sleep(500); }
-                let all_lessons = _.toArray(win.document.querySelectorAll('#lesson_name')).map(i => i.value);
+                while (!win.document.querySelectorAll('#lesson_name').length ||
+                    Array.from(win.document.querySelectorAll('#lesson_name')).map(i => i.value)
+                        .filter(i => i.search(/Группов/) != -1).length < 3
+                ) { await sleep(500); }
+                let all_lessons = Array.from(win.document.querySelectorAll('#lesson_name')).map(i => i.value);
                 let group_lessons = all_lessons.filter(i => i.search(/Группов/) != -1);
                 let ind = [];
                 for (let i of group_lessons) {
@@ -1844,19 +2327,24 @@ const pagePatterns = {
                 let a = document.getElementsByName('group[starts_at]');
                 let a_t = document.querySelectorAll('[id^=group_][id$=_toolbar]');
                 let delta = a_t.length - a.length;
-                let b = _.toArray(a).map(i => i.value);
+                let b = Array.from(a).map(i => i.value);
                 b = b.filter(x => !(x.includes('20:00')));
                 let k = 0;
                 let t = 0;
                 for (let index = 0, len = a.length; index < len; ++index) {
                     let x = a[index].parentNode.parentNode.parentNode.getElementsByClassName('btn-default');
-                    if (a[index].parentNode.parentNode.parentNode.parentNode.parentNode.innerHTML.search('Обычное') == -1 && index != 0) { k += 1 };
-                    if (index == ind[0] - delta || index == ind[1] - delta || index == ind[2] - delta) { k += 1; t = 1; }
-                    while (index != 0 && b[index - k] == b[index - k - 1]) { k -= 1 }
-                    log(index + 1 + ' ' + b[index - k] + ' ' + t);
-                    if (t == 0) {
-                        a[index].value = b[index - k];
+                    if (
+                        a[index].parentNode.parentNode.parentNode.parentNode.parentNode.innerHTML
+                            .search('Обычное') == -1 &&
+                        index != 0
+                    ) { k += 1 };
+                    if (index == ind[0] - delta || index == ind[1] - delta || index == ind[2] - delta) {
+                        k += 1;
+                        t = 1;
                     }
+                    while (index != 0 && b[index - k] == b[index - k - 1]) k -= 1
+                    log(index + 1 + ' ' + b[index - k] + ' ' + t);
+                    if (t == 0) a[index].value = b[index - k];
                     else {
                         a[index].value = b[index - k].slice(0, b[index - k].length - 5) + '20:00';
                         a[index].parentNode.parentNode.parentNode.querySelector('#group_duration').value = 45;
@@ -1868,9 +2356,69 @@ const pagePatterns = {
                 log("Готово) Проверьте, что все сохранилось в админке (может занять некоторое время)")
             }
         }
-        btn_group_lessons = createButton('Проставить групповые встречи', btn_group_lessons_onclick, 'set-group-lessons');
+        btn_group_lessons = createButton(
+            'Проставить групповые встречи', btn_group_lessons_onclick, 'set-group-lessons'
+        );
         btn_group_lessons.hidden = true;
-        div.appendChild(btn_show); div.appendChild(btn_masscopy); div.appendChild(btn_group_lessons); div.appendChild(btn_hide); div.appendChild(btn_prs);
+        let btn_dop_sam_lessons_onclick = async () => {
+            function isValidTime(timeString) {
+                const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+                return timeRegex.test(timeString);
+            }
+            let dopTime = prompt('Укажи время допзанятий в формате 13:00');
+            if (!isValidTime(dopTime)) {
+                log('Выполнение скрипта отменено, неверный формат времени');
+                return;
+            }
+            let href = currentWindow.location.href;
+            let tempWindow = await createWindow('adminka_lessons');
+            await tempWindow.openPage(`${getBaseUrl(href)}/lessons`);
+            let lessonElements = tempWindow.querySelectorAll('.lessons-list .lesson');
+            let lessonNames = Array.from(lessonElements).map(i => i.querySelector('#lesson_name').value);
+            let lessonWithoutVideo = Array.from(lessonElements).map(i => i.querySelector('#lesson_video_url') == null);
+            let dopLessonNames = lessonNames.filter(i =>
+                i.search(/📝Дополнительный разбор/) != -1 || i.search(/📝 Дополнительный разбор/) != -1 ||
+                i.search(/✒️Аудиодиктант/) != -1 || i.search(/✒️ Аудиодиктант/) != -1
+            );
+            let dopLessonInd = dopLessonNames.map(i => lessonNames.indexOf(i));
+            let noVideoInd = [];
+            lessonWithoutVideo.forEach((value, index) => {
+                if (value === true) {
+                    noVideoInd.push(index);
+                }
+            });
+            await tempWindow.close();
+            log(dopLessonInd);
+            let startsAtElements = currentWindow.querySelectorAll('[name="group[starts_at]"]');
+            let startsAtValues = [];
+            for (let el of startsAtElements) {
+                if (!startsAtValues.includes(el.value)) startsAtValues.push(el.value);
+            }
+            let k = 0;
+            for (let i = 0; i < startsAtElements.length; i++) {
+                if (dopLessonInd.includes(i)) {
+                    k++;
+                    startsAtElements[i].value = startsAtValues[i - k].replace(/\d\d:00$/, `${dopTime}`);
+                }
+                else if (noVideoInd.includes(i)) {
+                    k++;
+                    startsAtElements[i].value = startsAtValues[i - k];
+                }
+                else {
+                    startsAtElements[i].value = startsAtValues[i - k];
+                }
+                let submitButton = startsAtElements[i].closest('.groups_list').querySelector('[type="submit"]');
+                submitButton.click();
+                await sleep(100);
+            }
+            displayLog('Выполнение скрипта завершено');
+        }
+        let btn_dop_sam_lessons = createButton(
+            'Проставить доп. занятия (тариф Самостоятельный)', btn_dop_sam_lessons_onclick, 'set-dop-sam-lessons'
+        );
+        btn_dop_sam_lessons.hidden = true;
+        div.appendChild(btn_show); div.appendChild(btn_masscopy); div.appendChild(btn_group_lessons);
+        div.appendChild(btn_dop_sam_lessons); div.appendChild(btn_hide); div.appendChild(btn_prs);
         let x = document.getElementsByClassName('container-fluid')[1].childNodes[2];
         x.insertBefore(div, x.firstChild);
         function join_short(a, sym = ', ', end = ' и еще в ', cou = 3) {
@@ -1883,7 +2431,7 @@ const pagePatterns = {
             try {
                 let course_info;
                 let res = 0;
-                fetch("https://foxford.ru/api/courses/" + mcid + "/landing")
+                fetch("/api/courses/" + mcid + "/landing")
                     .then((response) => response.json())
                     .then((json) => { course_info = json; res = 1; });
                 while (!res) { await sleep(100); }
@@ -1899,33 +2447,61 @@ const pagePatterns = {
                     if (teacher && teacher.value == CANCEL_GALINA_ID) { otmena_groups.push(lid); }
                     else if (teacher) { ne_otmena_groups.push(lid); }
                     if (teacher) {
-                        b = [teacher.value].filter(x => { for (let i of NO_LIVE_TEACHER_IDS) { if (x == i) { return true } } return false });
+                        b = [teacher.value].filter(x => {
+                            for (let i of NO_LIVE_TEACHER_IDS) {
+                                if (x == i) return true;
+                            }
+                            return false;
+                        });
                     }
                     if (b.length) { no_live_groups.push(lid); }
-                    if (location && location.value != SLAG_ID_SET[0] && !(location.hasAttribute('disabled'))) { ne_shlak_groups.push(lid); }
-                    let span = document.createElement('span'); span.innerHTML = 'id: ' + lid; span.className = "label label-default";
-                    i.childNodes[1].appendChild(document.createElement('br')); i.childNodes[1].appendChild(span);
+                    if (location && location.value != SLAG_ID_SET[0] && !(location.hasAttribute('disabled'))) {
+                        ne_shlak_groups.push(lid);
+                    }
                 }
                 let template_teacher = document.querySelectorAll('#group_template_teacher_id')[1].value;
                 let otmena_msg = '';
-                if (template_teacher == CANCEL_GALINA_ID) { otmena_msg = 'В настройках параллели указана Галина Отменная' }
-                else if (otmena_groups.length) { otmena_msg = 'В занятиях ' + join_short(otmena_groups) + ' указана Галина Отменная' }
-                else if (course_info.teachers.length && course_info.teachers[0].alias_url == "otmennaya-galina") { otmena_msg = 'Преподавателем курса указана Галина Отменная' }
+                if (template_teacher == CANCEL_GALINA_ID) {
+                    otmena_msg = 'В настройках параллели указана Галина Отменная'
+                }
+                else if (otmena_groups.length) {
+                    otmena_msg = 'В занятиях ' + join_short(otmena_groups) + ' указана Галина Отменная'
+                }
+                else if (course_info.teachers.length && course_info.teachers[0].alias_url == "otmennaya-galina") {
+                    otmena_msg = 'Преподавателем курса указана Галина Отменная'
+                }
                 if (otmena_msg) {
                     let otmena_warning = [];
                     let has_easy_error = false;
                     let template_location = document.getElementsByName('group_template[default_location_id]')[0].value;
-                    if (template_teacher != CANCEL_GALINA_ID) { otmena_warning.push('в настройках параллели указать Галину Отменную'); has_easy_error = true; }
-                    if (template_location != SLAG_ID_SET[0]) { otmena_warning.push('в настройках параллели проставить Шлак'); has_easy_error = true; }
-                    if (ne_otmena_groups.length) { otmena_warning.push('в занятиях ' + join_short(ne_otmena_groups) + ' проставить Галину Отменную'); has_easy_error = true; }
-                    if (ne_shlak_groups.length) { otmena_warning.push('в занятиях ' + join_short(ne_shlak_groups) + ' проставить Шлак'); has_easy_error = true; }
-                    if (!document.querySelectorAll('tbody')[0].innerHTML.match(/Всего: 0/)) { otmena_warning.push('перевести учеников на другие параллели или курсы') }
+                    if (template_teacher != CANCEL_GALINA_ID) {
+                        otmena_warning.push('в настройках параллели указать Галину Отменную');
+                        has_easy_error = true;
+                    }
+                    if (template_location != SLAG_ID_SET[0]) {
+                        otmena_warning.push('в настройках параллели проставить Шлак');
+                        has_easy_error = true;
+                    }
+                    if (ne_otmena_groups.length) {
+                        otmena_warning.push(`в занятиях ${join_short(ne_otmena_groups)} проставить Галину Отменную`);
+                        has_easy_error = true;
+                    }
+                    if (ne_shlak_groups.length) {
+                        otmena_warning.push('в занятиях ' + join_short(ne_shlak_groups) + ' проставить Шлак');
+                        has_easy_error = true;
+                    }
+                    if (!document.querySelectorAll('tbody')[0].innerHTML.match(/Всего: 0/)) {
+                        otmena_warning.push('перевести учеников на другие параллели или курсы');
+                    }
                     if (otmena_warning.length) {
                         let alert = document.createElement('div');
                         alert.className = 'alert alert-info';
                         alert.style = 'margin-top:10pt;';
-                        alert.innerHTML = otmena_msg + '<br>Чтобы отменить параллель до конца, нужно<br>— ' + otmena_warning.join(',<br>— ') + '<br>';
-                        document.querySelector('#course_data').parentNode.insertBefore(alert, document.querySelector('#course_data'));
+                        alert.innerHTML =
+                            `${otmena_msg}<br>
+                            Чтобы отменить параллель до конца, нужно<br>
+                            — ${otmena_warning.join(',<br>— ')}<br>`;
+                        document.querySelector('#course_data').before(alert);
                         let btn = document.createElement('a');
                         btn.className = 'btn btn-default';
                         btn.innerHTML = 'Проставить везде Галину Отменную и Шлак';
@@ -1939,15 +2515,19 @@ const pagePatterns = {
                                     el.querySelector('#group_teacher_id').value = CANCEL_GALINA_ID;
                                 } catch (er) { console.log(er); }
                                 try {
-                                    el.querySelector('[name="group[reservation_attributes][location_id]"]').value = SLAG_ID_SET[0];
-                                    el.querySelector('[name="group[reservation_attributes][format_id]"]').value = SLAG_ID_SET[1];
-                                    el.querySelector('[name="group[reservation_attributes][studio_id]"]').value = SLAG_ID_SET[2];
+                                    el.querySelector('[name="group[reservation_attributes][location_id]"]').value =
+                                        SLAG_ID_SET[0];
+                                    el.querySelector('[name="group[reservation_attributes][format_id]"]').value =
+                                        SLAG_ID_SET[1];
+                                    el.querySelector('[name="group[reservation_attributes][studio_id]"]').value =
+                                        SLAG_ID_SET[2];
                                 } catch (er) { console.log(er); }
                                 let ar = el.querySelectorAll('.btn-default'); ar[ar.length - 1].click();
                                 while (!el.querySelector('.alert-success')) { await sleep(100); }
                             }
                             document.querySelectorAll('#group_template_teacher_id')[1].value = CANCEL_GALINA_ID;
-                            document.querySelector('[name="group_template[default_location_id]"]').value = SLAG_ID_SET[0];
+                            document.querySelector('[name="group_template[default_location_id]"]').value =
+                                SLAG_ID_SET[0];
                             document.querySelector('[name="group_template[default_format_id]"]').value = SLAG_ID_SET[1];
                             document.querySelector('[name="group_template[default_studio_id]"]').value = SLAG_ID_SET[2];
                             document.querySelectorAll('.btn-primary')[1].click();
@@ -1961,7 +2541,9 @@ const pagePatterns = {
                     alert.className = 'alert alert-info';
                     alert.style = 'margin-top:10pt;';
                     if (no_live_groups.length) {
-                        no_live_msg = 'В занятиях ' + join_short(no_live_groups) + ' указан неживой преподаватель, хотя курс не является асинхронным<br>';
+                        no_live_msg =
+                            `В занятиях ${join_short(no_live_groups)} указан неживой преподаватель, 
+                            хотя курс не является асинхронным<br>`;
                         let btn = document.createElement('a');
                         btn.className = 'btn btn-default';
                         btn.innerHTML = 'Проставить преподавателя из настроек параллели';
@@ -1980,13 +2562,19 @@ const pagePatterns = {
                         alert.innerHTML = no_live_msg;
                         alert.appendChild(btn);
                     }
-                    let b = [template_teacher].filter(x => { for (let i of NO_LIVE_TEACHER_IDS) { if (x == i) { return true } } return false });
+                    let b = [template_teacher].filter(x => {
+                        for (let i of NO_LIVE_TEACHER_IDS) {
+                            if (x == i) return true;
+                        }
+                        return false;
+                    });
                     if (b.length) {
-                        no_live_msg = 'В настройках параллели указан неживой преподаватель, хотя курс не является асинхронным';
+                        no_live_msg =
+                            'В настройках параллели указан неживой преподаватель, хотя курс не является асинхронным';
                         alert.innerHTML = no_live_msg;
                     }
                     if (no_live_msg) {
-                        document.querySelector('#course_data').parentNode.insertBefore(alert, document.querySelector('#course_data'));
+                        document.querySelector('#course_data').before(alert);
                     }
                 }
             }
@@ -2024,9 +2612,9 @@ const pagePatterns = {
                 container.style.gap = '10px';
                 container.style.marginTop = '10px';
 
-                const referenceNode = currentWindow.querySelector('#js-console');
+                const referenceNode = currentWindow.querySelector('#course_data');
                 if (referenceNode) {
-                    referenceNode.after(container);
+                    referenceNode.parentNode.insertBefore(container, referenceNode);
                 } else {
                     currentWindow.body.prepend(container);
                 }
@@ -2080,7 +2668,9 @@ const pagePatterns = {
             // Список с датами уроков по расписанию
             function trueLesssonDates() {
                 const days = [];
-                const startDate = new Date(window.document.querySelectorAll('[id*="starts_at_date"]')[1].value.split('.').reverse());
+                const startDate = new Date(
+                    window.document.querySelectorAll('[id*="starts_at_date"]')[1].value.split('.').reverse()
+                );
                 let landingLessonCount = window.document.querySelectorAll('.lesson_number').length;
                 const [weekdays, weekday_times] = getWeekdays();
 
@@ -2090,7 +2680,9 @@ const pagePatterns = {
                 date.setHours(weekday_times[0][0], weekday_times[0][1], 0, 0);
                 // получаем максимальную дату
                 let allLessonsStartDate = Array.from(window.document.querySelectorAll('[id*="starts_at_"]')).slice(2);
-                let maxDate = new Date(Math.max(...allLessonsStartDate.map(x => new Date(x.value.split(' ')[0].split('.').reverse()))));
+                let maxDate = new Date(Math.max(...allLessonsStartDate.map(x => new Date(
+                    x.value.split(' ')[0].split('.').reverse()
+                ))));
                 maxDate.setHours(23, 59, 59, 999);
                 //while (landingLessonCount >= 0) {
                 while (date <= maxDate) {
@@ -2128,7 +2720,8 @@ const pagePatterns = {
                 date = Number(date);
                 // Ищем совпадение даты лендинга с датой по расписанию
                 if (!trueLessons.includes(date)) {
-                    // Если не совпадает с расписанием (перенос, переназначение), красим родительский элемент (родительского элемента родительского элемента...) в цвет
+                    // Если не совпадает с расписанием (перенос, переназначение), красим родительский элемент 
+                    // (родительского элемента родительского элемента...) в цвет
                     let parent = allLessonsStartDate[i].parentElement.parentElement.parentElement.parentElement;
                     if (lessonsCount % 2 == 0) {
                         parent.style.backgroundColor = bgColorEven;
@@ -2159,46 +2752,46 @@ const pagePatterns = {
         function templateStartDateChecker() {
 
             function checkDates() {
-
-                const templateStartsAtInput = [...currentWindow.querySelectorAll('input[name="group_template[starts_at]"]')].pop();
+                const templateStartsAtInput = [
+                    ...currentWindow.querySelectorAll('input[name="group_template[starts_at]"]')
+                ].pop();
                 if (!templateStartsAtInput) return;
-                const templateDate = templateStartsAtInput.value.trim();            
-                let foundElement = null;            
+                const templateDate = templateStartsAtInput.value.trim();
+                let foundElement = null;
                 const lessonInfoElements = currentWindow.querySelectorAll('.lesson_number');
                 lessonInfoElements.forEach(element => {
-                  const text = element.textContent || element.innerText;
-                  if (text.includes('(№1)')) {
-                    foundElement = element.parentElement.nextSibling;
-                    return;
-                  }
-                });         
+                    const text = element.textContent || element.innerText;
+                    if (text.includes('(№1)')) {
+                        foundElement = element.parentElement.nextSibling;
+                        return;
+                    }
+                });
                 if (!foundElement) return;
                 const lessonInput = foundElement.querySelector('input[name="group[starts_at]"]');
                 if (!lessonInput) return;
-                const lessonDate = lessonInput.value.trim();            
+                const lessonDate = lessonInput.value.trim();
                 if (!templateDate || !lessonDate) return;
 
                 const parse = str => {
                     const [d, m, y] = str.split(' ')[0].split('.').map(Number);
                     return new Date(y, m - 1, d);
-                };          
-                const showWarning = parse(templateDate).getTime() !== parse(lessonDate).getTime();          
-                
+                };
+                const showWarning = parse(templateDate).getTime() !== parse(lessonDate).getTime();
+
                 const alerts = alertManager()
-                const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'         
+                const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'
                 if (showWarning) {
                     alerts.addAlert(
-                    `Дата старта параллели не совпадает с датой старта первого занятия`,
-                    '#ffb6c4',
-                    msg
-                );
+                        `Дата старта параллели не совпадает с датой старта первого занятия`,
+                        '#ffb6c4',
+                        msg
+                    );
                 } else {
-                alerts.removeAlert('date-mismatch-warning');
-            }
+                    alerts.removeAlert('date-mismatch-warning');
+                }
             }
 
             checkDates();
-            window.dateCheckerInitialized
         }
 
         templateStartDateChecker();
@@ -2219,7 +2812,7 @@ const pagePatterns = {
             if (!miniGroupFlag) {
                 initButtons(NOT_MINI_GROUP_BUTTONS);
             }
-             else if (!container) {
+            else if (!container) {
                 displayLog('Контейнер для кнопок не найден', 'danger');
             } else {
                 initButtons(MINI_GROUP_BUTTONS);
@@ -2250,15 +2843,6 @@ const pagePatterns = {
 
                 const url = buildUrl(groupId, location);
                 openAndCloseWindow(url);
-                changeGroupLocations(location)
-            }
-
-            async function changeGroupLocations(location){
-                groupLocation = currentWindow.querySelector('input["group_template[default_location_id]"]')
-                groupLocation.value = location;
-                await sleep(500)
-                groupwebinar = currentWindow.querySelector('input["group_template[default_studio_id]"]')
-                groupsWindow.value = groupsWindow.options[1].value;
             }
 
             function getGroupId() {
@@ -2266,7 +2850,7 @@ const pagePatterns = {
             }
 
             function buildUrl(groupId, location) {
-                const baseUrl = 'https://foxford.ru/admin/dev_services';
+                const baseUrl = '/admin/dev_services';
                 const params = new URLSearchParams({
                     only_week_day_webinars_settings: true,
                     select_group_template: groupId,
@@ -2281,7 +2865,6 @@ const pagePatterns = {
             async function openAndCloseWindow(url) {
                 let win = await createWindow();
                 await win.waitForSuccess();
-                await win.openPage(url, '_blank');
                 if (!win.closed) win.close();
             }
         }
@@ -2293,7 +2876,15 @@ const pagePatterns = {
         //
         let set_all_duration_at_ = async function (x = 40) {
             let a = document.getElementsByClassName('groups_table')[0].getElementsByTagName('tr');
-            let code = `<div class="form-group integer optional group_duration"><label class="col-sm-3 control-label integer optional" for="group_duration">Длительность</label><div class="col-sm-9"><input class="form-control numeric integer optional" type="number" step="1" value="${x}" name="group[duration]" id="group_duration"><p class="help-block">мин.</p></div></div>`
+            let code =
+                `<div class="form-group integer optional group_duration">
+                    <label class="col-sm-3 control-label integer optional" for="group_duration">Длительность</label>
+                    <div class="col-sm-9">
+                        <input class="form-control numeric integer optional" type="number" step="1" value="${x}" 
+                            name="group[duration]" id="group_duration">
+                        <p class="help-block">мин.</p>
+                    </div>
+                </div>`
             for (let i = 3; i < a.length - 2; i++) {
                 if (a[i].querySelectorAll('.form-group.group_duration').length) {
                     a[i].querySelector('.form-group.group_duration').outerHTML = code;
@@ -2372,9 +2963,11 @@ const pagePatterns = {
         }
         btn_return_moderators.onclick = returnModeratorsOnClick;
 
-        if (window.location.href.match('#reset_schedule')) { document.querySelector('.reset-btn').classList.add('bot-approve'); btn_prs_onclick(); }
+        if (window.location.href.match('#reset_schedule')) {
+            document.querySelector('.reset-btn').classList.add('bot-approve');
+            btn_prs_onclick();
+        }
         if (window.location.href.match('#duration40')) { set_all_duration_at_(40); }
-        log('Страница модифицирована');
     }
 
     // на странице создания дубликата
@@ -2386,7 +2979,10 @@ const pagePatterns = {
             let isConfirmed = true;
             let hasBotApproval = checkBotApprove();
             if (!hasBotApproval) {
-                isConfirmed = confirm('Страницы курса будут открыты в новых вкладках, не закрывайте их заранее\nЕсли страницы не открываются, разрешите сайту работать со всплывающими окнами');
+                isConfirmed = confirm(
+                    'Страницы курса будут открыты в новых вкладках, не закрывайте их заранее\n' +
+                    'Если страницы не открываются, разрешите сайту работать со всплывающими окнами'
+                );
             }
             if (isConfirmed) {
                 myButton.style = 'display:none';
@@ -2407,8 +3003,12 @@ const pagePatterns = {
                         break;
                     }
                 }
-                let teacherIdInput = await tempWindow.waitForElement('#edit_group_template [name="group_template[teacher_id]"]');
-                let usersLimitInput = await tempWindow.waitForElement('#edit_group_template [name="group_template[users_limit]"]');
+                let teacherIdInput = await tempWindow.waitForElement(
+                    '#edit_group_template [name="group_template[teacher_id]"]'
+                );
+                let usersLimitInput = await tempWindow.waitForElement(
+                    '#edit_group_template [name="group_template[users_limit]"]'
+                );
                 let teacherId = teacherIdInput.value;
                 let usersLimit = usersLimitInput.value;
                 await tempWindow.openPage(`${getBaseUrl(href)}/edit`);
@@ -2436,12 +3036,18 @@ const pagePatterns = {
                     }
                     warningElement.innerHTML += 'В курсе есть несконвертированные занятия';
                 }
-                let teacherIdTarget = await currentWindow.waitForElement('#course_duplicate_group_templates_attributes_0_teacher_id');
-                let usersLimitTarget = await currentWindow.waitForElement('#course_duplicate_group_templates_attributes_0_users_limit');
+                let teacherIdTarget = await currentWindow.waitForElement(
+                    '#course_duplicate_group_templates_attributes_0_teacher_id'
+                );
+                let usersLimitTarget = await currentWindow.waitForElement(
+                    '#course_duplicate_group_templates_attributes_0_users_limit'
+                );
                 usersLimitTarget.value = usersLimit;
                 teacherIdTarget.value = teacherId;
-                currentWindow.querySelector('#s2id_course_duplicate_group_templates_attributes_0_teacher_id').style.display = 'none';
-                currentWindow.querySelector('#course_duplicate_group_templates_attributes_0_teacher_id').style.display = '';
+                currentWindow.querySelector('#s2id_course_duplicate_group_templates_attributes_0_teacher_id')
+                    .style.display = 'none';
+                currentWindow.querySelector('#course_duplicate_group_templates_attributes_0_teacher_id')
+                    .style.display = '';
                 await tempWindow.close();
                 if (!hasBotApproval) displayLog('Данные подгружены)');
             }
@@ -2487,7 +3093,7 @@ const pagePatterns = {
                 submitWindow.close();
                 log('Курсы созданы')
                 await sleep(5000);
-                currentWindow.openPage('https://foxford.ru/admin/courses?q%5Bid_eq%5D=');
+                currentWindow.openPage('/admin/courses?q%5Bid_eq%5D=');
             }
         }
         myForm.append(massCreateButton);
@@ -2509,14 +3115,18 @@ const pagePatterns = {
         let btn_createpdf = document.createElement('button'); btn_createpdf.hidden = true;
         btn_createpdf.innerHTML = 'Загрузить PDF-программу из CSV-файла';
         btn_show.onclick = function () {
-            btn_show.hidden = true; btn_copypdf.hidden = false; btn_clearpdf.hidden = false; btn_createpdf.hidden = false; btn_hide.hidden = false;
+            btn_show.hidden = true; btn_copypdf.hidden = false; btn_clearpdf.hidden = false;
+            btn_createpdf.hidden = false; btn_hide.hidden = false;
         }
         btn_hide.onclick = function () {
-            btn_show.hidden = false; btn_copypdf.hidden = true; btn_clearpdf.hidden = true; btn_createpdf.hidden = true; btn_hide.hidden = true;
+            btn_show.hidden = false; btn_copypdf.hidden = true; btn_clearpdf.hidden = true; btn_createpdf.hidden = true;
+            btn_hide.hidden = true;
         }
         btn_copypdf.onclick = function () {
             async function copypdf() {
-                if (document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_name"]').length > 1) {
+                if (document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_name"]')
+                    .length > 1
+                ) {
                     alert('Удалите или очистите текущую PDF-программу, после этого можно будет загрузить новую');
                     return;
                 }
@@ -2527,7 +3137,7 @@ const pagePatterns = {
                 let d = 0;
                 let cid = prompt('Введите ID курса');
                 let win = window.open('about:blank', 'adminka_pdf');
-                win.location.href = 'https://foxford.ru/admin/courses/' + cid + '/edit';
+                win.location.href = '/admin/courses/' + cid + '/edit';
                 while (win.document.getElementsByClassName('dropdown-menu-right').length < 2) { await sleep(100); }
                 let x = win.document.getElementsByClassName('dropdown-menu-right')[1];
                 for (let li of x.childNodes) {
@@ -2549,9 +3159,13 @@ const pagePatterns = {
                     btn_add.click(); // создаем новый раздел
                     await sleep(100);
                     let i = razdels[k];
-                    let attrs = ['[id^="course_plan_course_plan_blocks_attributes_"][id*="_header"]', '[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]', '[id^="course_plan_course_plan_blocks_attributes_"][id*="_description"]'];
+                    let attrs = [
+                        '[id^="course_plan_course_plan_blocks_attributes_"][id*="_header"]',
+                        '[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]',
+                        '[id^="course_plan_course_plan_blocks_attributes_"][id*="_description"]'
+                    ];
                     for (let attr of attrs) {
-                        document.querySelectorAll(attr)[k + 1].value = i.querySelectorAll(attr)[0].value; // заполняем поля из массива attrs
+                        document.querySelectorAll(attr)[k + 1].value = i.querySelectorAll(attr)[0].value;
                     }
                     let themes = i.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_name"]');
                     for (let j = 0; j < themes.length; j++) {
@@ -2562,7 +3176,8 @@ const pagePatterns = {
                         m += 1;
                     }
                 }
-                document.getElementById('course_plan_published').checked = win.document.getElementById('course_plan_published').checked;
+                document.getElementById('course_plan_published').checked =
+                    win.document.getElementById('course_plan_published').checked;
                 log('все');
                 win.close();
                 document.getElementsByClassName('btn-primary')[0].click();
@@ -2585,7 +3200,11 @@ const pagePatterns = {
                 }
                 btn_add.click(); // создаем новый раздел
                 await sleep(100);
-                let attrs = ['[id^="course_plan_course_plan_blocks_attributes_"][id*="_header"]', '[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]', '[id^="course_plan_course_plan_blocks_attributes_"][id*="_description"]'];
+                let attrs = [
+                    '[id^="course_plan_course_plan_blocks_attributes_"][id*="_header"]',
+                    '[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]',
+                    '[id^="course_plan_course_plan_blocks_attributes_"][id*="_description"]'
+                ];
                 for (let attr of attrs) {
                     let arr = document.querySelectorAll(attr);
                     arr[arr.length - 1].value = 1;
@@ -2601,12 +3220,16 @@ const pagePatterns = {
         }
         btn_createpdf.onclick = function () {
             async function createpdf() {
-                if (document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_name"]').length > 1) {
+                if (document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_name"]')
+                    .length > 1
+                ) {
                     alert('Удалите или очистите текущую PDF-программу, после этого можно будет загрузить новую');
                     return;
                 }
-                btn_show.hidden = true; btn_copypdf.hidden = true; btn_clearpdf.hidden = true; btn_createpdf.hidden = true; btn_hide.hidden = true;
-                let inp = document.createElement('input'); inp.type = 'file'; inp.accept = "text/csv"; inp.required = 'required';
+                btn_show.hidden = true; btn_copypdf.hidden = true; btn_clearpdf.hidden = true;
+                btn_createpdf.hidden = true; btn_hide.hidden = true;
+                let inp = document.createElement('input'); inp.type = 'file'; inp.accept = "text/csv";
+                inp.required = 'required';
                 let btn = document.createElement('button'); btn.innerHTML = 'Готово';
                 btn.onclick = async function () {
                     let reader = new FileReader();
@@ -2630,39 +3253,59 @@ const pagePatterns = {
                                         x = rowCells[rowCell]
                                     }
                                     if (rowCell == 0) {
-                                        if (document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]')[k].value == '') {
-                                            document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]')[k].value = 0;
+                                        if (
+                                            document.querySelectorAll(
+                                                '[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]'
+                                            )[k].value == ''
+                                        ) {
+                                            document.querySelectorAll(
+                                                '[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]'
+                                            )[k].value = 0;
                                         }
                                         if (singleRow != 0) {
                                             document.getElementsByClassName('btn-success')[k + 1].click();
                                             k += 1
                                             n = 0
                                         }
-                                        document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_header"]')[k].value = x;
+                                        document.querySelectorAll(
+                                            '[id^="course_plan_course_plan_blocks_attributes_"][id*="_header"]'
+                                        )[k].value = x;
                                     }
                                     if (rowCell == 1) {
-                                        document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]')[k].value = x;
+                                        document.querySelectorAll(
+                                            '[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]'
+                                        )[k].value = x;
                                     }
                                     if (rowCell == 2) {
                                         if (x.length > 270) {
                                             x = x.substring(0, 270);
                                             log('Сократил описание раздела ' + (k + 1) + ' до 270 символов')
                                         }
-                                        document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_description"]')[k].value = x;
+                                        document.querySelectorAll(
+                                            '[id^="course_plan_course_plan_blocks_attributes_"][id*="_description"]'
+                                        )[k].value = x;
                                     }
                                     if (rowCell == 3) {
                                         if (n != 0) {
                                             document.getElementsByClassName('btn-success')[k].click();
                                         }
-                                        document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_name"]')[m].value = x;
+                                        document.querySelectorAll(
+                                            '[id^="course_plan_course_plan_blocks_attributes_"][id*="_name"]'
+                                        )[m].value = x;
                                         n += 1
                                         m += 1
                                     }
                                 }
                             }
                         }
-                        if (document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]')[k].value == '') {
-                            document.querySelectorAll('[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]')[k].value = 0;
+                        if (
+                            document.querySelectorAll(
+                                '[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]'
+                            )[k].value == ''
+                        ) {
+                            document.querySelectorAll(
+                                '[id^="course_plan_course_plan_blocks_attributes_"][id*="_hours"]'
+                            )[k].value = 0;
                         }
                         log('Готово, не забудьте сохранить изменения')
                     };
@@ -2676,7 +3319,8 @@ const pagePatterns = {
             }
             try { createpdf(); } catch (e) { log(e); }
         }
-        div.appendChild(btn_show); div.appendChild(btn_copypdf); div.appendChild(btn_clearpdf); div.appendChild(btn_createpdf); div.appendChild(btn_hide);
+        div.appendChild(btn_show); div.appendChild(btn_copypdf); div.appendChild(btn_clearpdf);
+        div.appendChild(btn_createpdf); div.appendChild(btn_hide);
         let x = document.getElementsByTagName('h3')[0].parentNode;
         x.insertBefore(div, x.childNodes[1]);
         log('Страница модифицирована');
@@ -2688,11 +3332,14 @@ const pagePatterns = {
         let btn_massprolong = document.createElement('button');
         btn_massprolong.innerHTML = 'Все части только для пролонгации';
         btn_massprolong.onclick = function () {
-            let todo = confirm('Процесс будет запущен в отдельной вкладке, не закрывайте ее до завершения процесса\nВо все части будет проставлена галочка «Только для пролонгации»\nМожет потребоваться разрешение показывать сайту всплывающие окна');
+            let todo = confirm(
+                'Процесс будет запущен в отдельной вкладке, не закрывайте ее до завершения процесса\n' +
+                'Во все части будет проставлена галочка «Только для пролонгации»\n' +
+                'Может потребоваться разрешение показывать сайту всплывающие окна'
+            );
             if (todo) {
                 btn_massprolong.disabled = true; btn_massprolong.style = 'color:gray';
                 async function massprolong() {
-                    //let sleeptime = parseInt(prompt('Укажите время прогрузки страницы с частью в милисекундах\nВажно, чтобы за это время страница успевала прогрузиться', 3000));
                     log('В процессе проставления галочек');
                     let cid = window.location.href.match(/\d+/)[0];
                     let win = await createWindow('adminka_installments_edit_' + cid)
@@ -2733,44 +3380,60 @@ const pagePatterns = {
     if (currentWindow.checkPath(pagePatterns.taskPreviewAnswers)) {
         await currentWindow.waitForElement('button[tabindex="2"] span');
         currentWindow.querySelector('button[tabindex="2"] span').click();
-        while (!currentWindow.document.evaluate("//button[contains(., 'Посмотреть ответ')]", currentWindow.document, null, XPathResult.ANY_TYPE, null).iterateNext()) { await sleep(100); }
-        currentWindow.document.evaluate("//button[contains(., 'Посмотреть ответ')]", currentWindow.document, null, XPathResult.ANY_TYPE, null).iterateNext().click();
+        while (!currentWindow.document.evaluate(
+            "//button[contains(., 'Посмотреть ответ')]",
+            currentWindow.document,
+            null,
+            XPathResult.ANY_TYPE,
+            null
+        ).iterateNext()) { await sleep(100); }
+        currentWindow.document.evaluate(
+            "//button[contains(., 'Посмотреть ответ')]",
+            currentWindow.document,
+            null,
+            XPathResult.ANY_TYPE,
+            null
+        ).iterateNext().click();
     }
     if (currentWindow.checkPath(pagePatterns.trainingsTaskTemplates)) {
         let previewLinks = currentWindow.querySelectorAll('a[href$="preview"]');
         for (let linkElement of previewLinks) {
             linkElement.href += '#ans';
         }
-        let createTaskButton = currentWindow.querySelector('.btn-success[href$="task_templates"]');
         const massTasksButtonOnClick = async () => {
             currentWindow.jsCodeArea.value = `// поменяйте id на нужные ниже
-    let taskIds = splitString(\`1
-    2
-    3\`);
-    let trainingsWindow = await createWindow('adminka_trainings');
-    let createButton = currentWindow.querySelector('.btn-success[href$="task_templates"]');
-    createButton.target = 'adminka_trainings';
-    for (let taskId of taskIds) {
-        log(taskId);
-        createButton.click();
-        await trainingsWindow.waitForElementDisappear('.alert-success');
-        await trainingsWindow.waitForElement('.loaded');
-        let individualTasksLinks = trainingsWindow.querySelectorAll('#edit_task_template .btn[href$="individual_tasks"]');
-        individualTasksLinks[individualTasksLinks.length - 1].click();
-        await trainingsWindow.waitForElement('.trainings_individual_tasks');
-        let addButton = trainingsWindow.querySelectorAll('.task_table')[1].childNodes[1].firstChild.querySelector('a[title="Привязать"]');
-        addButton.href = addButton.href.substr(0, addButton.href.search('=') + 1) + taskId;
-        addButton.click();
-        await trainingsWindow.waitForSuccess();
-        await trainingsWindow.openPage('about:blank');
-    }
-    await currentWindow.reload();`;
+let taskIds = splitString(\`
+1
+2
+3
+\`);
+let trainingsWindow = await createWindow('adminka_trainings');
+let createButton = currentWindow.querySelector('.btn-success[href$="task_templates"]');
+createButton.target = 'adminka_trainings';
+for (let taskId of taskIds) {
+    log(taskId);
+    createButton.click();
+    await trainingsWindow.waitForElementDisappear('.alert-success');
+    await trainingsWindow.waitForElement('.loaded');
+    let individualTasksLinks = trainingsWindow.querySelectorAll('#edit_task_template .btn[href$="individual_tasks"]');
+    individualTasksLinks[individualTasksLinks.length - 1].click();
+    await trainingsWindow.waitForElement('.trainings_individual_tasks');
+    let addButton = trainingsWindow.querySelectorAll('.task_table')[1].childNodes[1].firstChild
+        .querySelector('a[title="Привязать"]');
+    addButton.href = addButton.href.substr(0, addButton.href.search('=') + 1) + taskId;
+    addButton.click();
+    await trainingsWindow.waitForSuccess();
+    await trainingsWindow.openPage('about:blank');
+}
+await currentWindow.reload();`;
         }
         const massDeleteButtonOnClick = async () => {
             let todo = confirm('Точно удалить все задачи?');
             if (todo) {
                 let tempWindow = await createWindow('remove-tasks-from-training');
-                let deleteButtons = currentWindow.querySelectorAll('a.btn-danger[href^="/admin/trainings/"][href*="/task_templates/"]');
+                let deleteButtons = currentWindow.querySelectorAll(
+                    'a.btn-danger[href^="/admin/trainings/"][href*="/task_templates/"]'
+                );
                 for (let button of deleteButtons) {
                     button.removeAttribute('data-confirm');
                     button.target = 'remove-tasks-from-training';
@@ -2785,14 +3448,9 @@ const pagePatterns = {
         }
         let massTasksButton = createButton('Привязать задачи массово', massTasksButtonOnClick, 'btn-default', false);
         let massDeleteButton = createButton('Отвязать все задачи', massDeleteButtonOnClick, 'btn-danger', false);
-        createTaskButton.parentNode.insertBefore(massDeleteButton, createTaskButton.nextSibling);
-        createTaskButton.parentNode.insertBefore(massTasksButton, createTaskButton.nextSibling);
-    }
-
-    /************************* Практика - задачи ************************/
-
-    if (currentWindow.checkPath(pagePatterns.trainingsIndividualTasks)) {
-        currentWindow.body.firstChild.className += ' trainings_individual_tasks';
+        let createTaskButton = currentWindow.querySelector('.btn-success[href$="task_templates"]');
+        createTaskButton.after(massDeleteButton);
+        createTaskButton.after(massTasksButton);
     }
 
     /********************** Обучение - мероприятия **********************/
@@ -2802,7 +3460,11 @@ const pagePatterns = {
         let pred = document.createElement('div');
         pred.innerHTML = 'Неактуальный цикл мероприятий'
         let cycles = document.getElementById('event_series_id');
-        let good = ['Подготовка к ЕГЭ', 'Подготовка к ОГЭ', 'Домашняя школа', 'Родителям', 'Поступление', 'Профориентация', 'Другое', 'Вне циклов', 'Семинары для учителей', 'Подготовка к ОГЭ для учителей', 'Вебинары с Федеральным подростковым центром', 'Подготовка к ЕГЭ для учителей'];
+        let good = [
+            'Подготовка к ЕГЭ', 'Подготовка к ОГЭ', 'Домашняя школа', 'Родителям', 'Поступление', 'Профориентация',
+            'Другое', 'Вне циклов', 'Семинары для учителей', 'Подготовка к ОГЭ для учителей',
+            'Вебинары с Федеральным подростковым центром', 'Подготовка к ЕГЭ для учителей'
+        ];
         for (let i of cycles.childNodes) {
             if (i == '[object HTMLOptionElement]') {
                 i.className += 'value' + i.value;
@@ -2814,9 +3476,11 @@ const pagePatterns = {
         cycles.getElementsByClassName('value')[0].innerHTML = '!!! Bce aктyaльныe циклы yкaзaны вышe !!!';
         cycles.insertBefore(cycles.getElementsByClassName('selected')[0], cycles.getElementsByClassName('value')[0]);
         cycles.insertBefore(cycles.getElementsByClassName('value')[0], cycles.getElementsByClassName('selected')[0]);
-        for (let elem of cycles.getElementsByClassName('good')) { cycles.insertBefore(elem, cycles.getElementsByClassName('value')[0]); }
-        if (cycles.selectedOptions[0].className.indexOf('bad') != -1 && isEventsEditPage.length) { pred.hidden = false }
-        else { pred.hidden = true }
+        for (let elem of cycles.getElementsByClassName('good')) {
+            cycles.insertBefore(elem, cycles.getElementsByClassName('value')[0]);
+        }
+        if (cycles.selectedOptions[0].className.indexOf('bad') != -1 && isEventsEditPage.length) pred.hidden = false;
+        else pred.hidden = true;
         cycles.onchange = function () {
             if (cycles.selectedOptions[0].className.indexOf('bad') != -1) { pred.hidden = false }
             else { pred.hidden = true }
@@ -2824,6 +3488,12 @@ const pagePatterns = {
         pred.style = 'color:orange;font-size: 11px; top: 3px';
         document.getElementsByClassName('event_series')[0].childNodes[1].appendChild(pred);
         log('Страница модифицирована');
+    }
+
+    /************************* Практика - задачи ************************/
+
+    if (currentWindow.checkPath(pagePatterns.trainingsIndividualTasks)) {
+        currentWindow.body.firstChild.className += ' trainings_individual_tasks';
     }
 
     /******************* Практика - учебные программы *******************/
@@ -2841,7 +3511,98 @@ const pagePatterns = {
         }
     }
     if (currentWindow.checkPath(pagePatterns.methodicalLinkCreateVideo)) {
-        currentWindow.querySelector('#methodical_materials_items_link_item_link_attributes_name').value = 'Сжатый видеоурок с повторением пройденной теории. Смотреть его необязательно, но к нему всегда можно вернуться, чтобы освежить знания или закрепить пройденный материал.';
+        currentWindow.querySelector('#methodical_materials_items_link_item_link_attributes_name').value =
+            'Сжатый видеоурок с повторением пройденной теории. Смотреть его необязательно, но к нему всегда можно ' +
+            'вернуться, чтобы освежить знания или закрепить пройденный материал.';
+    }
+
+    /********************** Пользователи - учащиеся *********************/
+
+    // на странице замены курса
+    if (currentWindow.checkPath(pagePatterns.usersCoursesReplace)) {
+        let idSearchButton = createButton('Найти по ID', async () => { }, 'btn-default', false);
+        const idElement = q_id_eq;
+        idSearchButton.href =
+            `${window.location.pathname}?q%5Bid_eq%5D=${idElement.value}` +
+            `&q%5Bg%5D%5B%23%3CRansack%3A%3ANodes%3A%3AGrouping%3A0x00007d7c85b668c0%3E%5D%5Bid_not_null%5D=false`;
+        idElement.style = 'width:52%;';
+        idElement.parentNode.style = 'margin-right:-7pt;';
+        idElement.onchange = function () {
+            idSearchButton.href =
+                `${window.location.pathname}?q%5Bid_eq%5D=${idElement.value}` +
+                `&q%5Bg%5D%5B%23%3CRansack%3A%3ANodes%3A%3AGrouping%3A0x00007d7c85b668c0%3E%5D%5Bid_not_null%5D=false`;
+        }
+        currentWindow.querySelector('.q_id_eq').appendChild(idSearchButton);
+        log('Страница модифицирована')
+    }
+
+    // на странице массового добавления доступов
+    if (currentWindow.checkPath(pagePatterns.massCourseAccess)) {
+        let satelliteAccessButton = createButton(
+            'Выдать доступ к спутникам и СИ по отчету', () => { }, 'btn-default', false
+        );
+        new_admin_mass_course_access_form.before(satelliteAccessButton);
+        satelliteAccessButton.onclick = async () => {
+            let csvContent = await getCsvFromMetabase('49105');
+            if (csvContent) {
+                let fullCsvArray = CSVToArray(csvContent).slice(1, -1);
+                log(`Нужно выдать ${fullCsvArray.length} записей`);
+                let accessData = generateAccessData(fullCsvArray);
+                console.log(accessData);
+                currentWindow.document.accessData = accessData;
+                let tempWindow = await createWindow('access_temp_window');
+                currentWindow.querySelector('form').target = 'access_temp_window';
+                let submitButton = currentWindow.querySelector('input[type="submit"]');
+                submitButton.removeAttribute('data-disable-with');
+                for (let key in accessData) {
+                    let accessDataElement = accessData[key];
+                    let accessType = accessDataElement[0][2];
+                    let accessFinishesAt = accessDataElement[0][3];
+                    let accessArray = accessDataElement.map(subArray => subArray.slice(0, 2).join(','));
+                    let accessCsvContent = accessArray.join('\n');
+                    log(`Выдача ${accessArray.length} доступов ${accessType} ${accessFinishesAt}`);
+                    admin_mass_course_access_form_access_type.value = accessType;
+                    admin_mass_course_access_form_access_finishes_at.value = accessFinishesAt;
+                    setCsvFileByContent(admin_mass_course_access_form_csv_file, accessCsvContent);
+                    admin_mass_course_access_form_access_change_description.value = 'Подарок от “Фоксфорда”';
+                    submitButton.click();
+                    await tempWindow.waitForElement('.loaded');
+                    await tempWindow.openPage('about:blank');
+                }
+                await tempWindow.close();
+                displayLog('Доступы выданы');
+
+                function generateAccessData(arr) {
+                    let maxSize = 5000;
+                    arr.sort((a, b) => {
+                        if (a[2] === b[2]) { return a[3].localeCompare(b[3]); }
+                        return a[2].localeCompare(b[2]);
+                    });
+                    if (arr.length > maxSize) {
+                        displayLog(
+                            `Будет выдано ${maxSize} доступов из ${arr.length}, запустите скрипт повторно через ` +
+                            `10 минут`,
+                            'warning'
+                        );
+                    }
+                    const limited = arr.slice(0, maxSize);
+                    const result = {};
+                    for (const item of limited) {
+                        const key = `${item[2]}_${item[3]}`;
+                        if (!result[key]) {
+                            result[key] = [];
+                        }
+                        result[key].push(item);
+                    }
+
+                    return result;
+                }
+            }
+            else {
+                log('Выполнение скрипта прервано, данные отсутствуют');
+            }
+        }
+        log('Страница модифицирована')
     }
 
     /*********************** ЭДШ - типы продуктов ***********************/
@@ -2914,22 +3675,30 @@ async function addSomething(selector, name) {
 async function addGroup() {
     await addSomething('.tab-pane.active .add_nested_fields[data-association="groups"]', 'группу');
 }
+const lastGroupSelector = '.tab-pane.active .fields:not([style]) .group:last-of-type';
 async function addDiscipline() {
-    await addSomething('.tab-pane.active .fields:not([style]) .group:last-of-type .add_nested_fields[data-association="discipline_groups"]', 'дисциплину');
+    await addSomething(
+        \`$\{lastGroupSelector} .add_nested_fields[data-association="discipline_groups"]\`, 
+        'дисциплину'
+    );
 }
 async function addCourse() {
-    await addSomething('.tab-pane.active .fields:not([style]) .group:last-of-type .fields:last-of-type .add_nested_fields[data-association="items"]', 'курс');
+    await addSomething(
+        \`$\{lastGroupSelector} .fields:last-of-type .add_nested_fields[data-association="items"]\`, 
+        'курс'
+    );
 }
 
 for (const [groupType, disciplines] of Object.entries(groups)) {
     // Набор
     await switchTab(groupType);
-    let groupElem = currentWindow.querySelector('.tab-pane.active .fields:not([style]) .group:last-of-type');
+    let groupElem = currentWindow.querySelector(lastGroupSelector);
     if (!groupElem) {
         await addGroup();
-        groupElem = currentWindow.querySelector('.tab-pane.active .fields:not([style]) .group:last-of-type');
+        groupElem = currentWindow.querySelector(lastGroupSelector);
     }
-    groupElem.querySelector('input[id$="_title"]').value = groupType === 'base' ? 'Базовый набор' : 'Дополнительный набор';
+    groupElem.querySelector('input[id$="_title"]').value = groupType === 
+        'base' ? 'Базовый набор' : 'Дополнительный набор';
 
     for (const [disProId, courses] of Object.entries(disciplines)) {
         // Дисциплина
@@ -2989,61 +3758,104 @@ displayLog('Готово! Проверьте данные и сохраните'
     }
     if (currentWindow.checkPath(pagePatterns.individualItemsCreateMass)) {
         let secondaryWindow = await createWindow();
-        await secondaryWindow.openPage(currentWindow.location.href.substring(0, currentWindow.location.href.length - 5)); //, 'adminka_mass_new_ind_items_temp')
+        await secondaryWindow.openPage(
+            currentWindow.location.href.substring(0, currentWindow.location.href.length - 5)
+        );
         currentWindow.clearAll();
         let form = createElement('form', 'simple_form form-horizontal inputs-sm', 'margin:20px')
-        let gradeElement = createFormElement(form, 'select', 'Класс *', 'mass_externship_product_type_grade_course_product_type_grade_id');
-        let typeElement = createFormElement(form, 'select', 'Тип элемента *', 'mass_externship_product_type_grade_course_resource_type');
-        let idsElement = createFormElement(form, 'textarea', 'ID курсов *', 'mass_course_input', 'Можно указать через пробел, запятую или в столбик');
-        let massAppendButton = createButton('Запустить массовое добавление', async () => { }, 'btn-default btn-primary form-control', false);
-        let hugeConsole = createElement('div', 'textarea', 'border: 2px solid #eee; border-radius: 15px; padding: 10px; margin-top: 20px; margin-bottom: 20px;')
+        let gradeElement = createFormElement(
+            form, 'select', 'Класс *', 'mass_externship_product_type_grade_course_product_type_grade_id'
+        );
+        let typeElement = createFormElement(
+            form, 'select', 'Тип элемента *', 'mass_externship_product_type_grade_course_resource_type'
+        );
+        let idsElement = createFormElement(
+            form, 'textarea', 'ID курсов *', 'mass_course_input', 'Можно указать через пробел, запятую или в столбик'
+        );
+        let massAppendButton = createButton(
+            'Запустить массовое добавление', async () => { }, 'btn-default btn-primary form-control', false
+        );
+        let hugeConsole = createElement(
+            'div', 'textarea',
+            'border: 2px solid #eee; border-radius: 15px; padding: 10px; margin-top: 20px; margin-bottom: 20px;'
+        )
         function huge_log(s) {
             hugeConsole.innerHTML += s + '<br>';
         }
         log = huge_log;
-        log('Пока можно массово добавлять только курсы, скрипт не проверяет опубликованность курсов, проверьте её по отчету<br>' +
-            'Процесс будет происходить в отдельной вкладке, не закрывайте её')
-        let backButton = createButton('Вернуться назад', async () => { secondaryWindow.close(); currentWindow.history.go(-1); return false; }, 'btn-default', false);
+        log('Пока можно массово добавлять только курсы, скрипт не проверяет опубликованность курсов, проверьте её ' +
+            'по отчету<br>Процесс будет происходить в отдельной вкладке, не закрывайте её')
+        let backButton = createButton(
+            'Вернуться назад',
+            async () => { secondaryWindow.close(); currentWindow.history.go(-1); return false; },
+            'btn-default',
+            false
+        );
         form.appendChild(massAppendButton);
         form.appendChild(hugeConsole);
         form.appendChild(backButton);
         currentWindow.body.appendChild(form);
         currentWindow.head.innerHTML = secondaryWindow.head.innerHTML;
-        await secondaryWindow.log('Эта страница нужна для работы массовых внесений данных в админку. Внесение данных доступно на другой вкладке');
+        await secondaryWindow.log(
+            'Эта страница нужна для работы массовых внесений данных в админку. Внесение данных доступно на другой ' +
+            'вкладке'
+        );
         Array.from(secondaryWindow.querySelectorAll('input')).map(el => { el.disabled = true });
         Array.from(secondaryWindow.querySelectorAll('select')).map(el => { el.disabled = true });
-        currentWindow.querySelector('#mass_externship_product_type_grade_course_product_type_grade_id').innerHTML = secondaryWindow.querySelector('#externship_product_type_grade_course_product_type_grade_id').innerHTML;
+        currentWindow.querySelector('#mass_externship_product_type_grade_course_product_type_grade_id').innerHTML =
+            secondaryWindow.querySelector('#externship_product_type_grade_course_product_type_grade_id').innerHTML;
         let res_type = currentWindow.querySelector('#mass_externship_product_type_grade_course_resource_type');
-        res_type.innerHTML = await secondaryWindow.querySelector('#externship_product_type_grade_course_resource_type').innerHTML;
+        res_type.innerHTML =
+            await secondaryWindow.querySelector('#externship_product_type_grade_course_resource_type').innerHTML;
         res_type.disabled = true;
         idsElement.rows = 1; idsElement.cols = 1;
         idsElement.style = 'min-height:50px';
         massAppendButton.onclick = async function () {
-            backButton.onclick = () => { let todo = confirm('Запущенный процесс будет прерван'); if (todo) { secondaryWindow.close(); currentWindow.history.go(-1); return false; } };
+            backButton.onclick = () => {
+                let todo = confirm('Запущенный процесс будет прерван');
+                if (todo) { secondaryWindow.close(); currentWindow.history.go(-1); return false; }
+            };
             let idsList = idsElement.value.split(/[ \n,;]/).filter(x => x != '');
             if (secondaryWindow.closed) {
                 secondaryWindow = await createWindow();
-                await secondaryWindow.openPage(currentWindow.location.href.substring(0, currentWindow.location.href.length - 5));
+                await secondaryWindow.openPage(
+                    currentWindow.location.href.substring(0, currentWindow.location.href.length - 5)
+                );
             }
             for (let productID of idsList) {
-                await secondaryWindow.openPage(currentWindow.location.href.substring(0, currentWindow.location.href.length - 5));
+                await secondaryWindow.openPage(
+                    currentWindow.location.href.substring(0, currentWindow.location.href.length - 5)
+                );
                 try {
-                    secondaryWindow.querySelector('#externship_product_type_grade_course_product_type_grade_id').value = gradeElement.value;
-                    secondaryWindow.querySelector('#externship_product_type_grade_course_resource_type').value = typeElement.value;
+                    secondaryWindow.querySelector(
+                        '#externship_product_type_grade_course_product_type_grade_id'
+                    ).value = gradeElement.value;
+                    secondaryWindow.querySelector('#externship_product_type_grade_course_resource_type').value =
+                        typeElement.value;
                     secondaryWindow.querySelector('#course_input').value = productID;
                     secondaryWindow.querySelector('.btn-primary').click();
                     await secondaryWindow.waitForElement('.alert');
                     let alert = secondaryWindow.querySelector('.alert');
                     let col;
                     if (alert.className.match('danger')) { col = 'red' } else { col = 'green' }
-                    try { log(productID + `   <span style = 'color:${col}'>` + alert.innerHTML.replace(/<button(.*?)\/button>/, '') + '</span>'); } catch (e) { log(productID + `   <span style = 'color:${col}'>` + e + '</span>'); }
+                    try {
+                        log(`${productID}   <span style = 'color:${col}'>
+                            ${alert.innerHTML.replace(/<button(.*?)\/button>/, '')}</span>`);
+                    }
+                    catch (e) { log(productID + `   <span style = 'color:${col}'>` + e + '</span>'); }
                 }
                 catch (e) { log(productID + '\t' + e); }
             }
             // win.close();
             backButton.onclick = () => { secondaryWindow.close(); currentWindow.history.go(-1); return false; };
-            displayLog('Процесс привязки завершен, не забудьте проверить логи выше. Закрыть текущую страницу рекомендуется с помощью кнопки ниже.');
-            await secondaryWindow.log('Эта страница нужна для работы массовых внесений данных в админку. Внесение данных доступно на другой вкладке');
+            displayLog(
+                'Процесс привязки завершен, не забудьте проверить логи выше. Закрыть текущую страницу рекомендуется ' +
+                'с помощью кнопки ниже.'
+            );
+            await secondaryWindow.log(
+                'Эта страница нужна для работы массовых внесений данных в админку. Внесение данных доступно на ' +
+                'другой вкладке'
+            );
             Array.from(secondaryWindow.querySelectorAll('input')).map(el => { el.disabled = true });
             Array.from(secondaryWindow.querySelectorAll('select')).map(el => { el.disabled = true });
         }
@@ -3059,7 +3871,8 @@ displayLog('Готово! Проверьте данные и сохраните'
             let only_copy = false;
             let only_week_day_webinars_settings = false;
             let only_copy_href = currentWindow.location.href.match(/\?only_copy/) || [];
-            let only_week_day_webinars_settings_href = currentWindow.location.href.match(/\?only_week_day_webinars_settings/) || [];
+            let only_week_day_webinars_settings_href =
+                currentWindow.location.href.match(/\?only_week_day_webinars_settings/) || [];
             if (only_copy_href.length) { only_copy = true; }
             if (only_week_day_webinars_settings_href.length) { only_week_day_webinars_settings = true; }
             for (let i of arr) {
@@ -3083,16 +3896,23 @@ displayLog('Готово! Проверьте данные и сохраните'
                     btn1.onclick = function () {
                         try {
                             document.getElementById('week_day_webinars_settings_all_days').checked = 'checked';
-                            document.getElementById('week_day_webinars_settings_location_id').value = MINI_GROUPS_ID_SET[0];
+                            document.getElementById('week_day_webinars_settings_location_id').value =
+                                MINI_GROUPS_ID_SET[0];
                             document.getElementById('week_day_webinars_settings_location_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_location_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_format_id').value = MINI_GROUPS_ID_SET[1];
+                            document.getElementById('s2id_week_day_webinars_settings_location_id').style =
+                                'display:none;';
+                            document.getElementById('week_day_webinars_settings_format_id').value =
+                                MINI_GROUPS_ID_SET[1];
                             document.getElementById('week_day_webinars_settings_format_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_format_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_studio_id').value = MINI_GROUPS_ID_SET[2];
+                            document.getElementById('s2id_week_day_webinars_settings_format_id').style =
+                                'display:none;';
+                            document.getElementById('week_day_webinars_settings_studio_id').value =
+                                MINI_GROUPS_ID_SET[2];
                             document.getElementById('week_day_webinars_settings_studio_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_studio_id').style = 'display:none;';
-                            document.getElementById('week_day_webinars_settings_admin_id').value = MINI_GROUPS_ID_SET[3];
+                            document.getElementById('s2id_week_day_webinars_settings_studio_id').style =
+                                'display:none;';
+                            document.getElementById('week_day_webinars_settings_admin_id').value =
+                                MINI_GROUPS_ID_SET[3];
                             document.getElementById('week_day_webinars_settings_admin_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_admin_id').style = 'display:none;';
                             log('Локация Мини-группы');
@@ -3104,13 +3924,16 @@ displayLog('Готово! Проверьте данные и сохраните'
                             document.getElementById('week_day_webinars_settings_all_days').checked = 'checked';
                             document.getElementById('week_day_webinars_settings_location_id').value = SLAG_ID_SET[0];
                             document.getElementById('week_day_webinars_settings_location_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_location_id').style = 'display:none;';
+                            document.getElementById('s2id_week_day_webinars_settings_location_id').style =
+                                'display:none;';
                             document.getElementById('week_day_webinars_settings_format_id').value = SLAG_ID_SET[1];
                             document.getElementById('week_day_webinars_settings_format_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_format_id').style = 'display:none;';
+                            document.getElementById('s2id_week_day_webinars_settings_format_id').style =
+                                'display:none;';
                             document.getElementById('week_day_webinars_settings_studio_id').value = SLAG_ID_SET[2];
                             document.getElementById('week_day_webinars_settings_studio_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_studio_id').style = 'display:none;';
+                            document.getElementById('s2id_week_day_webinars_settings_studio_id').style =
+                                'display:none;';
                             document.getElementById('week_day_webinars_settings_admin_id').value = SLAG_ID_SET[3];
                             document.getElementById('week_day_webinars_settings_admin_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_admin_id').style = 'display:none;';
@@ -3123,13 +3946,16 @@ displayLog('Готово! Проверьте данные и сохраните'
                             document.getElementById('week_day_webinars_settings_all_days').checked = 'checked';
                             document.getElementById('week_day_webinars_settings_location_id').value = HOME_ID_SET[0];
                             document.getElementById('week_day_webinars_settings_location_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_location_id').style = 'display:none;';
+                            document.getElementById('s2id_week_day_webinars_settings_location_id').style =
+                                'display:none;';
                             document.getElementById('week_day_webinars_settings_format_id').value = HOME_ID_SET[1];
                             document.getElementById('week_day_webinars_settings_format_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_format_id').style = 'display:none;';
+                            document.getElementById('s2id_week_day_webinars_settings_format_id').style =
+                                'display:none;';
                             document.getElementById('week_day_webinars_settings_studio_id').value = HOME_ID_SET[2];
                             document.getElementById('week_day_webinars_settings_studio_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_studio_id').style = 'display:none;';
+                            document.getElementById('s2id_week_day_webinars_settings_studio_id').style =
+                                'display:none;';
                             document.getElementById('week_day_webinars_settings_admin_id').value = HOME_ID_SET[3];
                             document.getElementById('week_day_webinars_settings_admin_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_admin_id').style = 'display:none;';
@@ -3142,13 +3968,16 @@ displayLog('Готово! Проверьте данные и сохраните'
                             document.getElementById('week_day_webinars_settings_all_days').checked = 'checked';
                             document.getElementById('week_day_webinars_settings_location_id').value = SSM_ID_SET[0];
                             document.getElementById('week_day_webinars_settings_location_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_location_id').style = 'display:none;';
+                            document.getElementById('s2id_week_day_webinars_settings_location_id').style =
+                                'display:none;';
                             document.getElementById('week_day_webinars_settings_format_id').value = SSM_ID_SET[1];
                             document.getElementById('week_day_webinars_settings_format_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_format_id').style = 'display:none;';
+                            document.getElementById('s2id_week_day_webinars_settings_format_id').style =
+                                'display:none;';
                             document.getElementById('week_day_webinars_settings_studio_id').value = SSM_ID_SET[2];
                             document.getElementById('week_day_webinars_settings_studio_id').style = '';
-                            document.getElementById('s2id_week_day_webinars_settings_studio_id').style = 'display:none;';
+                            document.getElementById('s2id_week_day_webinars_settings_studio_id').style =
+                                'display:none;';
                             document.getElementById('week_day_webinars_settings_admin_id').value = SSM_ID_SET[3];
                             document.getElementById('week_day_webinars_settings_admin_id').style = '';
                             document.getElementById('s2id_week_day_webinars_settings_admin_id').style = 'display:none;';
@@ -3184,13 +4013,17 @@ displayLog('Готово! Проверьте данные и сохраните'
             }
             if (only_copy) {
                 try {
-                    let tmp = currentWindow.location.href.slice(currentWindow.location.href.search(/change_original_group_group_id/) + 31);
+                    let tmp = currentWindow.location.href.slice(
+                        currentWindow.location.href.search(/change_original_group_group_id/) + 31
+                    );
                     let tmp_int = tmp.search('&');
                     if (tmp_int == -1) { tmp_int = 100; }
                     document.querySelector('#change_original_group_group_id').value = tmp.slice(0, tmp_int);
                 } catch (e) { }
                 try {
-                    let tmp = currentWindow.location.href.slice(currentWindow.location.href.search(/change_original_group_original_group_id/) + 40);
+                    let tmp = currentWindow.location.href.slice(
+                        currentWindow.location.href.search(/change_original_group_original_group_id/) + 40
+                    );
                     let tmp_int = tmp.search('&');
                     if (tmp_int == -1) { tmp_int = 100; }
                     document.querySelector('#change_original_group_original_group_id').value = tmp.slice(0, tmp_int);
@@ -3201,13 +4034,17 @@ displayLog('Готово! Проверьте данные и сохраните'
             }
             if (only_week_day_webinars_settings) {
                 try {
-                    let tmp = currentWindow.location.href.slice(currentWindow.location.href.search(/select_course/) + 14);
+                    let tmp = currentWindow.location.href.slice(
+                        currentWindow.location.href.search(/select_course/) + 14
+                    );
                     let tmp_int = tmp.search('&');
                     if (tmp_int == -1) { tmp_int = 100; }
                     document.querySelector('#select_course').value = tmp.slice(0, tmp_int);
                 } catch (e) { log(e) }
                 try {
-                    let tmp = currentWindow.location.href.slice(currentWindow.location.href.search(/select_group_template/) + 22);
+                    let tmp = currentWindow.location.href.slice(
+                        currentWindow.location.href.search(/select_group_template/) + 22
+                    );
                     let tmp_int = tmp.search('&');
                     if (tmp_int == -1) { tmp_int = 100; }
                     let tmp_value = tmp.slice(0, tmp_int);
@@ -3282,14 +4119,22 @@ displayLog('Готово! Проверьте данные и сохраните'
             ids.forEach(id => {
                 let idElement = currentWindow.querySelector(`#data_for_${id}`);
                 if (!idElement) {
-                    createFormElement(form, 'textarea', `Данные для ${id}`, `data_for_${id}`, `Строки данных для ${id}`, true, loadButton);
+                    createFormElement(
+                        form,
+                        'textarea',
+                        `Данные для ${id}`,
+                        `data_for_${id}`,
+                        `Строки данных для ${id}`,
+                        true,
+                        loadButton
+                    );
                 }
                 else {
                     idElement.parentNode.style = '';
                 }
             });
         })
-        urlInputElement.value = 'https://foxford.ru/admin/courses/{course_ids}/edit';
+        urlInputElement.value = '/admin/courses/{course_ids}/edit';
         const loadButtonOnClick = async () => {
             loadButton.className += ' disabled';
             urlInputElement.disabled = 'disabled';
@@ -3304,10 +4149,11 @@ displayLog('Готово! Проверьте данные и сохраните'
                 patternIds.push(matches[1]); // matches[1] содержит текст внутри {}
             }
             for (let patternId of patternIds) {
-                url = url.replace(`\{${patternId}\}`, currentWindow.querySelector(`#data_for_${patternId}`).value.split('\n')[0])
+                url = url.replace(
+                    `\{${patternId}\}`, currentWindow.querySelector(`#data_for_${patternId}`).value.split('\n')[0]
+                )
             }
             await secondaryWindow.openPage(url);
-            // await secondaryWindow.log('Это вспомогательная страница для массовых правок в админке, не закрывайте её')
             const elements = secondaryWindow.querySelectorAll('input[id], select[id], textarea[id]');
             for (let element of elements) {
                 let elementId = element.id;
@@ -3344,7 +4190,9 @@ displayLog('Готово! Проверьте данные и сохраните'
     // на секретной странице
     if (currentWindow.checkPath(pagePatterns.secretPage)) {
         function createCollapsibleSection(parent, title, level = 0) {
-            const button = createButton(`▼ ${title}`, () => { }, `collapsible active section-header section-level-${level}`, true);
+            const button = createButton(
+                `▼ ${title}`, () => { }, `collapsible active section-header section-level-${level}`, true
+            );
             button.type = 'button';
             button.style = `margin-left: 0; width: ${98 - 6 * level}vw;`;
             if (level != 0) {
@@ -3373,29 +4221,35 @@ displayLog('Готово! Проверьте данные и сохраните'
             });
             return content;
         }
-        function createActionButton(parent, text, scriptContent, className = '') {
-            const button = createButton(text, () => {
-                currentWindow.jsCodeArea.value = `// ${text}
-${scriptContent}`;
+        function buildSectionsRecursive(parent, structure, currentLevel = 0) {
+            let variables = {};
+            structure.forEach(sectionConfig => {
+                let sectionElement = createCollapsibleSection(parent, sectionConfig.title, currentLevel);
+                variables[sectionConfig.key] = sectionElement;
+                if (sectionConfig.children) {
+                    let childVariables = buildSectionsRecursive(sectionElement, sectionConfig.children, currentLevel + 1);
+                    Object.assign(variables, childVariables);
+                }
+            });
+            return variables;
+        }
+        let sections;
+        function createActionButton(scriptObj, key = '') {
+            let className = key.toLowerCase();
+            let description = scriptObj.description ? scriptObj.description : '';
+            const button = createButton(scriptObj.name, () => {
+                currentWindow.jsCodeArea.value = `// ${scriptObj.name}\n`;
+                if (description) currentWindow.jsCodeArea.value += `// ${description.replace(/\n\s*/ig, '\n// ')}\n`;
+                currentWindow.jsCodeArea.value += `${scriptObj.code}`;
             }, `btn btn-default script-btn ${className}`, false);
-            parent.appendChild(button);
+            button.title = description.replace(/\n\s*/ig, '; ');
+            sections[scriptObj.parent].appendChild(button);
             return button;
         }
-        ['.courses_lesson_pack_lesson_count', '.courses_lesson_pack_price', '.courses_lesson_pack_maternity_capital'].forEach(selector => {
-            currentWindow.querySelector(selector)?.remove();
-        });
-        ['utf8', 'authenticity_token'].forEach(name => {
-            currentWindow.querySelector(`[name = "${name}"]`)?.classList.add('protected');
-        });
-        currentWindow.querySelector('h3').innerHTML = 'Секретная страница';
-        const form = currentWindow.querySelector('form');
-        form.id = 'form';
-        const div = createElement('div');
-        div.innerHTML = 'На этой странице возможны чудеса)';
-        const searchInput = createElement('input', 'form-control', 'margin: 10px 0; padding: 5px;');
-        searchInput.placeholder = 'Поиск скриптов...';
         function hideorShowAll(toShow) {
-            document.querySelectorAll('.my-btn:not(.btn-info), .outside-collapsible').forEach(btn => btn.style.display = toShow ? 'inline-block' : 'none');
+            document.querySelectorAll('.my-btn:not(.btn-info), .outside-collapsible').forEach(
+                btn => btn.style.display = toShow ? 'inline-block' : 'none'
+            );
         }
         function showParentElements(node) {
             if (!node) return;
@@ -3411,6 +4265,24 @@ ${scriptContent}`;
                 elem.style.display = 'inline-block';
             })
         }
+
+        [
+            '.courses_lesson_pack_lesson_count',
+            '.courses_lesson_pack_price',
+            '.courses_lesson_pack_maternity_capital'
+        ].forEach(selector => {
+            currentWindow.querySelector(selector)?.remove();
+        });
+        ['utf8', 'authenticity_token'].forEach(name => {
+            currentWindow.querySelector(`[name = "${name}"]`)?.classList.add('protected');
+        });
+        currentWindow.querySelector('h3').innerHTML = 'Секретная страница';
+        const form = currentWindow.querySelector('form');
+        form.id = 'form';
+        const div = createElement('div');
+        div.innerHTML = 'На этой странице можно найти самые разные скрипты)';
+        const searchInput = createElement('input', 'form-control', 'margin: 10px 0; padding: 5px;');
+        searchInput.placeholder = 'Поиск скриптов...';
         searchInput.addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase();
             if (term) hideorShowAll(false);
@@ -3430,61 +4302,77 @@ ${scriptContent}`;
         originalButton.removeAttribute('data-disable-with');
         originalButton.style = 'display: none;';
         originalButton.classList.add('protected');
-        const adminSection = createCollapsibleSection(form, 'Коды для админов админки', 0);
-        const coursesSubsection = createCollapsibleSection(adminSection, 'Курсы / courses', 1);
-        const adminLessonsSubsection = createCollapsibleSection(adminSection, 'Программа / lessons', 1);
-        const groupsSubsection = createCollapsibleSection(adminSection, 'Расписание / groups', 1);
-        const teachersSubsection = createCollapsibleSection(adminSection, 'Преподаватели / teachers', 1);
-        const contentSection = createCollapsibleSection(form, 'Коды для админов контента', 0);
-        const contentLessonsSubsection = createCollapsibleSection(contentSection, 'Программа / lessons', 1);
-        const tasksSubsection = createCollapsibleSection(contentSection, 'Задачи / tasks', 1);
 
+        const sectionsStructure = [
+            {
+                title: 'Коды для админов админки',
+                key: 'admin',
+                children: [
+                    { title: 'Курсы / courses', key: 'adminCourses' },
+                    { title: 'Программа / lessons', key: 'adminLessons' },
+                    { title: 'Расписание / groups', key: 'groups' },
+                    { title: 'Календарь каникул / holidays_calendar', key: 'holidays' },
+                    { title: 'Преподаватели / teachers', key: 'teachers' },
+                    { title: 'Акции с промокодами / marketing/code_campaigns', key: 'codeCampaigns' },
+                    { title: 'Комплекты занятий / product_packs', key: 'productPacks' }
+                ]
+            },
+            {
+                title: 'Коды для админов контента',
+                key: 'content',
+                children: [
+                    { title: 'Курсы / courses', key: 'contentCourses' },
+                    { title: 'Программа / lessons', key: 'contentLessons' },
+                    { title: 'Задачи / tasks', key: 'tasks' },
+                    { title: 'Учебные программы / methodical_materials/programs', key: 'methodicalPrograms' }
+                ]
+            }
+        ];
         const SCRIPTS = {
-            REP: `let taskIds = splitString(\`392219
-391517
-391516\`);
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
+            REP: {
+                name: 'Проставление галки «Репетиторская»',
+                code: `let taskIds = splitString(\`
+000000
+000000
+000000
+\`);
+let win = await createWindow(-1);
 for (let taskId of taskIds) {
     log(taskId);
-    form.action = \`https://foxford.ru/admin/tasks/$\{taskId}\`;
-    const fields = {
+    let url = \`/admin/tasks/$\{taskId}\`;
+    let fields = {
         '_method': 'patch',
         'task[coach]': true,
-        'ctask[paper_trail_event]': 'minor_update'
+        'task[paper_trail_event]': 'minor_update'
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields);
 }`,
-            TARIFF: `const pairs = [
+                parent: 'tasks'
+            },
+            TARIFF: {
+                name: 'Добавление связанных продуктов в курсы',
+                code: `let pairs = [
     // [course_id, resource_id],
     [10609, 12480],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, resourceId] of pairs) {
-    log(\`$\{courseId} -> $\{resourceId}\`);
-    form.action = \`https://foxford.ru/admin/courses/$\{courseId}/connections/tariffs\`;
-    const fields = {
+let win = await createWindow(-1);
+for (let [courseId, resourceId] of pairs) {
+    log(\`$\{courseId} <- $\{resourceId}\`);
+    let url = \`/admin/courses/$\{courseId}/connections/tariffs\`;
+    let fields = {
         'courses_connection_tariff[resource_type]': 'ProductPack',
         'courses_connection_tariff[resource_id]': resourceId,
         'courses_connection_tariff[tariff_type]': 'premium',
-        'commit': 'Сохранить'
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields);
 }`,
-            TASK_INPUT: `let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-form.action = \`https://foxford.ru/admin/tasks\`;
-const fields = {
+                parent: 'adminCourses'
+            },
+            TASK_INPUT: {
+                name: 'Создать задачу (поле ввода)',
+                code: `let win = await createWindow(-1);
+let url = \`/admin/tasks\`;
+let fields = {
     'task[name]': 'Вопрос №1',
     'task[task_difficulty_id]': '8', // сложность 3
     'task[discipline_ids][]': ['3'], // физика
@@ -3495,14 +4383,14 @@ const fields = {
     // ответ
     'task[text_questions_attributes][0][text_answers_attributes][0][content]': '0' 
 };
-currentWindow.updateFormFields(form, fields);
-form.submit();
-await win.waitForSuccess();`,
-            TASK_SELF: `let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-form.action = \`https://foxford.ru/admin/tasks\`;
-const fields = {
+await win.postFormData(url, fields);`,
+                parent: 'tasks'
+            },
+            TASK_SELF: {
+                name: 'Создать задачу (самооценка)',
+                code: `let win = await createWindow(-1);
+let url = \`/admin/tasks\`;
+let fields = {
     'task[name]': 'Вопрос №1',
     'task[task_difficulty_id]': '8', // сложность 3 
     'task[discipline_ids][]': ['3'], // физика
@@ -3515,23 +4403,14 @@ const fields = {
     'task[self_rate_questions_attributes][0][self_rate_answers_attributes][1][content]': 'Ничего не верно',
     'task[self_rate_questions_attributes][0][self_rate_answers_attributes][1][correct_ratio]': '0'
 };
-for (const [name, value] of Object.entries(fields)) {
-    let input = form.querySelector(\`[name="$\{name}"]\`);
-    if (!input) {
-        input = createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        form.appendChild(input);
-    }
-    input.value = value;
-}
-form.submit();
-await win.waitForSuccess();`,
-            TASK_SET: `let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-form.action = \`https://foxford.ru/admin/tasks\`;
-const fields = {
+await win.postFormData(url, fields);`,
+                parent: 'tasks'
+            },
+            TASK_SET: {
+                name: 'Создать задачу (пересечение множеств)',
+                code: `let win = await createWindow(-1);
+let url = \`/admin/tasks\`;
+let fields = {
     'task[name]': 'Вопрос №1',
     'task[task_difficulty_id]': '8', // сложность 3
     'task[discipline_ids][]': ['3'], // физика
@@ -3549,11 +4428,17 @@ const fields = {
     'task[links_questions_attributes][0][linked_answers_attributes][3][content]': 'A4',
     'task[links_questions_attributes][0][linked_answers_attributes][3][simple_answer_attributes][content]': 'Б4',
 };
-currentWindow.updateFormFields(form, fields);
-form.submit();
-await win.waitForSuccess();`,
-            TEACHERS_EDIT: `const teachersData = {
+await win.postFormData(url, fields);`,
+                parent: 'tasks'
+            },
+            TEACHERS_EDIT: {
+                name: 'Отредактировать карточки преподавателей',
+                description: `Можно оставить только те поля, которые нужно изменить
+                    Можно добавлять другие поля из формы`,
+                code: `let teachersData = {
     2043: {
+        'teacher[last_name]': 'тестовна',
+        'teacher[first_name]': 'теста',
         'teacher[description]': 'Описание',
         'teacher[pdf_description]': 'Подробное описание',
         'teacher[short_description]': 'Короткое описание',
@@ -3561,175 +4446,238 @@ await win.waitForSuccess();`,
         'teacher[video_presentation_url]': 'https://test.ru',
     },
 };
-const basicFields = {
+let basicFields = {
     '_method': 'patch',
-    'commit': 'Сохранить',
 };
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const teacherId in teachersData) {
+let win = await createWindow(-1);
+for (let teacherId in teachersData) {
     log(teacherId);
-    form.action = \`https://foxford.ru/admin/teachers/$\{teacherId}\`;
-    const fields = Object.assign(teachersData[teacherId], basicFields)
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    let url = \`/admin/teachers/$\{teacherId}\`;
+    let fields = Object.assign({}, basicFields, teachersData[teacherId]);
+    await win.postFormData(url, fields);
 }`,
-            USERS_TEACHERS: `const usersTeachers = [
+                parent: 'teachers'
+            },
+            USERS_TEACHERS: {
+                name: 'Связать аккаунты агентов и карточки преподавателей',
+                code: `let userTeachers = [
     // [user_id, teacher_id],
     [12345678, 2043],
 ];
-const basicFields = {
+let basicFields = {
     '_method': 'patch',
-    'commit': 'Сохранить',
 };
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [userId, teacherId] of usersTeachers) {
+let win = await createWindow(-1);
+for (let [userId, teacherId] of userTeachers) {
     log(\`$\{userId} <- $\{teacherId}\`);
-    form.action = \`https://foxford.ru/admin/users/$\{userId}\`;
-    const customFields = {
-        'user[teacher_id]': teacherId
-    };
-    const fields = Object.assign(customFields, basicFields)
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    let url = \`/admin/users/$\{userId}\`;
+    let customFields = { 'user[teacher_id]': teacherId };
+    let fields = Object.assign({}, basicFields, customFields);
+    await win.postFormData(url, fields);
 }`,
-            TEACHERS_CREATE: `const teachersData = [
+                parent: 'teachers'
+            },
+            TEACHERS_CREATE: {
+                name: 'Создать карточки преподавателей',
+                code: `let teachersData = [
     'Фамилия1 Имя1',
     'Фамилия2 Имя2',
 ];
-const basicFields = {
-    'commit': 'Сохранить',
-}
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const teacherFullName of teachersData) {
+let win = await createWindow(-1);
+for (let teacherFullName of teachersData) {
     log(teacherFullName);
-    const [teacherLastName, teacherFirstName] = teacherFullName.trim().split(' ');
-    const customFields = {
+    let [teacherLastName, teacherFirstName] = teacherFullName.trim().split(' ');
+    let fields = {
         'teacher[last_name]': teacherLastName,
         'teacher[first_name]': teacherFirstName,
     };
-    form.action = \`https://foxford.ru/admin/teachers\`;
-    const fields = Object.assign(customFields, basicFields)
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    let url = \`/admin/teachers\`;
+    await win.postFormData(url, fields);
 }`,
-            LESSONS_FREE: `const pairs = [
+                parent: 'teachers'
+            },
+            LESSONS_FREE: {
+                name: 'Сделать уроки бесплатными',
+                code: `let pairs = [
     // [course_id, lesson_id],
     [10609, 293615],
     [10609, 308300],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, lessonId] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
     log(\`$\{courseId}, $\{lessonId}\`);
-    form.action = \`https://foxford.ru/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
-    const fields = {
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
         '_method': 'patch',
-        'lesson[free]': '1',
+        'lesson[free]': true,
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            LESSONS_REORDER: `// Урок перенесется на 10000 место
-const pairs = [
+                parent: 'adminLessons'
+            },
+            LESSONS_REORDER: {
+                name: 'Переместить уроки в конец курса (для удаления)',
+                description: 'Уроки перенесутся на 10000 место',
+                code: `let pairs = [
     // [course_id, lesson_id],
     [10609, 338032],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, lessonId] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
     log(\`$\{courseId}, $\{lessonId}\`);
-    form.action = \`https://foxford.ru/admin/courses/$\{courseId}/lessons/$\{lessonId}/reorder\`;
-    const fields = {
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}/reorder\`;
+    let fields = {
         'new_index': '10000',
         'reorganize_dates': 'false',
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await sleep(100);
-    await win.waitForLoad();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            LESSONS_DELETE: `// Должны быть будущей датой и желательно в конце курса 
-// (можно перенести в конец другим скриптом)
-const pairs = [
+                parent: 'adminLessons'
+            },
+            LESSONS_DELETE: {
+                name: 'Удалить уроки',
+                description: `Должны быть будущей датой и желательно в конце курса
+                    (можно перенести в конец другим скриптом)`,
+                code: `let pairs = [
     // [course_id, lesson_id],
     [10609, 338032],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, lessonId] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
     log(\`$\{courseId}, $\{lessonId}\`);
-    form.action = \`https://foxford.ru/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
-    const fields = {
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
         '_method': 'delete',
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields);
 }`,
-            LESSONS_VIDEO: `const pairs = [
+                parent: 'adminLessons'
+            },
+            LESSONS_DELETE_SOFT: {
+                name: '«Удалить» неудаляемый урок',
+                description: 'Переведите все параллели этого занятия в finished/шлак заранее',
+                code: `let pairs = [
+    // [course_id, lesson_id],
+    [10609, 500859],
+];
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
+        '_method': 'patch',
+        'lesson[course_id]': '9118',
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+                parent: 'adminLessons'
+            },
+            LESSONS_VIDEO: {
+                name: 'Подгрузить ролики в уроки ПК/видео',
+                code: `let pairs = [
     // [course_id, lesson_id, video_url],
     [10609, 334928, 'https://kinescope.io/u53tsTBCQNZDaNCMuJHK11111N'],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [courseId, lessonId, videoUrl] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId, videoUrl] of pairs) {
     log(\`$\{courseId}, $\{lessonId} <- $\{videoUrl}\`);
-    form.action = \`https://foxford.ru/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
-    const fields = {
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
         '_method': 'patch',
         'lesson[video_url]': videoUrl,
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
-            RESET_SCHEDULE: `// Получить данные можно из отчета 
-// https://metabase.foxford.ru/question/46579
-const pairs = [
-    // [group_template_id, from_lesson_number, start_from_date],
-    [28917, 1, '08.09.2025'],
-    [28965, 1, '01.09.2025'],
+                parent: 'contentLessons'
+            },
+            LESSONS_DESCRIPTION: {
+                name: 'Поменять описания уроков',
+                code: `// ${METABASE_URL}/question/46496?course=10609
+let pairs = [
+    // [course_id, lesson_id, description],
+    [10609, 334874, \`Описание урока\`],
 ];
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-for (const [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
+let win = await createWindow(-1);
+for (let [courseId, lessonId, lessonName] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
+        '_method': 'patch',
+        'lesson[themes_as_text]': lessonName,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+                parent: 'adminLessons'
+            },
+            LESSONS_PREPARATION_LINKS: {
+                name: 'Добавление ссылки в подготовительные материалы',
+                code: `// ${METABASE_URL}/question/46496?course=10609
+let lessonIds = splitString(\`
+000000
+000000
+000000
+\`);
+let linkName = 'Ссылка на распечатки';
+let linkUrl = 'https://foxford.yonote.ru/share/fedaa471-6cc8-4923-a50f-dd28a919c266/doc/matematika-mi-moro-Tk8Le2S5ar';
+let win = await createWindow(-1);
+for (let lessonId of lessonIds) {
+    log(lessonId);
+    let url = \`https://foxford.ru/admin/lessons/$\{lessonId}/preparation_materials\`;
+    let fields = {
+        '_method': 'patch',
+        'lesson[material_links_attributes][0][name]': linkName,
+        'lesson[material_links_attributes][0][url]': linkUrl,
+    };
+    await win.postFormData(url, fields);
+}`,
+                parent: 'contentLessons'
+            },
+            GROUP_CHANGE_DATES: {
+                name: 'Изменить даты начала занятий',
+                description: `в курсах с асинхронным доступом сохраняет статус finished
+                    можно поставить только будущую дату`,
+                code: `// ${METABASE_URL}/question/49703?course=10609
+let pairs = [
+    // [course_id, group_id, starts_at]
+    [10609, 734410, '01.10.2026 10:00'],
+];
+let win = await createWindow(-1);
+for (let [courseId, groupId, startsAt] of pairs) {
+    log(\`$\{courseId} -> $\{groupId}, $\{startsAt}\`);
+    let url = \`/admin/courses/$\{courseId}/groups/$\{groupId}\`;
+    let fields = {
+        '_method': 'patch',
+        'group[starts_at]': startsAt,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+                parent: 'groups'
+            },
+            RESET_SCHEDULE: {
+                name: 'Перестроить параллели',
+                code: `// ${METABASE_URL}/question/46579
+let pairs = [
+    // [group_template_id, from_lesson_number, start_from_date],
+    [18068,132,'04.09.2026'],
+    [26074,74,'07.09.2026'],
+];
+let win = await createWindow(-1);
+for (let [groupTemplateId, fromLessonNumber, startFromDate] of pairs) {
     log(\`$\{groupTemplateId}, $\{fromLessonNumber} <- $\{startFromDate}\`);
-    form.action = \`https://foxford.ru/admin/group_templates/$\{groupTemplateId}/reset_schedule\`;
-    const fields = {
-        'commit': 'Перестроить',
+    let url = \`/admin/group_templates/$\{groupTemplateId}/reset_schedule\`;
+    let fields = {
         'from_lesson_number': fromLessonNumber,
         'start_from_date': startFromDate
     };
-    currentWindow.updateFormFields(form, fields);
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, fields);
 }`,
-            GROUP_TEMPLATES_EDIT: `// данные можно взять из таблицы
-// https://disk.360.yandex.ru/i/MPt5jaaU-LXpDw
-const templatesData = [
+                parent: 'groups'
+            },
+            GROUP_TEMPLATES_EDIT: {
+                name: 'Изменить настройки параллели',
+                code: `// https://disk.360.yandex.ru/i/MPt5jaaU-LXpDw
+let templatesData = [
+    // заменить на нужные данные в формате
     // {
     //     'course_id': 10609,
     //     'group_template_id': 18068,
@@ -3743,23 +4691,20 @@ const templatesData = [
     //     'destroy_info': ['(1,08:00)', '(3,05:00)'],
     //     'location':[5, 1, 27]
     // },
-
+    
 ];
-const basicFields = {
+let basicFields = {
     '_method': 'patch',
-    'commit': 'Сохранить',
     'reset_schedule_reason': 'other',
-    'group_template[schedule_hidden]': '0'
+    'group_template[schedule_hidden]': false,
 };
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
+let win = await createWindow(-1);
 
 function normalizeTime(timeStr) { // убираем секунды и добавляем ведущий 0
     return timeStr.split(':').slice(0, 2).join(':').replace(/^(\d{1}):/, '0$1:');
 }
 function parseDestroyInfo(str) {
-    const match = str.match(/\\((\\d+),(\\d{1,2}:\\d{2})(:\\d{2})?\\)/);
+    let match = str.match(/\\((\\d+),(\\d{1,2}:\\d{2})(:\\d{2})?\\)/);
     if (!match) return null;
     return {
         day: parseInt(match[1]),
@@ -3767,12 +4712,12 @@ function parseDestroyInfo(str) {
     };
 }
 function add3HoursWithDay(day, timeStr) {
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    let [hours, minutes] = timeStr.split(':').map(Number);
     let totalMinutes = hours * 60 + minutes + 180;
     let daysToAdd = Math.floor(totalMinutes / (24 * 60));
     totalMinutes %= 24 * 60;
-    const newHours = Math.floor(totalMinutes / 60);
-    const newMinutes = totalMinutes % 60;
+    let newHours = Math.floor(totalMinutes / 60);
+    let newMinutes = totalMinutes % 60;
     let newDay = (day + daysToAdd) % 7;
     return {
         day: newDay,
@@ -3780,28 +4725,29 @@ function add3HoursWithDay(day, timeStr) {
     };
 }
 
-for (const templateData of templatesData) {
+for (let templateData of templatesData) {
     log(\`$\{templateData.course_id}, $\{templateData.group_template_id}\`);
-    form.action = \`https://foxford.ru/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
-    const slotsMap = new Map();
+    let url = 
+        \`/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
+    let slotsMap = new Map();
     if (templateData.week_day_slots) {
         for (let i = 0; i < templateData.week_day_slots.length; i++) {
-            const day = templateData.week_day_slots[i];
-            const time = normalizeTime(
+            let day = templateData.week_day_slots[i];
+            let time = normalizeTime(
                 templateData.time_slots[Math.min(i, templateData.time_slots.length - 1)]
             );
-            const key = \`$\{day}-$\{time}\`;
+            let key = \`$\{day}-$\{time}\`;
             slotsMap.set(key, { type: 'active', day, time });
         }
     }
-    const destroySlots = [];
+    let destroySlots = [];
     if (templateData.destroy && templateData.destroy_info) {
         for (let i = 0; i < templateData.destroy.length; i++) {
-            const id = templateData.destroy[i];
-            const info = parseDestroyInfo(templateData.destroy_info[i]);
+            let id = templateData.destroy[i];
+            let info = parseDestroyInfo(templateData.destroy_info[i]);
             if (!info) continue;
-            const adjusted = add3HoursWithDay(info.day, info.time);
-            const key = \`$\{adjusted.day}-$\{adjusted.time}\`;
+            let adjusted = add3HoursWithDay(info.day, info.time);
+            let key = \`$\{adjusted.day}-$\{adjusted.time}\`;
             if (slotsMap.has(key)) {
                 slotsMap.get(key).id = id;
             } else {
@@ -3809,9 +4755,9 @@ for (const templateData of templatesData) {
             }
         }
     }
-    const dynamicFields = {};
+    let dynamicFields = {};
     let slotIndex = 0;
-    for (const [key, slot] of slotsMap.entries()) {
+    for (let [key, slot] of slotsMap.entries()) {
         dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][slot][week_day]\`] = slot.day;
         dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][slot][time]\`] = slot.time;
         if (slot.id) { // если слот с таким временем уже есть, сохраняем его через id
@@ -3819,32 +4765,26 @@ for (const templateData of templatesData) {
         }
         slotIndex++;
     }
-    for (const slot of destroySlots) {
+    for (let slot of destroySlots) {
         dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][_destroy]\`] = '1';
         dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][id]\`] = slot.id;
         slotIndex++;
     }
     if (templateData.destroy && !templateData.destroy_info) {
-        for (const id of templateData.destroy) {
+        for (let id of templateData.destroy) {
             dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][_destroy]\`] = '1';
             dynamicFields[\`group_template[week_days_attributes][$\{slotIndex}][id]\`] = id;
             slotIndex++;
         }
     }
-    if (templateData.starts_at) {
-        dynamicFields['group_template[starts_at]'] = templateData.starts_at;
-    }
-    if (templateData.teacher_id) {
-        dynamicFields['group_template[teacher_id]'] = templateData.teacher_id;
-    }
-    if (templateData.agent_id) {
-        dynamicFields['group_template[agent_id]'] = templateData.agent_id;
-    }
-    if (templateData.users_limit) {
-        dynamicFields['group_template[users_limit]'] = templateData.users_limit;
+    let params = ['starts_at', 'teacher_id', 'agent_id', 'users_limit'];
+    for (let param of params) {
+        if (templateData[param]) {
+            dynamicFields[\`group_template[$\{param}]\`] = templateData[param];
+        }
     }
     if (templateData.location) {
-        const locationFields = {
+        let locationFields = {
             0: 'group_template[default_location_id]',
             1: 'group_template[default_format_id]',
             2: 'group_template[default_studio_id]',
@@ -3856,55 +4796,46 @@ for (const templateData of templatesData) {
             }
         }
     }
-    currentWindow.updateFormFields(form, Object.assign(dynamicFields, basicFields));
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
+    await win.postFormData(url, Object.assign({}, basicFields, dynamicFields));
 }`,
-            LOCATION_EDIT: `// в настройках параллели и всех занятиях, соответствующих определенному слоту
-// данные можно взять из таблицы
-// https://disk.360.yandex.ru/i/CFYefGrjHdfGIg
-// https://metabase.foxford.ru/question/47547?teacher_id=2363&school_year=2025
-const templatesData = [
+                parent: 'groups'
+            },
+            LOCATION_EDIT: {
+                name: 'Изменить локации',
+                description: 'в настройках параллели и всех занятиях, соответствующих определенному слоту',
+                code: `// https://disk.360.yandex.ru/i/CFYefGrjHdfGIg
+// ${METABASE_URL}/question/47547?teacher_id=2363&school_year=2025
+let templatesData = [
     // вставить из таблицы
-    { 'course_id': 10609, 'group_template_id': 18068, 'slot_id': 39461, 'location': [5, 1, 27] },
+    { 'course_id': 10609, 'group_template_id': 26074, 'slot_id': 44141, 'location': [5, 1, 27] },
 
 ];
-const basicFieldsTemplate = {
+let basicFieldsTemplate = {
     '_method': 'patch',
-    'commit': 'Сохранить',
     'reset_schedule_reason': 'other',
-    'group_template[schedule_hidden]': '0'
+    'group_template[schedule_hidden]': false,
 };
-const basicFieldsDev = {
-    '_method': 'put',
-    'commit': 'Сохранить'
+let basicFieldsDev = {
+    '_method': 'put'
 }
-let win = await createWindow('adminka123');
-let form = currentWindow.querySelector('form');
-form.target = "adminka123";
-const locationFields = {
+let win = await createWindow(-1);
+let locationFields = {
     0: 'location_id',
     1: 'format_id',
     2: 'studio_id',
     3: 'admin_id'
 };
-
-for (const templateData of templatesData) {
+for (let templateData of templatesData) {
     log(\`Курс $\{templateData.course_id}, параллель $\{templateData.group_template_id}\`);
     if (templateData.slot_id) log(\`Слот $\{templateData.slot_id}\`); 
-    form.action = \`/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
-    const dynamicFieldsTemplate = {};
+    let urlTemplate = \`/admin/courses/$\{templateData.course_id}/group_templates/$\{templateData.group_template_id}\`;
+    let dynamicFieldsTemplate = {};
     for (let i = 0; i < templateData.location.length; i++) {
         dynamicFieldsTemplate[\`group_template[default_$\{locationFields[i]}]\`] = templateData.location[i];
     }
-    currentWindow.updateFormFields(form, Object.assign(dynamicFieldsTemplate, basicFieldsTemplate));
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
-    await sleep(100);
-    form.action = '/admin/dev_services/week_day_webinars_settings';
-    const dynamicFieldsDev = {
+    await win.postFormData(urlTemplate, Object.assign({}, basicFieldsTemplate, dynamicFieldsTemplate));
+    let urlDev = '/admin/dev_services/week_day_webinars_settings';
+    let dynamicFieldsDev = {
         'week_day_webinars_settings[group_template_id]': templateData.group_template_id
     };
     if (templateData.slot_id) {
@@ -3916,28 +4847,283 @@ for (const templateData of templatesData) {
     for (let i = 0; i < templateData.location.length; i++) {
         dynamicFieldsDev[\`week_day_webinars_settings[$\{locationFields[i]}]\`] = templateData.location[i];
     }
-    currentWindow.updateFormFields(form, Object.assign(dynamicFieldsDev, basicFieldsDev));
-    form.submit();
-    await win.waitForSuccess();
-    await win.openPage('about:blank');
-    await sleep(100);
-}`
+    await win.postFormData(urlDev, Object.assign({}, basicFieldsDev, dynamicFieldsDev));
+}`,
+                parent: 'groups'
+            },
+            UP_DUPLICATE: {
+                name: 'Скопировать материалы между УП',
+                description: 'Указать true или false для каждого материала',
+                code: `let sourceId = 733; // ID УП откуда
+let targetId = 1162; // ID УП куда
+let settings = {
+    'Модули + уроки': true,
+    'Задачи': true,
+    'Рекомендованность к ДЗ': true,
+    'Рекомендации (методические)': true,
+    'Презентации': true,
+    'Файлы (методические)': true,
+    'Рекомендации (подготовительные)': true,
+    'Ссылки': true,
+    'Файлы (подготовительные)': true
+};
+let virtualWindow = await createWindow(-1);
+let hasConstraint = false;
+
+function getBlockLinks(virtualWindow) { return getTableLinks(virtualWindow, '.methodical_materials_blocks_table'); }
+async function getBlocks(virtualWindow) {
+    let blocks = [];
+    let blockLinks = getBlockLinks(virtualWindow);
+    for (let blockLink of blockLinks) {
+        await virtualWindow.openPage(blockLink);
+        blocks.push({
+            link: blockLink, name: virtualWindow.getElementValue('#methodical_materials_block_name'),
+            unitLinks: getTableLinks(virtualWindow), unitNames: getTableTexts(virtualWindow),
+        });
+    }
+    return blocks;
+}
+
+log('-- Ищу уроки в первой УП --');
+await virtualWindow.openPage(\`/admin/methodical_materials/programs/$\{sourceId}/edit\`);
+let sourceBlocks = await getBlocks(virtualWindow);
+log('-- Ищу модули во второй УП --');
+await virtualWindow.openPage(\`/admin/methodical_materials/programs/$\{targetId}/edit\`);
+let targetBlockLinks = getBlockLinks(virtualWindow);
+/****************************************************************/
+if (settings['Модули + уроки']) {
+    if (targetBlockLinks.length != 0) { displayLog('УП не пустой, создание уроков невозможно', 'warning'); }
+    else {
+        log('-- Создаю модули --');
+        for (let block of sourceBlocks) {
+            await virtualWindow.postFormData(
+                \`/admin/methodical_materials/programs/$\{targetId}/blocks\`,
+                { 'methodical_materials_block[name]': block.name }
+            );
         }
-        createActionButton(tasksSubsection, 'Проставление галки «Репетиторская»', SCRIPTS.REP);
-        createActionButton(coursesSubsection, 'Добавление связанных продуктов в курсы', SCRIPTS.TARIFF);
-        createActionButton(tasksSubsection, 'Создать задачу (поле ввода)', SCRIPTS.TASK_INPUT);
-        createActionButton(tasksSubsection, 'Создать задачу (самооценка)', SCRIPTS.TASK_SELF);
-        createActionButton(tasksSubsection, 'Создать задачу (пересечение множеств)', SCRIPTS.TASK_SET);
-        createActionButton(teachersSubsection, 'Поправить карточки преподавателей', SCRIPTS.TEACHERS_EDIT);
-        createActionButton(teachersSubsection, 'Связать аккаунты агентов и карточки преподавателей', SCRIPTS.USERS_TEACHERS);
-        createActionButton(teachersSubsection, 'Создать карточки преподавателей', SCRIPTS.TEACHERS_CREATE);
-        createActionButton(adminLessonsSubsection, 'Сделать уроки бесплатными', SCRIPTS.LESSONS_FREE);
-        createActionButton(adminLessonsSubsection, 'Переместить уроки в конец курса (для удаления)', SCRIPTS.LESSONS_REORDER);
-        createActionButton(adminLessonsSubsection, 'Удалить уроки', SCRIPTS.LESSONS_DELETE);
-        createActionButton(contentLessonsSubsection, 'Подгрузить ролики в уроки ПК/видео', SCRIPTS.LESSONS_VIDEO);
-        createActionButton(groupsSubsection, 'Перестроить параллели', SCRIPTS.RESET_SCHEDULE);
-        createActionButton(groupsSubsection, 'Изменить настройки параллели', SCRIPTS.GROUP_TEMPLATES_EDIT);
-        createActionButton(groupsSubsection, 'Изменить локации', SCRIPTS.LOCATION_EDIT);
+        await virtualWindow.openPage(\`/admin/methodical_materials/programs/$\{targetId}/edit\`);
+        targetBlockLinks = getBlockLinks(virtualWindow);
+        /****************************************************************/
+        if (targetBlockLinks.length != sourceBlocks.length) { log('Создались не все модули, что-то пошло не так)'); }
+        else {
+            log('-- Создаю уроки --');
+            for (let blockInd = 0; blockInd < sourceBlocks.length; blockInd++) {
+                let sourceBlock = sourceBlocks[blockInd];
+                let targetBlockLink = targetBlockLinks[blockInd];
+                for (let linkInd = 0; linkInd < sourceBlock.unitLinks.length; linkInd++) {
+                    let unitName = sourceBlock.unitNames[linkInd];
+                    let createUnitLink = targetBlockLink.replace(/\\/programs\\/\\d+(\\/blocks\\/\\d+)\\/edit$/, '$1/units');
+                    await virtualWindow.postFormData(createUnitLink, { 'methodical_materials_unit[name]': unitName });
+                }
+            }
+        }
+    }
+}
+/****************************************************************/
+await virtualWindow.openPage(\`/admin/methodical_materials/programs/$\{targetId}/edit\`);
+let targetBlocks = await getBlocks(virtualWindow);
+if (sourceBlocks.length != targetBlocks.length) {
+    displayLog('Количество модулей не совпадает, выполнение скрипта невозможно', 'danger');
+    hasConstraint = true;
+}
+else {
+    for (let blockInd = 0; blockInd < sourceBlocks.length; blockInd++) {
+        if (sourceBlocks[blockInd].unitLinks.length != targetBlocks[blockInd].unitLinks.length) {
+            displayLog(
+                \`Количество уроков в модуле $\{blockInd + 1} не совпадает, выполнение скрипта невозможно\`, 'danger'
+            );
+            hasConstraint = true;
+            break;
+        }
+    }
+}
+/****************************************************************/
+if (!hasConstraint) {
+    log('-- Начинаю обработку --');
+    for (let blockInd = 0; blockInd < sourceBlocks.length; blockInd++) {
+        for (let unitInd = 0; unitInd < sourceBlocks[blockInd].unitLinks.length; unitInd++) {
+            let sourceUnitLink = sourceBlocks[blockInd].unitLinks[unitInd];
+            let targetUnitLink = targetBlocks[blockInd].unitLinks[unitInd];
+            log(\`$\{sourceUnitLink} -> $\{targetUnitLink}\`);
+            await copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnitLink, settings);
+        }
+    }
+}`,
+                parent: 'methodicalPrograms'
+            },
+            UP_MODULES_DUPLICATE: {
+                name: 'Скопировать материалы между модулями УП',
+                description: 'Указать true или false для каждого материала',
+                code: `let sourceIds = [733, 3101]; // [ID УП, ID модуля] откуда
+let targetIds = [1162, 4083]; // [ID УП, ID модуля] куда
+let settings = {
+    'Уроки': true,
+    'Задачи': true,
+    'Рекомендованность к ДЗ': true,
+    'Рекомендации (методические)': true,
+    'Презентации': true,
+    'Файлы (методические)': true,
+    'Рекомендации (подготовительные)': true,
+    'Ссылки': true,
+    'Файлы (подготовительные)': true
+};
+let virtualWindow = await createWindow(-1);
+
+async function getBlock(virtualWindow, programId, blockId) {
+    let blockLink = \`/admin/methodical_materials/programs/$\{programId}/blocks/$\{blockId}/edit\`;
+    await virtualWindow.openPage(blockLink);
+    return {
+        link: blockLink, name: virtualWindow.getElementValue('#methodical_materials_block_name'),
+        unitLinks: getTableLinks(virtualWindow), unitNames: getTableTexts(virtualWindow)
+    };
+}
+
+log('-- Получаю данные исходного модуля --');
+let sourceBlock = await getBlock(virtualWindow, sourceIds[0], sourceIds[1]);
+log('-- Получаю данные целевого модуля --');
+let targetBlock = await getBlock(virtualWindow, targetIds[0], targetIds[1]);
+/****************************************************************/
+if (settings['Уроки'] && targetBlock.unitLinks.length === 0) {
+    log('-- Создаю уроки в целевом модуле --');
+    for (let unitName of sourceBlock.unitNames) {
+        let createUnitLink = targetBlock.link.replace(/\\/programs\\/\\d+(\\/blocks\\/\\d+)\\/edit$/, '$1/units');
+        await virtualWindow.postFormData(createUnitLink, { 'methodical_materials_unit[name]': unitName });
+    }
+    targetBlock = await getBlock(virtualWindow, targetIds[0], targetIds[1]);
+}
+/****************************************************************/
+if (sourceBlock.unitLinks.length !== targetBlock.unitLinks.length) {
+    displayLog(\`Количество уроков не совпадает. Выполнение скрипта невозможно\`, 'danger');
+}
+else {
+    log('-- Начинаю обработку --');
+    for (let unitInd = 0; unitInd < sourceBlock.unitLinks.length; unitInd++) {
+        let sourceUnitLink = sourceBlock.unitLinks[unitInd];
+        let targetUnitLink = targetBlock.unitLinks[unitInd];
+        log(\`Обрабатываю урок $\{unitInd + 1}: $\{sourceUnitLink} -> $\{targetUnitLink}\`);
+        await copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnitLink, settings);
+    }
+}`,
+                parent: 'methodicalPrograms'
+            },
+            UP_TAGING: {
+                name: 'Тегирование УП',
+                code: `// Выгрузить тегирование из курса:
+// ${METABASE_URL}/question/48991
+let methodicalProgramId = 738; // ID УП
+let resultIds = splitString(\`
+8219
+8249
+8252
+\`);
+let win = await createWindow(-1);
+for (let resultId of resultIds) {
+    log(resultId);
+    let url = \`/admin/methodical_materials/programs/$\{methodicalProgramId}/rubricator_results\`;
+    let fields = {
+        'result_id': resultId,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+                parent: 'methodicalPrograms'
+            },
+            COURSE_TAGING: {
+                name: 'Тегирование курсов',
+                code: `// Выгрузить тегирование из курса:
+// ${METABASE_URL}/question/48991
+let courseId = 10609; // ID курса куда переносим
+let resultIds = splitString(\`
+8219
+8249
+8252
+\`);
+let win = await createWindow(-1);
+for (let resultId of resultIds) {
+    log(resultId);
+    let url = \`/admin/courses/$\{courseId}/rubricator_results\`;
+    let fields = {
+        'result_id': resultId,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+                parent: 'contentCourses'
+            },
+            PROMO_CODE_DELETE: {
+                name: 'Удалить промокоды',
+                code: `// ${METABASE_URL}/question/49702?code_campaign_id=33050
+let promoIds = splitString(\`
+23982547
+23982626
+\`);
+let codeCampaignId = 33050; 
+let win = await createWindow(-1);
+for (let promoId of promoIds) {
+    log(\`$\{codeCampaignId}, $\{promoId}\`);
+    let url = \`https://foxford.ru/admin/marketing/code_campaigns/$\{codeCampaignId}/promo_codes/$\{promoId}\`;
+    let fields = {
+        '_method': 'delete',
+    };
+    await win.postFormData(url, fields);
+}`,
+                parent: 'codeCampaigns'
+            },
+            PRODUCT_PACK_APPEND_COURSES: {
+                name: 'Привязка курсов к пакам',
+                description: `укажите accessType: premium или standard для паков;
+                    specific_date_premium или specific_date_standard для подписок`,
+                code: `let accessType = 'premium';
+const productPackData = {
+    // productPackId : [courseId, courseId, ...],
+    8593: [10609, 15005, 12345, 12346],
+    12527: splitString(\`10609 15005\`),
+};
+let fields = {
+    '_method': 'post',
+};
+let win = await createWindow(-1);
+for (let productPackId in productPackData) {
+    for (let courseId of productPackData[productPackId]) {
+        log(\`$\{productPackId} <- $\{courseId}\`);
+        let url = \`/admin/product_packs/$\{productPackId}/product_pack_items?\` +
+            \`product_pack_item%5Baccess_name%5D=$\{accessType}&product_pack_item%5Bresource_id%5D=$\{courseId}\` +
+            \`&product_pack_item%5Bresource_type%5D=Course\`;
+        await win.postFormData(url, fields);
+    }
+}`,
+                parent: 'productPacks'
+            },
+            HOLIDAYS_DSH_1_8: {
+                name: 'Проставление каникул ДШ 1-8 кл. (2025-2026)',
+                code: `let courseIds = splitString(\`
+10609
+\`);
+let win = await createWindow(-1);
+for (let courseId of courseIds) {
+    log(courseId);
+    let url = \`/admin/courses/$\{courseId}/holidays_calendar\`;
+    let fields = {
+        '_method': 'patch',
+        'holidays[]': [
+            '2025-10-06 — 2025-10-10',
+            '2025-11-03 — 2025-11-04',
+            '2025-11-17 — 2025-11-21',
+            '2025-12-29 — 2026-01-09',
+            '2026-02-23 — 2026-02-27',
+            '2026-03-09 — 2026-03-09',
+            '2026-04-06 — 2026-04-10',
+            '2026-05-01 — 2026-05-01',
+        ]
+    }
+    await win.postFormData(url, fields);
+}`,
+                parent: 'holidays'
+            }
+        }
+        sections = buildSectionsRecursive(form, sectionsStructure);
+        for (let key in SCRIPTS) {
+            createActionButton(SCRIPTS[key], key);
+        }
+
         currentWindow.addStyle(`
         .collapsible {
             background-color: #eef;
@@ -3975,7 +5161,7 @@ for (const templateData of templatesData) {
         loopButton.href = 'https://foxford.loop.ru/foxford/channels/c04um2g2h6e';
         yonoteButton.href = 'https://foxford.yonote.ru/doc/adminy-uchebnoj-platformy-WH5s3sfbLA';
         fvsButton.href = 'https://next.fvs.foxford.ru/id/hub';
-        foxButton.href = 'https://foxford.ru/admin/courses/15005/lesson_packs/new';
+        foxButton.href = '/admin/courses/15005/lesson_packs/new';
         loopButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287601/loop.png';
         yonoteButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287609/yonote.png';
         fvsButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287608/fvs.png';
@@ -3983,7 +5169,11 @@ for (const templateData of templatesData) {
         mainPage.appendChild(yonoteButton);
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
-        mainPage.querySelector('p').innerHTML += '<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.60 от 14 августа 2025)<br>Примеры скриптов можно посмотреть <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a><br><a href="https://foxford.ru/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>';
+        mainPage.querySelector('p').innerHTML +=
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.85 от 14 октября 2025)
+            <br>Примеры скриптов можно посмотреть 
+            <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
+            <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
         currentWindow.log('Страница модифицирована');
     }
     await fillFormFromSearchParams();
