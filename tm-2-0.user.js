@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.84
+// @version      0.2.0.85
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -169,7 +169,10 @@ class ManagedWindow {
         if (hasFiles) {
             const formData = new FormData();
             for (const [name, value] of Object.entries(allFields)) {
-                if (!fileFields.includes(name)) formData.append(name, value);
+                if (!fileFields.includes(name)) {
+                    if (Array.isArray(value)) value.forEach(v => formData.append(name, v));
+                    else formData.append(name, value);
+                }
             }
             for (const fieldName of fileFields) {
                 if (fields[fieldName]) {
@@ -188,7 +191,12 @@ class ManagedWindow {
             }
             body = formData;
         } else {
-            body = new URLSearchParams(allFields);
+            let urlParams = new URLSearchParams();
+            for (const [name, value] of Object.entries(allFields)) {
+                if (Array.isArray(value)) value.forEach(v => urlParams.append(name, v));
+                else urlParams.append(name, value);
+            }
+            body = urlParams;
             if (!headers['Content-Type']) headers['Content-Type'] = 'application/x-www-form-urlencoded';
         }
         await this.openPage(url, { method: 'POST', headers: headers, body: body });
@@ -4303,6 +4311,7 @@ displayLog('Готово! Проверьте данные и сохраните'
                     { title: 'Курсы / courses', key: 'adminCourses' },
                     { title: 'Программа / lessons', key: 'adminLessons' },
                     { title: 'Расписание / groups', key: 'groups' },
+                    { title: 'Календарь каникул / holidays_calendar', key: 'holidays' },
                     { title: 'Преподаватели / teachers', key: 'teachers' },
                     { title: 'Акции с промокодами / marketing/code_campaigns', key: 'codeCampaigns' },
                     { title: 'Комплекты занятий / product_packs', key: 'productPacks' }
@@ -5083,6 +5092,32 @@ for (let productPackId in productPackData) {
 }`,
                 parent: 'productPacks'
             },
+            HOLIDAYS_DSH_1_8: {
+                name: 'Проставление каникул ДШ 1-8 кл. (2025-2026)',
+                code: `let courseIds = splitString(\`
+10609
+\`);
+let win = await createWindow(-1);
+for (let courseId of courseIds) {
+    log(courseId);
+    let url = \`/admin/courses/$\{courseId}/holidays_calendar\`;
+    let fields = {
+        '_method': 'patch',
+        'holidays[]': [
+            '2025-10-06 — 2025-10-10',
+            '2025-11-03 — 2025-11-04',
+            '2025-11-17 — 2025-11-21',
+            '2025-12-29 — 2026-01-09',
+            '2026-02-23 — 2026-02-27',
+            '2026-03-09 — 2026-03-09',
+            '2026-04-06 — 2026-04-10',
+            '2026-05-01 — 2026-05-01',
+        ]
+    }
+    await win.postFormData(url, fields);
+}`,
+                parent: 'holidays'
+            }
         }
         sections = buildSectionsRecursive(form, sectionsStructure);
         for (let key in SCRIPTS) {
@@ -5135,7 +5170,7 @@ for (let productPackId in productPackData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.84 от 13 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.85 от 14 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
