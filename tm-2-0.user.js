@@ -1239,6 +1239,7 @@ const pagePatterns = {
         }
     }
     currentWindow.body.firstChild.className += ' loaded';
+    currentWindow.body.firstChild.id = 'js-console';
 
     /************************* Обучение - курсы *************************/
 
