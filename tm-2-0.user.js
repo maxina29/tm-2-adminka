@@ -2829,7 +2829,7 @@ const pagePatterns = {
             async function handleButtonClick({ target }) {
                 const location = target.dataset.location;
                 const locationId = JSON.parse(target.dataset.locationId);
-                const groupId = getGroupId();
+                const groupTemplateId = getGroupTemplateId();
 
                 if (!groupTemplateId) {
                     alert('Не удалось получить ID параллели!');
@@ -2841,7 +2841,7 @@ const pagePatterns = {
                 await changeGroupTemplateLocations(location, locationId);
             }
 
-            async function changeGroupLocations(location, locationId) {
+            async function changeGroupTemplateLocations(location, locationId) {
                 currentWindow.querySelector('[id^="location_selector_"][name="group_template[default_location_id]"]').value = locationId[0];
                 currentWindow.querySelector('[id^="format_selector_"][name="group_template[default_format_id]"]').value = locationId[1];
                 await sleep(1500);
