@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.87
+// @version      0.2.0.88
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -5126,7 +5126,38 @@ for (let courseId of courseIds) {
     await win.postFormData(url, fields);
 }`,
                 parent: 'holidays'
-            }
+            },
+            ADD_LESSONS: {
+                name: 'Добавить одинаковые уроки в курсы',
+                description: 'Не более 30 занятий за один запуск скрипта',
+                code: `let courseIds = splitString(\`
+10609
+15005
+\`);
+let lessonCount = 1; // количество добавляемых занятий в каждый курс
+let lessonName = 'Название занятия';
+let lessonDescription = \`Описание занятия\`;
+let lessonFree = true; // true - занятие бесплатное, false - платное
+let lessonTest = false // true - занятие без вебинара, false - обычное
+let lessonType = 'regular'; // 'Нулевое': 'zero', 'Обычное': 'regular', 'Тест': 'training', 'Видео': 'video', 
+// 'Пробный экзамен': 'exam_rehearsal', 'Только задачи': 'only_tasks', 'Перевёрнутое': 'flipped'
+let win = await createWindow(-1);
+for (let courseId of courseIds) {
+    log(\`$\{courseId}\`);
+    let url = \`/admin/courses/$\{courseId}/lessons\`;
+    let fields = {
+        'lesson[course_id]': courseId,
+        'lesson[name]': lessonName,
+        'lesson[themes_as_text]': lessonDescription,
+        'lesson[free]': lessonFree,
+        'lesson[test]': lessonTest,
+        'lesson[lesson_type]': lessonType,
+        'new_lesson_count': lessonCount,
+    };
+    await win.postFormData(url, fields);
+}`,
+                parent: 'adminLessons'
+            },
         }
         sections = buildSectionsRecursive(form, sectionsStructure);
         for (let key in SCRIPTS) {
@@ -5179,7 +5210,7 @@ for (let courseId of courseIds) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.87 от 14 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.88 от 15 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
