@@ -11,9 +11,9 @@
 // ==/UserScript==
 
 const NO_LIVE_TEACHER_IDS = [2169, 2014, 1932, 1100, 1769, 1655, 1196, 2397, 2398, 557, 2399, 2401, 1571, 1387, 1875];
-const CANCEL_GALINA_ID = 2363;
 const MINI_GROUPS_TEACHER_ID = 1361;
-const TRAINIG_COURSE_TEACHER_ID = 1100;
+const TRAINING_COURSE_TEACHER_ID = 1100;
+const CANCEL_GALINA_ID = 2363;
 const CANCEL_MG_TAG_ID = 1496;
 const SLAG_ID_SET = [5, 1, 27, ''];
 const MINI_GROUPS_ID_SET = [8, 1, 60, ''];
@@ -2104,7 +2104,7 @@ const pagePatterns = {
         let courseTypeId = course_data.dataset.courseTypeId;
         if (['5','6'].includes(courseTypeId)) {
             let newTemplateTeacher = currentWindow.querySelector('.new_group_template #group_template_teacher_id');
-            newTemplateTeacher.value = courseTypeId == '5' ? MINI_GROUPS_TEACHER_ID : TRAINIG_COURSE_TEACHER_ID;
+            newTemplateTeacher.value = courseTypeId == '5' ? MINI_GROUPS_TEACHER_ID : TRAINING_COURSE_TEACHER_ID;
             newTemplateTeacher.style = 'display: display;';
             newTemplateTeacher.previousElementSibling.style = 'display: none;';
             newTemplateTeacher.disabled = true;
