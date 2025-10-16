@@ -2821,14 +2821,14 @@ const pagePatterns = {
             function createLocationButton({ text, location, locationId }) {
                 const btn = createButton(text, async () => { })
                 btn.dataset.location = location;
-                btn.dataset.locationId = locationId;
+                btn.dataset.locationId = JSON.stringify(locationId);
                 btn.addEventListener('click', handleButtonClick);
                 return btn;
             }
 
             async function handleButtonClick({ target }) {
                 const location = target.dataset.location;
-                const locationId = target.dataset.locationId;
+                const locationId = JSON.parse(target.dataset.locationId);
                 const groupTemplateId = getGroupTemplateId();
 
                 if (!groupTemplateId) {
@@ -2842,15 +2842,14 @@ const pagePatterns = {
             }
 
             async function changeGroupTemplateLocations(location, locationId) {
-                let groupTemplateLocation = currentWindow.querySelector(
-                    '[id^="location_selector_"][name="group_template[default_location_id]"]'
-                );
-                groupTemplateLocation.value = locationId[0];
-                await sleep(500);
-                let groupTemplateStudio = currentWindow.querySelector('select[name="group_template[default_studio_id]"]');
-                groupTemplateStudio.value = groupTemplateStudio.options[1].value;
-
-                groupTemplateStudio.closest('form').querySelector('[type="submit"]').click();
+                currentWindow.querySelector('[id^="location_selector_"][name="group_template[default_location_id]"]')
+                    .value = locationId[0];
+                currentWindow.querySelector('[id^="format_selector_"][name="group_template[default_format_id]"]')
+                    .value = locationId[1];
+                await sleep(1500);
+                let groupwebinar = currentWindow.querySelector('select[name="group_template[default_studio_id]"]');
+                groupwebinar.value = locationId[2];
+                groupwebinar.closest('form').querySelector('[type="submit"]').click();
             }
 
             function getGroupTemplateId() {
