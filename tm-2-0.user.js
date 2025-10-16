@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.89
+// @version      0.2.0.90
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -12,6 +12,8 @@
 
 const NO_LIVE_TEACHER_IDS = [2169, 2014, 1932, 1100, 1769, 1655, 1196, 2397, 2398, 557, 2399, 2401, 1571, 1387, 1875];
 const CANCEL_GALINA_ID = 2363;
+const MINI_GROUPS_TEACHER_ID = 1361;
+const TRAINIG_COURSE_TEACHER_ID = 1100;
 const CANCEL_MG_TAG_ID = 1496;
 const SLAG_ID_SET = [5, 1, 27, ''];
 const MINI_GROUPS_ID_SET = [8, 1, 60, ''];
@@ -2099,6 +2101,14 @@ const pagePatterns = {
     // на странице с расписанием
     if (currentWindow.checkPath(pagePatterns.groups)) {
         group_template_id.classList.add('protected');
+        let courseTypeId = course_data.dataset.courseTypeId;
+        if (['5','6'].includes(courseTypeId)) {
+            let newTemplateTeacher = currentWindow.querySelector('.new_group_template #group_template_teacher_id');
+            newTemplateTeacher.value = courseTypeId == '5' ? MINI_GROUPS_TEACHER_ID : TRAINIG_COURSE_TEACHER_ID;
+            newTemplateTeacher.style = 'display: display;';
+            newTemplateTeacher.previousElementSibling.style = 'display: none;';
+            newTemplateTeacher.disabled = true;
+        }
         let lessonRows = currentWindow.querySelectorAll('tbody:last-of-type tr');
         for (let lessonRow of lessonRows) {
             lessonRow.classList.add('lesson_row');
@@ -5229,7 +5239,7 @@ for (let [courseId, groupId, teacherId] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.89 от 15 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.90 от 15 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
