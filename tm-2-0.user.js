@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.88
+// @version      0.2.0.89
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4630,7 +4630,7 @@ let linkUrl = 'https://foxford.yonote.ru/share/fedaa471-6cc8-4923-a50f-dd28a919c
 let win = await createWindow(-1);
 for (let lessonId of lessonIds) {
     log(lessonId);
-    let url = \`https://foxford.ru/admin/lessons/$\{lessonId}/preparation_materials\`;
+    let url = \`/admin/lessons/$\{lessonId}/preparation_materials\`;
     let fields = {
         '_method': 'patch',
         'lesson[material_links_attributes][0][name]': linkName,
@@ -5067,7 +5067,7 @@ let codeCampaignId = 33050;
 let win = await createWindow(-1);
 for (let promoId of promoIds) {
     log(\`$\{codeCampaignId}, $\{promoId}\`);
-    let url = \`https://foxford.ru/admin/marketing/code_campaigns/$\{codeCampaignId}/promo_codes/$\{promoId}\`;
+    let url = \`/admin/marketing/code_campaigns/$\{codeCampaignId}/promo_codes/$\{promoId}\`;
     let fields = {
         '_method': 'delete',
     };
@@ -5157,6 +5157,26 @@ for (let courseId of courseIds) {
 }`,
                 parent: 'adminLessons'
             },
+            REPLACE_TEACHER_IN_GROUPS: {
+                name: 'Изменить преподавателя в занятиях',
+                description: 'работает в том числе в прошедших уроках',
+                code: `// ${METABASE_URL}/question/49703?course=10609
+let pairs = [
+    // [course_id, group_id, teacher_id]
+    [10609, 734410, 2363],
+];
+let win = await createWindow(-1);
+for (let [courseId, groupId, teacherId] of pairs) {
+    log(\`$\{courseId} -> $\{groupId}, $\{teacherId}\`);
+    let url = \`/admin/courses/$\{courseId}/groups/$\{groupId}\`;
+    let fields = {
+        '_method': 'patch',
+        'group[teacher_id]': teacherId,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+                parent: 'groups'
+            },
         }
         sections = buildSectionsRecursive(form, sectionsStructure);
         for (let key in SCRIPTS) {
@@ -5209,7 +5229,7 @@ for (let courseId of courseIds) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.88 от 15 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.89 от 15 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
