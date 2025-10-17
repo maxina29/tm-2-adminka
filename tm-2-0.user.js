@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.91
+// @version      0.2.0.92
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -499,6 +499,13 @@ function createElement(elementTag, elementClassName = '', elementStyle = '') {
     let element = currentWindow.createElement(elementTag);
     element.className = elementClassName;
     element.style = elementStyle;
+    return element;
+}
+
+function createWarningElement(text) {
+    const element = createElement('div', '', 'color:orange;font-size: 11px; top: 3px');
+    element.hidden = true;
+    element.innerHTML = text;
     return element;
 }
 
@@ -1262,13 +1269,6 @@ const pagePatterns = {
     if (currentWindow.checkPath(pagePatterns.coursesEdit) ||
         currentWindow.checkPath(pagePatterns.miniGroupsEdit)
     ) {
-        function createWarningElement(text) {
-            const element = createElement('div', '', 'color:orange;font-size: 11px; top: 3px');
-            element.hidden = true;
-            element.innerHTML = text;
-            return element;
-        };
-
         const elements = {
             async: currentWindow.querySelector('#course_asynchronous'),
             teachers: currentWindow.querySelector('#course_merged_teacher_ids'),
@@ -2102,7 +2102,7 @@ const pagePatterns = {
     if (currentWindow.checkPath(pagePatterns.groups)) {
         group_template_id.classList.add('protected');
         let courseTypeId = course_data.dataset.courseTypeId;
-        if (['5','6'].includes(courseTypeId)) {
+        if (['5', '6'].includes(courseTypeId)) {
             let newTemplateTeacher = currentWindow.querySelector('.new_group_template #group_template_teacher_id');
             newTemplateTeacher.value = courseTypeId == '5' ? MINI_GROUPS_TEACHER_ID : TRAINING_COURSE_TEACHER_ID;
             newTemplateTeacher.style = 'cursor: not-allowed;';
@@ -3476,36 +3476,38 @@ await currentWindow.reload();`;
 
     if (currentWindow.checkPath(pagePatterns.eventsEdit) ||
         currentWindow.checkPath(pagePatterns.eventsNew)) {
-        let pred = document.createElement('div');
-        pred.innerHTML = 'Неактуальный цикл мероприятий'
-        let cycles = document.getElementById('event_series_id');
-        let good = [
+        let seriesWarning = createWarningElement('Неактуальный цикл мероприятий');
+        let seriesElement = currentWindow.querySelector('#event_series_id');
+        let goodSeries = [
             'Подготовка к ЕГЭ', 'Подготовка к ОГЭ', 'Домашняя школа', 'Родителям', 'Поступление', 'Профориентация',
             'Другое', 'Вне циклов', 'Семинары для учителей', 'Подготовка к ОГЭ для учителей',
             'Вебинары с Федеральным подростковым центром', 'Подготовка к ЕГЭ для учителей'
         ];
-        for (let i of cycles.childNodes) {
-            if (i == '[object HTMLOptionElement]') {
-                i.className += 'value' + i.value;
-                if (i.selected) { i.className += ' selected'; }
-                if (good.indexOf(i.innerHTML) != -1) { i.className += ' good'; }
-                else { i.innerHTML = '<del> x ' + i.innerHTML + '</del>'; i.className += ' bad'; }
+        for (let optionElement of seriesElement.children) {
+            if (goodSeries.includes(optionElement.textContent)) optionElement.className += ' good';
+            else {
+                optionElement.textContent = `x ${optionElement.textContent}`;
+                optionElement.classList.add('bad');
             }
         }
-        cycles.getElementsByClassName('value')[0].innerHTML = '!!! Bce aктyaльныe циклы yкaзaны вышe !!!';
-        cycles.insertBefore(cycles.getElementsByClassName('selected')[0], cycles.getElementsByClassName('value')[0]);
-        cycles.insertBefore(cycles.getElementsByClassName('value')[0], cycles.getElementsByClassName('selected')[0]);
-        for (let elem of cycles.getElementsByClassName('good')) {
-            cycles.insertBefore(elem, cycles.getElementsByClassName('value')[0]);
+        seriesElement.querySelector('[value=""]').textContent = '!!! Bce aктyaльныe циклы yкaзaны вышe !!!';
+        let selectedOption = seriesElement.selectedOptions[0];
+        seriesElement.prepend(selectedOption);
+        seriesElement.prepend(...seriesElement.querySelectorAll('.good'), seriesElement.querySelector('[value=""]'));
+        if (currentWindow.checkPath(pagePatterns.eventsEdit) && selectedOption.className.includes('bad')) {
+            seriesWarning.hidden = false;
         }
-        if (cycles.selectedOptions[0].className.indexOf('bad') != -1 && isEventsEditPage.length) pred.hidden = false;
-        else pred.hidden = true;
-        cycles.onchange = function () {
-            if (cycles.selectedOptions[0].className.indexOf('bad') != -1) { pred.hidden = false }
-            else { pred.hidden = true }
+        else seriesWarning.hidden = true;
+        seriesElement.onchange = function () {
+            if (seriesElement.selectedOptions[0].className.includes('bad')) seriesWarning.hidden = false;
+            else seriesWarning.hidden = true;
         }
-        pred.style = 'color:orange;font-size: 11px; top: 3px';
-        document.getElementsByClassName('event_series')[0].childNodes[1].appendChild(pred);
+        seriesElement.after(seriesWarning);
+        currentWindow.addStyle(`
+        .bad {
+            text-decoration: line-through;
+            color: #999; /* Серый цвет для большей наглядности */
+        }`);
         log('Страница модифицирована');
     }
 
@@ -5240,7 +5242,7 @@ for (let [courseId, groupId, teacherId] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.91 от 15 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.92 от 17 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
