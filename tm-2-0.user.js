@@ -2613,6 +2613,38 @@ const pagePatterns = {
         // Генерация уведомлений от @wanna_get_out
         function alertManager() {
             const managerId = 'alert-manager-container';
+            const headerId = 'script_header'
+
+            let scriptHeader = currentWindow.querySelector(`#${headerId}`);
+
+            if (!scriptHeader) {
+                scriptHeader = currentWindow.createElement('div')
+                scriptHeader.id = headerId;
+                scriptHeader.style.cssText = `
+                    display: flex; 
+                    flex-direction: column; 
+                    position: sticky; 
+                    top: 0px; 
+                    background: white; 
+                    z-index: 1049; 
+                    max-height: 33vh; 
+                    overflow-y: auto;
+                `;
+
+                const jsConsole = currentWindow.querySelector('#js-console');
+                if (jsConsole) {
+                    const clonedConsole = jsConsole.cloneNode(true);
+                    scriptHeader.appendChild(clonedConsole);
+                    jsConsole.remove()
+                } else {
+                    const consoleContainer = currentWindow.createElement('div');
+                    consoleContainer.id = 'js-console';
+                    consoleContainer.style.cssText = 'display: flex; flex-direction: row; justify-content: center;';
+                    scriptHeader.appendChild(consoleContainer);
+                }
+                currentWindow.body.insertBefore(scriptHeader, currentWindow.body.firstChild);
+            }
+
             let container = currentWindow.querySelector(`#${managerId}`);
 
             if (!container) {
@@ -2623,12 +2655,13 @@ const pagePatterns = {
                 container.style.gap = '10px';
                 container.style.marginTop = '10px';
 
-                const referenceNode = currentWindow.querySelector('#course_data');
-                if (referenceNode) {
-                    referenceNode.parentNode.insertBefore(container, referenceNode);
-                } else {
-                    currentWindow.body.prepend(container);
-                }
+                // const referenceNode = currentWindow.querySelector('#course_data');
+                // if (referenceNode) {
+                //     referenceNode.parentNode.insertBefore(container, referenceNode);
+                // } else {
+                //     currentWindow.body.prepend(container);
+                // }
+                scriptHeader.appendChild(container);
             }
 
             return {
