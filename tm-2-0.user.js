@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.92
+// @version      0.2.0.93
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -214,7 +214,7 @@ class ManagedWindow {
         }
     }
 
-    async postFormDataJSON(url, payload = {}, params = {}) {
+    async postFormDataJSON(url, payload = {}, params = { checkJSONresponse: true }) {
         let {
             method = 'POST',
             headers = {
@@ -225,6 +225,15 @@ class ManagedWindow {
             body = payload ? JSON.stringify(payload) : null
         } = params;
         await this.openPage(url, { method: method, headers: headers, body: body });
+        if (params.checkJSONresponse) await this.checkJSONresponse();
+    }
+
+    async checkJSONresponse() {
+        let json = JSON.parse(this.document.body.innerHTML);
+        if (json.result === true) {
+            return true;
+        }
+        throw new Error(json.errors);
     }
 
     getCSRFToken() {
@@ -1118,7 +1127,9 @@ async function copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnit
                 log('-- Проверяю рекомендованность к ДЗ --');
                 for (let taskInd = 0; taskInd < sourceTaskRecommendations.length; taskInd++) {
                     if (sourceTaskRecommendations[taskInd] != targetTaskRecommendations[taskInd]) {
-                        await virtualWindow.postFormDataJSON(targetTaskRecommendationLinks[taskInd]);
+                        await virtualWindow.postFormDataJSON(
+                            targetTaskRecommendationLinks[taskInd], { checkJSONresponse: false }
+                        );
                     }
                 }
             }
@@ -4331,6 +4342,7 @@ displayLog('Готово! Проверьте данные и сохраните'
                 children: [
                     { title: 'Курсы / courses', key: 'adminCourses' },
                     { title: 'Программа / lessons', key: 'adminLessons' },
+                    { title: 'Изменение порядка уроков / lessons_order', key: 'lessonsOrder' },
                     { title: 'Расписание / groups', key: 'groups' },
                     { title: 'Календарь каникул / holidays_calendar', key: 'holidays' },
                     { title: 'Преподаватели / teachers', key: 'teachers' },
@@ -5190,6 +5202,28 @@ for (let [courseId, groupId, teacherId] of pairs) {
 }`,
                 parent: 'groups'
             },
+            CHANGE_GROUP_DATES: {
+                name: 'Поменять даты в занятиях без вебинара',
+                description: `можно проставить в том числе прошедшую дату
+                    можно указать занятия во всех параллелях или оставить только часть`,
+                code: `// ${METABASE_URL}/question/51042
+let starts_at = '24.10.2023 10:00';
+const pairs = [
+    // course_id, lesson_id, [group_id1, group_id2...]
+    [10609, 313900, [710456, 955552]],
+];
+let win = await createWindow(-1);
+for (const [courseId, lessonId, groupIds] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    const url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}/change_group_dates\`;
+    let arr = [];
+    for (let groupId of groupIds) {
+        arr.push({ id: groupId, starts_at: starts_at })
+    }
+    await win.postFormDataJSON(url, { groups: arr });
+}`,
+                parent: 'lessonsOrder'
+            },
         }
         sections = buildSectionsRecursive(form, sectionsStructure);
         for (let key in SCRIPTS) {
@@ -5242,7 +5276,7 @@ for (let [courseId, groupId, teacherId] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.92 от 17 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.93 от 22 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
