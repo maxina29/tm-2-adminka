@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         TestAdminka
+// @name         TestAdminka-beta14
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.94
+// @version      0.2.0.95-beta14-0.1
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
-// @match        https://foxford.ru/admin*
+// @match        https://beta14.100ege.ru/admin*
 // @grant        none
 // @updateURL    https://foxford.ru/tampermoney_script_adminka.user.js
 // @downloadURL  https://foxford.ru/tampermoney_script_adminka.user.js
@@ -20,7 +20,7 @@ const MINI_GROUPS_ID_SET = [8, 1, 60, ''];
 const HOME_ID_SET = [4, 1, 1, ''];
 const SSM_ID_SET = [4, 6, 1, 4789];
 const METABASE_URL = 'https://metabase.foxford.ru';
-const FOXFORD_URL = 'https://foxford.ru';
+const FOXFORD_URL = 'https://beta14.100ege.ru/';
 const LESSON_TYPE_MAP = {
     "Нулевое": "zero",
     "Обычное": "regular",
@@ -2121,15 +2121,14 @@ const pagePatterns = {
             newTemplateTeacher.dispatchEvent(new Event('change'));
             newTemplateTeacher.setAttribute('readonly', 'true');
         }
-        let lessonRows = currentWindow.querySelectorAll('tbody:last-of-type tr');
+        let lessonRows = currentWindow.querySelectorAll('.panel[id^="group_"]');
         for (let lessonRow of lessonRows) {
             lessonRow.classList.add('lesson_row');
-            let firstColumn = lessonRow.querySelector('td.first_column');
-            let lessonIdElem = firstColumn.querySelector('a[name]');
-            lessonIdElem.classList.add('lesson_id');
-            let lessonId = lessonRow.querySelector('a[name]').name;
-            let lessonNumberElem = firstColumn.querySelector('.lesson_number');
-            let lessonTypeSpan = lessonNumberElem.querySelector('span');
+            let headingRow = lessonRow.querySelector('.panel-heading');
+            let lessonNumberElem = headingRow.querySelector('.lesson_number');
+            let lessonHref = lessonNumberElem.querySelector('a').href;
+            let lessonId = lessonHref.slice(lessonHref.search('=') + 1);
+            let lessonTypeSpan = headingRow.querySelector('span');
             lessonTypeSpan.classList.add('lesson_type');
             let lessonTypeText = lessonTypeSpan.textContent.trim();
             let lessonType = LESSON_TYPE_MAP[lessonTypeText];
@@ -2137,8 +2136,7 @@ const pagePatterns = {
             else log(`Неизвестный тип урока: ${lessonTypeText}`);
             let lessonIdSpan = createElement('span', 'label label-default');
             lessonIdSpan.innerHTML = `id: ${lessonId}`;
-            lessonNumberElem.append(createElement('br'));
-            lessonNumberElem.append(lessonIdSpan);
+            lessonTypeSpan.after(createElement('br'), lessonIdSpan);
             let actionButtons = lessonRow.querySelector('.actions_btn');
             let lessonHeader = actionButtons.closest('.form-group');
             lessonHeader.classList.add('lesson_header');
