@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.94
+// @version      0.2.0.95
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4549,6 +4549,26 @@ for (let [courseId, lessonId] of pairs) {
 }`,
                 parent: 'adminLessons'
             },
+            LESSONS_EXCLUDED_FROM_PROGRESS_PAGE: {
+                name: 'Не учитывать уроки в успеваемости',
+                code: `// ${METABASE_URL}/question/46496?course=10609
+let pairs = [
+    // [course_id, lesson_id],
+    [10609, 293615],
+    [10609, 308300],
+];
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
+        '_method': 'patch',
+        'lesson[excluded_from_progress_page]': true,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+                parent: 'contentLessons'
+            },
             LESSONS_REORDER: {
                 name: 'Переместить уроки в конец курса (для удаления)',
                 description: 'Уроки перенесутся на 10000 место',
@@ -5295,7 +5315,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.94 от 23 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.95 от 23 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
