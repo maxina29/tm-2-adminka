@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.93
+// @version      0.2.0.94
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4356,6 +4356,7 @@ displayLog('Готово! Проверьте данные и сохраните'
                 children: [
                     { title: 'Курсы / courses', key: 'contentCourses' },
                     { title: 'Программа / lessons', key: 'contentLessons' },
+                    { title: 'Тесты / trainings', key: 'trainings' },
                     { title: 'Задачи / tasks', key: 'tasks' },
                     { title: 'Учебные программы / methodical_materials/programs', key: 'methodicalPrograms' }
                 ]
@@ -5224,6 +5225,24 @@ for (const [courseId, lessonId, groupIds] of pairs) {
 }`,
                 parent: 'lessonsOrder'
             },
+            CHANGE_TRAINING_NAME: {
+                name: 'Изменение названий тестов',
+                code: `let pairs = [
+    // [training_id, name],
+    [10092, 'Тест отдела видеотрансляций'],
+];
+let win = await createWindow(-1);
+for (let [trainingId, newName] of pairs) {
+    log(\`$\{trainingId} <- $\{newName}\`);
+    let url = \`/admin/trainings/$\{trainingId}\`;
+    let fields = {
+        '_method': 'patch',
+        'training[name]': newName,
+    };
+    await win.postFormData(url, fields);
+}`,
+                parent: 'trainings'
+            },
         }
         sections = buildSectionsRecursive(form, sectionsStructure);
         for (let key in SCRIPTS) {
@@ -5276,7 +5295,7 @@ for (const [courseId, lessonId, groupIds] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.93 от 22 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.94 от 23 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
