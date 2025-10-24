@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka-beta14
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.95-beta14-0.3
+// @version      0.2.0.95-beta14-0.4
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://beta14.100ege.ru/admin*
@@ -2122,6 +2122,7 @@ const pagePatterns = {
             newTemplateTeacher.dispatchEvent(new Event('change'));
             newTemplateTeacher.setAttribute('readonly', 'true');
         }
+        document.querySelector('[data-target="#new_group_template"]').classList.replace('btn-default','btn-success');
         let lessonRows = currentWindow.querySelectorAll('.panel[id^="group_"]');
         for (let lessonRow of lessonRows) {
             lessonRow.classList.add('lesson_row');
@@ -2164,7 +2165,12 @@ const pagePatterns = {
                 let webinarStatus = statusLabel.split(': ')[1];
                 lessonRow.classList.add(webinarStatus);
             }
-
+            if (lessonRow.querySelector('[id^="starts_at_"]')) {
+                lessonRow.classList.add('has_starts_at');
+            }
+            else {
+                lessonRow.classList.add('no_starts_at');
+            }
         }
         log('Страница модифицирована');
         let mcid = window.location.href.match(/\d+/)[0];
@@ -2178,8 +2184,7 @@ const pagePatterns = {
         btn_hide.innerHTML = 'Скрыть продвинутые возможности';
         let btn_masscopy = document.createElement('button'); btn_masscopy.hidden = true;
         btn_masscopy.innerHTML = 'Массовое копирование занятий из другого курса в этот курс';
-        let btn_prs = document.createElement('button'); btn_prs.hidden = false; btn_prs.className = 'reset-btn';
-        btn_prs.innerHTML = '↑ Перестроить ↑';
+
         let btn_group_lessons;
         btn_show.onclick = function () {
             btn_show.hidden = true; btn_masscopy.hidden = false; btn_group_lessons.hidden = false;
@@ -2281,38 +2286,42 @@ const pagePatterns = {
                 try { masscopygroups(); } catch (e) { log(e); }
             }
         }
-        let btn_prs_onclick = async function () {
-            btn_prs.style = 'display:none';
-            let a = document.getElementsByClassName('groups_table')[0].getElementsByTagName('tr');
-            let k = false;
-            let md = '01.01.1990';
-            let tn = 0;
-            for (let i = 3; i < a.length - 2; i++) {
-                if (a[i].querySelectorAll('[id^="starts_at_"]').length == 0) {
-                    a[i].hidden = true;
+        
+        async function rebuildUpButtonOnClick () {
+            rebuildUpButton.style = 'display:none';
+            let hasFutureLesson = false;
+            let nextLessonDate = '01.01.1990';
+            let nextLessonNumber = 0;
+            for (let lessonRow of lessonRows) {
+                if (lessonRow.classList.contains('no_starts_at') && 
+                    !lessonRow.classList.contains('started') &&
+                    !lessonRow.classList.contains('ready_to_start')
+                ) {
+                    lessonRow.hidden = true;
                 }
-                else if (a[i].querySelectorAll('[id^="starts_at_"]').length != 0 && k == false) {
-                    k = true;
-                    let s = a[i].querySelectorAll('[id^="starts_at_"]')[0].value;
-                    md = s.slice(0, s.search(/ /));
-                    s = a[i].querySelector('.lesson_number a[href]').innerHTML;
-                    tn = s.substring(s.search(' ') + 1, s.search(/\(/) - 1);
+                else if (lessonRow.classList.contains('created') && hasFutureLesson == false) {
+                    hasFutureLesson = true;
+                    let startsAtValue = lessonRow.querySelector('[id^="starts_at_"]').value;
+                    nextLessonDate = startsAtValue.split(' ')[0];
+                    let lessonNumberText = lessonRow.querySelector('.lesson_number a[href]').innerHTML;
+                    nextLessonNumber = lessonNumberText.match(/\d+/)[0];
                 }
             }
-            a[0].parentNode.insertBefore(a[a.length - 1], a[0]);
-            a[0].parentNode.insertBefore(a[a.length - 1], a[1]);
-            document.querySelector('#from_lesson_number').value = tn;
-            document.querySelector('[id^=start_from_date_]').value = md;
-            if (document.querySelectorAll('.bot-approve').length) {
-                while (!document.querySelectorAll('.rasp_checked').length) { await sleep(100); }
-                await sleep(500);
-                if (!document.querySelectorAll('.alert-no-rasp-groups').length) {
-                    document.querySelector('.btn.btn-primary[value="Перестроить"]').click();
+            let firstLessonElement = lessonRows[0];
+            let lessonsContainer = lessonRows[0].parentNode;
+            firstLessonElement.before(lessonsContainer.lastChild);
+            currentWindow.querySelector('#from_lesson_number').value = nextLessonNumber;
+            currentWindow.querySelector('[id^=start_from_date_]').value = nextLessonDate;
+            if (currentWindow.querySelector('.bot-approve')) {
+                while (!currentWindow.querySelector('.rasp_checked')) { await sleep(100); }
+                if (!currentWindow.querySelector('.alert-no-rasp-groups')) {
+                    currentWindow.querySelector('.btn.btn-primary[value="Перестроить"]').click();
                 }
             }
             log('Прошедшие занятия скрыты, данные для перестроения параллели перенесены вверх страницы');
         }
-        btn_prs.onclick = btn_prs_onclick;
+        let rebuildUpButton = createButton('↑ Перестроить ↑', rebuildUpButtonOnClick, 'reset-btn');
+
         let btn_group_lessons_onclick = async () => {
             let hasBotApproval = checkBotApprove();
             btn_group_lessons_onclick.style = 'display:none';
@@ -2439,7 +2448,7 @@ const pagePatterns = {
         );
         btn_dop_sam_lessons.hidden = true;
         div.appendChild(btn_show); div.appendChild(btn_masscopy); div.appendChild(btn_group_lessons);
-        div.appendChild(btn_dop_sam_lessons); div.appendChild(btn_hide); div.appendChild(btn_prs);
+        div.appendChild(btn_dop_sam_lessons); div.appendChild(btn_hide); div.appendChild(rebuildUpButton);
         let x = document.getElementsByClassName('container-fluid')[1].childNodes[2];
         x.insertBefore(div, x.firstChild);
         function join_short(a, sym = ', ', end = ' и еще в ', cou = 3) {
@@ -2994,7 +3003,7 @@ const pagePatterns = {
 
         if (window.location.href.match('#reset_schedule')) {
             document.querySelector('.reset-btn').classList.add('bot-approve');
-            btn_prs_onclick();
+            rebuildUpButtonOnClick();
         }
         if (window.location.href.match('#duration40')) { set_all_duration_at_(40); }
     }
@@ -5294,7 +5303,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.95-beta14-0.3 от 24 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.95-beta14-0.4 от 24 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
