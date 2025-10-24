@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka-beta14
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.95-beta14-0.2
+// @version      0.2.0.95-beta14-0.3
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://beta14.100ege.ru/admin*
@@ -21,6 +21,7 @@ const HOME_ID_SET = [4, 1, 1, ''];
 const SSM_ID_SET = [4, 6, 1, 4789];
 const METABASE_URL = 'https://metabase.foxford.ru';
 const FOXFORD_URL = 'https://beta14.100ege.ru/';
+const SECRET_PAGE = /admin\/courses\/16204\/lesson_packs\/new/;
 const LESSON_TYPE_MAP = {
     "Нулевое": "zero",
     "Обычное": "regular",
@@ -1220,7 +1221,7 @@ const pagePatterns = {
     webinar: /admin\/courses\/\d*\/groups\/\d*$/,
     eventWebinar: /admin\/events\/\d*/,
     massChange: `${FOXFORD_URL}/admin/mass_change`,
-    secretPage: /admin\/courses\/15005\/lesson_packs\/new/,
+    secretPage: SECRET_PAGE,
     index: `${FOXFORD_URL}/admin`,
     hasAnchor: /#/
 };
@@ -5284,7 +5285,7 @@ for (let [trainingId, newName] of pairs) {
         loopButton.href = 'https://foxford.loop.ru/foxford/channels/c04um2g2h6e';
         yonoteButton.href = 'https://foxford.yonote.ru/doc/adminy-uchebnoj-platformy-WH5s3sfbLA';
         fvsButton.href = 'https://next.fvs.foxford.ru/id/hub';
-        foxButton.href = '/admin/courses/15005/lesson_packs/new';
+        foxButton.href = SECRET_PAGE;
         loopButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287601/loop.png';
         yonoteButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287609/yonote.png';
         fvsButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287608/fvs.png';
@@ -5293,7 +5294,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.95-beta14-0.2 от 23 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.95-beta14-0.3 от 24 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
