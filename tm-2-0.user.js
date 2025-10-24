@@ -1312,6 +1312,7 @@ const pagePatterns = {
             cancelMaternityCapital: 'Необходимо отключить оплату маткапиталом в отмененном курсе',
             cancelVisibleInCalendar: 'Необходимо отключить отображение в календаре отмененного курса',
             cancelNames: 'В названиях курса необходимо указать, что курс отменен',
+            cancelTags: 'В тегах курса не должно быть тегов',
         };
         const teacherWarnings = {
             saveReminder: createWarningElement('Не забудьте сохранить изменения :)'),
@@ -1343,6 +1344,7 @@ const pagePatterns = {
         elements.maternityCapital.parentNode.after(warnings.cancelMaternityCapital);
         elements.visibleInCalendar.parentNode.after(warnings.cancelVisibleInCalendar);
         elements.fullName.after(warnings.cancelNames);
+        elements.tags.after(warnings.cancelTags);
 
         function checkAsynchronousCourse() {
             if (!elements.async.checked && elements.published.checked) {
@@ -1362,7 +1364,10 @@ const pagePatterns = {
         }
         if (elements.teachers) checkAsynchronousCourse();
         const cancelButtonOnClick = () => {
-            if (elements.teachers) elements.teachers.value = CANCEL_GALINA_ID;
+            if (elements.teachers) {
+                elements.teachers.value = CANCEL_GALINA_ID;
+                elements.tags.value = '';
+            }
             else elements.tags.value = CANCEL_MG_TAG_ID;
             elements.purchaseMode.value = 'disabled';
             let x = currentWindow.querySelector('#s2id_course_purchase_mode').firstChild.childNodes[1];
@@ -1424,7 +1429,14 @@ const pagePatterns = {
                 let hasProblems = false;
                 // есть другие преподаватели кроме Галины
                 if (manyItems) { teacherWarnings.cancelTeacher.hidden = false; hasProblems = true; }
-                else { teacherWarnings.cancelTeacher.hidden = true }
+                else { teacherWarnings.cancelTeacher.hidden = true; }
+                // проставлены теги
+                if (elements.teachers && elements.tags.selectedOptions.length > 0) {
+                    teacherWarnings.cancelTags.hidden = false;
+                    warnings.cancelTags.hidden = false;
+                    hasProblems = true;
+                }
+                else { teacherWarnings.cancelTags.hidden = true; warnings.cancelTags.hidden = true; }
                 // включено приобретение
                 if (elements.purchaseMode.value != 'disabled') {
                     teacherWarnings.cancelPurchashing.hidden = false;
