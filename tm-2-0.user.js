@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         TestAdminka-beta14
+// @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.96
+// @version      0.2.0.97
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://beta14.100ege.ru/admin*
@@ -20,8 +20,8 @@ const MINI_GROUPS_ID_SET = [8, 1, 60, ''];
 const HOME_ID_SET = [4, 1, 1, ''];
 const SSM_ID_SET = [4, 6, 1, 4789];
 const METABASE_URL = 'https://metabase.foxford.ru';
-const FOXFORD_URL = 'https://beta14.100ege.ru/';
-const SECRET_PAGE = /admin\/courses\/16204\/lesson_packs\/new/;
+const FOXFORD_URL = 'https://foxford.ru/';
+const SECRET_PAGE = /admin\/courses\/15005\/lesson_packs\/new/;
 const LESSON_TYPE_MAP = {
     "Нулевое": "zero",
     "Обычное": "regular",
@@ -5325,7 +5325,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.96 от 27 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.97 от 27 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
