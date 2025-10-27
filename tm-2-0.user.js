@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka-beta14
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.95-beta14-0.6
+// @version      0.2.0.96
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://beta14.100ege.ru/admin*
@@ -1313,6 +1313,7 @@ const pagePatterns = {
             cancelMaternityCapital: 'Необходимо отключить оплату маткапиталом в отмененном курсе',
             cancelVisibleInCalendar: 'Необходимо отключить отображение в календаре отмененного курса',
             cancelNames: 'В названиях курса необходимо указать, что курс отменен',
+            cancelTags: 'В тегах курса не должно быть тегов',
         };
         const teacherWarnings = {
             saveReminder: createWarningElement('Не забудьте сохранить изменения :)'),
@@ -1344,6 +1345,7 @@ const pagePatterns = {
         elements.maternityCapital.parentNode.after(warnings.cancelMaternityCapital);
         elements.visibleInCalendar.parentNode.after(warnings.cancelVisibleInCalendar);
         elements.fullName.after(warnings.cancelNames);
+        elements.tags.after(warnings.cancelTags);
 
         function checkAsynchronousCourse() {
             if (!elements.async.checked && elements.published.checked) {
@@ -1363,7 +1365,10 @@ const pagePatterns = {
         }
         if (elements.teachers) checkAsynchronousCourse();
         const cancelButtonOnClick = () => {
-            if (elements.teachers) elements.teachers.value = CANCEL_GALINA_ID;
+            if (elements.teachers) {
+                elements.teachers.value = CANCEL_GALINA_ID;
+                elements.tags.value = '';
+            }
             else elements.tags.value = CANCEL_MG_TAG_ID;
             elements.purchaseMode.value = 'disabled';
             let x = currentWindow.querySelector('#s2id_course_purchase_mode').firstChild.childNodes[1];
@@ -1425,7 +1430,14 @@ const pagePatterns = {
                 let hasProblems = false;
                 // есть другие преподаватели кроме Галины
                 if (manyItems) { teacherWarnings.cancelTeacher.hidden = false; hasProblems = true; }
-                else { teacherWarnings.cancelTeacher.hidden = true }
+                else { teacherWarnings.cancelTeacher.hidden = true; }
+                // проставлены теги
+                if (elements.teachers && elements.tags.selectedOptions.length > 0) {
+                    teacherWarnings.cancelTags.hidden = false;
+                    warnings.cancelTags.hidden = false;
+                    hasProblems = true;
+                }
+                else { teacherWarnings.cancelTags.hidden = true; warnings.cancelTags.hidden = true; }
                 // включено приобретение
                 if (elements.purchaseMode.value != 'disabled') {
                     teacherWarnings.cancelPurchashing.hidden = false;
@@ -3494,7 +3506,8 @@ await currentWindow.reload();`;
         let goodSeries = [
             'Подготовка к ЕГЭ', 'Подготовка к ОГЭ', 'Домашняя школа', 'Родителям', 'Поступление', 'Профориентация',
             'Другое', 'Вне циклов', 'Семинары для учителей', 'Подготовка к ОГЭ для учителей',
-            'Вебинары с Федеральным подростковым центром', 'Подготовка к ЕГЭ для учителей'
+            'Вебинары с Федеральным подростковым центром', 'Подготовка к ЕГЭ для учителей',
+            'Как готовить к олимпиадам?',
         ];
         for (let optionElement of seriesElement.children) {
             if (goodSeries.includes(optionElement.textContent)) optionElement.className += ' good';
@@ -4546,6 +4559,26 @@ for (let [courseId, lessonId] of pairs) {
 }`,
                 parent: 'adminLessons'
             },
+            LESSONS_EXCLUDED_FROM_PROGRESS_PAGE: {
+                name: 'Не учитывать уроки в успеваемости',
+                code: `// ${METABASE_URL}/question/46496?course=10609
+let pairs = [
+    // [course_id, lesson_id],
+    [10609, 293615],
+    [10609, 308300],
+];
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
+        '_method': 'patch',
+        'lesson[excluded_from_progress_page]': true,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+                parent: 'contentLessons'
+            },
             LESSONS_REORDER: {
                 name: 'Переместить уроки в конец курса (для удаления)',
                 description: 'Уроки перенесутся на 10000 место',
@@ -5292,7 +5325,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.95-beta14-0.6 от 27 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.96 от 27 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
