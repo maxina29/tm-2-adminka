@@ -1180,6 +1180,75 @@ async function copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnit
     }
 }
 
+// Генерация уведомлений от @wanna_get_out
+function alertManager() {
+    const managerId = 'alert-manager-container';
+    const headerId = 'script_header';
+
+    let scriptHeader = currentWindow.querySelector(`#${headerId}`);
+
+    if (!scriptHeader) {
+        scriptHeader = currentWindow.createElement('div');
+        scriptHeader.id = headerId;
+        scriptHeader.style.cssText = `
+            display: flex; 
+            flex-direction: column; 
+            position: sticky; 
+            top: 0px; 
+            background: white; 
+            z-index: 1049; 
+            max-height: 33vh; 
+            overflow-y: auto;
+        `;
+
+        const jsConsole = currentWindow.querySelector('#js-console');
+        if (jsConsole) {
+            scriptHeader.appendChild(jsConsole);
+        } else {
+            const consoleContainer = currentWindow.createElement('div');
+            consoleContainer.id = 'js-console';
+            consoleContainer.style.cssText = 'display: flex; flex-direction: row; justify-content: center;';
+            scriptHeader.appendChild(consoleContainer);
+        }
+        currentWindow.body.insertBefore(scriptHeader, currentWindow.body.firstChild);
+    }
+
+    let container = currentWindow.querySelector(`#${managerId}`);
+
+    if (!container) {
+        container = currentWindow.createElement('div');
+        container.id = managerId;
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '10px';
+        container.style.marginTop = '10px';
+
+        scriptHeader.appendChild(container);
+    }
+
+    return {
+        addAlert: (message, bgColor = '#ffb6c4', alertClass = 'custom-alert') => {
+            const existingAlert = container.querySelector(`.${alertClass}`);
+            if (existingAlert) existingAlert.remove();
+
+            const alert = currentWindow.createElement('div');
+            alert.className = alertClass;
+            alert.style.padding = '10px';
+            alert.style.borderRadius = '4px';
+            alert.style.backgroundColor = bgColor;
+            alert.style.textAlign = 'center';
+            alert.textContent = message;
+
+            container.appendChild(alert);
+        },
+
+        removeAlert: (alertClass = 'custom-alert') => {
+            const alert = container.querySelector(`.${alertClass}`);
+            if (alert) alert.remove();
+        }
+    };
+}
+
 // регулярки для проверки текущей страницы админки
 const pagePatterns = {
     // обучение - курсы
@@ -2227,50 +2296,6 @@ const pagePatterns = {
         if (currentWindow.checkPath(/#reset_schedule/)) {
             rebuildUpButton.classList.add('bot-approve');
             rebuildUpButton.click();
-        }
-
-        // Генерация уведомлений от @wanna_get_out
-        function alertManager() {
-            const managerId = 'alert-manager-container';
-            let container = currentWindow.querySelector(`#${managerId}`);
-
-            if (!container) {
-                container = currentWindow.createElement('div');
-                container.id = managerId;
-                container.style.display = 'flex';
-                container.style.flexDirection = 'column';
-                container.style.gap = '10px';
-                container.style.marginTop = '10px';
-
-                const referenceNode = currentWindow.querySelector('#course_data');
-                if (referenceNode) {
-                    referenceNode.parentNode.insertBefore(container, referenceNode);
-                } else {
-                    currentWindow.body.prepend(container);
-                }
-            }
-
-            return {
-                addAlert: (message, bgColor = '#ffb6c4', alertClass = 'custom-alert') => {
-                    const existingAlert = container.querySelector(`.${alertClass}`);
-                    if (existingAlert) existingAlert.remove();
-
-                    const alert = currentWindow.createElement('div');
-                    alert.className = alertClass;
-                    alert.style.padding = '10px';
-                    alert.style.borderRadius = '4px';
-                    alert.style.backgroundColor = bgColor;
-                    alert.style.textAlign = 'center';
-                    alert.textContent = message;
-
-                    container.appendChild(alert);
-                },
-
-                removeAlert: (alertClass = 'custom-alert') => {
-                    const alert = container.querySelector(`.${alertClass}`);
-                    if (alert) alert.remove();
-                }
-            };
         }
 
         // Проверка, что все занятия по расписанию от @wanna_get_out
