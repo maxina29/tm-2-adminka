@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.101
+// @version      0.2.0.102
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1227,7 +1227,7 @@ function alertManager() {
     }
 
     return {
-        addAlert: (message, bgColor = '#ffb6c4', alertClass = 'custom-alert') => {
+        addAlert: (message, alertClass = 'custom-alert', bgColor = '#ffb6c4') => {
             const existingAlert = container.querySelector(`.${alertClass}`);
             if (existingAlert) existingAlert.remove();
 
@@ -1629,6 +1629,30 @@ const pagePatterns = {
         buttonArea.appendChild(copyLandingButton);
         let titleArea = currentWindow.querySelector('.courses');
         titleArea.insertBefore(buttonArea, titleArea.childNodes[1]);
+
+        function checkProjectAndProducer() {
+            const project = currentWindow.querySelector('#course_responsible_admin_id');
+            const producer = document.querySelector('#course_producer_id');
+            const alerts = alertManager()
+            alerts.removeAlert('no-admin-alert');
+            alerts.removeAlert('no-producer-alert');
+            if (project.value == '') {
+                alerts.addAlert(
+                    `В данном курсе отсутствует ответственный администратор`,
+                    // bgColorOdd,
+                    'no-admin-alert'
+                );
+            }
+            if (producer.value == '') {
+                alerts.addAlert(
+                    `В данном курсе отсутствует продюссер`,
+                    // bgColorOdd,
+                    'no-proj-alert'
+                );
+            }
+        }
+        checkProjectAndProducer();
+
         log('Страница модифицирована');
     }
     // на странице создания курса
@@ -2383,8 +2407,8 @@ const pagePatterns = {
             if (lessonsCount) {
                 alerts.addAlert(
                     `В данной параллели занятий не по расписанию: ${lessonsCount}`,
+                    'no-rasp-alert',
                     bgColorOdd,
-                    'no-rasp-alert'
                 );
             } else {
                 alerts.removeAlert('no-rasp-alert');
@@ -2842,9 +2866,8 @@ const pagePatterns = {
                 const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'
                 if (showWarning) {
                     alerts.addAlert(
-                        `Дата старта параллели не совпадает с датой старта первого занятия`,
-                        '#ffb6c4',
-                        msg
+                        msg,
+                        'template-date-alert'
                     );
                 } else {
                     alerts.removeAlert('date-mismatch-warning');
@@ -5349,7 +5372,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.101 от 28 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.102 от 28 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
