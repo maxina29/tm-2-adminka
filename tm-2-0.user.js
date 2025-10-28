@@ -1181,16 +1181,16 @@ async function copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnit
 }
 
 // Генерация уведомлений от @wanna_get_out
-        function alertManager() {
-            const managerId = 'alert-manager-container';
-            const headerId = 'script_header';
+function alertManager() {
+    const managerId = 'alert-manager-container';
+    const headerId = 'script_header';
 
-            let scriptHeader = currentWindow.querySelector(`#${headerId}`);
+    let scriptHeader = currentWindow.querySelector(`#${headerId}`);
 
-            if (!scriptHeader) {
-                scriptHeader = currentWindow.createElement('div');
-                scriptHeader.id = headerId;
-                scriptHeader.style.cssText = `
+    if (!scriptHeader) {
+        scriptHeader = currentWindow.createElement('div');
+        scriptHeader.id = headerId;
+        scriptHeader.style.cssText = `
             display: flex; 
             flex-direction: column; 
             position: sticky; 
@@ -1201,53 +1201,53 @@ async function copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnit
             overflow-y: auto;
         `;
 
-                const jsConsole = currentWindow.querySelector('#js-console');
-                if (jsConsole) {
-                    scriptHeader.appendChild(jsConsole);
-                } else {
-                    const consoleContainer = currentWindow.createElement('div');
-                    consoleContainer.id = 'js-console';
-                    consoleContainer.style.cssText = 'display: flex; flex-direction: row; justify-content: center;';
-                    scriptHeader.appendChild(consoleContainer);
-                }
-                currentWindow.body.insertBefore(scriptHeader, currentWindow.body.firstChild);
-            }
-
-            let container = currentWindow.querySelector(`#${managerId}`);
-
-            if (!container) {
-                container = currentWindow.createElement('div');
-                container.id = managerId;
-                container.style.display = 'flex';
-                container.style.flexDirection = 'column';
-                container.style.gap = '10px';
-                container.style.marginTop = '10px';
-
-                scriptHeader.appendChild(container);
-            }
-
-            return {
-                addAlert: (message, bgColor = '#ffb6c4', alertClass = 'custom-alert') => {
-                    const existingAlert = container.querySelector(`.${alertClass}`);
-                    if (existingAlert) existingAlert.remove();
-
-                    const alert = currentWindow.createElement('div');
-                    alert.className = alertClass;
-                    alert.style.padding = '10px';
-                    alert.style.borderRadius = '4px';
-                    alert.style.backgroundColor = bgColor;
-                    alert.style.textAlign = 'center';
-                    alert.textContent = message;
-
-                    container.appendChild(alert);
-                },
-
-                removeAlert: (alertClass = 'custom-alert') => {
-                    const alert = container.querySelector(`.${alertClass}`);
-                    if (alert) alert.remove();
-                }
-            };
+        const jsConsole = currentWindow.querySelector('#js-console');
+        if (jsConsole) {
+            scriptHeader.appendChild(jsConsole);
+        } else {
+            const consoleContainer = currentWindow.createElement('div');
+            consoleContainer.id = 'js-console';
+            consoleContainer.style.cssText = 'display: flex; flex-direction: row; justify-content: center;';
+            scriptHeader.appendChild(consoleContainer);
         }
+        currentWindow.body.insertBefore(scriptHeader, currentWindow.body.firstChild);
+    }
+
+    let container = currentWindow.querySelector(`#${managerId}`);
+
+    if (!container) {
+        container = currentWindow.createElement('div');
+        container.id = managerId;
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '10px';
+        container.style.marginTop = '10px';
+
+        scriptHeader.appendChild(container);
+    }
+
+    return {
+        addAlert: (message, alertClass = 'custom-alert', bgColor = '#ffb6c4') => {
+            const existingAlert = container.querySelector(`.${alertClass}`);
+            if (existingAlert) existingAlert.remove();
+
+            const alert = currentWindow.createElement('div');
+            alert.className = alertClass;
+            alert.style.padding = '10px';
+            alert.style.borderRadius = '4px';
+            alert.style.backgroundColor = bgColor;
+            alert.style.textAlign = 'center';
+            alert.textContent = message;
+
+            container.appendChild(alert);
+        },
+
+        removeAlert: (alertClass = 'custom-alert') => {
+            const alert = container.querySelector(`.${alertClass}`);
+            if (alert) alert.remove();
+        }
+    };
+}
 
 // регулярки для проверки текущей страницы админки
 const pagePatterns = {
@@ -1629,6 +1629,30 @@ const pagePatterns = {
         buttonArea.appendChild(copyLandingButton);
         let titleArea = currentWindow.querySelector('.courses');
         titleArea.insertBefore(buttonArea, titleArea.childNodes[1]);
+
+        function checkProjectAndProducer() {
+            const project = currentWindow.querySelector('#course_responsible_admin_id');
+            const producer = document.querySelector('#course_producer_id');
+            const alerts = alertManager()
+            alerts.removeAlert('no-admin-alert');
+            alerts.removeAlert('no-producer-alert');
+            if (project.value == '') {
+                alerts.addAlert(
+                    `В данном курсе отсутствует ответственный администратор`,
+                    // bgColorOdd,
+                    'no-admin-alert'
+                );
+            }
+            if (producer.value == '') {
+                alerts.addAlert(
+                    `В данном курсе отсутствует продюссер`,
+                    // bgColorOdd,
+                    'no-proj-alert'
+                );
+            }
+        }
+        checkProjectAndProducer();
+
         log('Страница модифицирована');
     }
     // на странице создания курса
@@ -2383,8 +2407,8 @@ const pagePatterns = {
             if (lessonsCount) {
                 alerts.addAlert(
                     `В данной параллели занятий не по расписанию: ${lessonsCount}`,
+                    'no-rasp-alert',
                     bgColorOdd,
-                    'no-rasp-alert'
                 );
             } else {
                 alerts.removeAlert('no-rasp-alert');
@@ -2912,8 +2936,8 @@ const pagePatterns = {
             if (lessonsCount) {
                 alerts.addAlert(
                     `В данной параллели занятий не по расписанию: ${lessonsCount}`,
+                    'no-rasp-alert',
                     bgColorOdd,
-                    'no-rasp-alert'
                 );
             } else {
                 alerts.removeAlert('no-rasp-alert');
@@ -2948,9 +2972,8 @@ const pagePatterns = {
                 const msg = 'Дата старта параллели не совпадает с датой старта первого занятия'
                 if (showWarning) {
                     alerts.addAlert(
-                        `Дата старта параллели не совпадает с датой старта первого занятия`,
-                        '#ffb6c4',
-                        msg
+                        msg,
+                        'template-date-alert'
                     );
                 } else {
                     alerts.removeAlert('date-mismatch-warning');
