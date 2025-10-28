@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.100
+// @version      0.2.0.101
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1181,16 +1181,16 @@ async function copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnit
 }
 
 // Генерация уведомлений от @wanna_get_out
-        function alertManager() {
-            const managerId = 'alert-manager-container';
-            const headerId = 'script_header';
+function alertManager() {
+    const managerId = 'alert-manager-container';
+    const headerId = 'script_header';
 
-            let scriptHeader = currentWindow.querySelector(`#${headerId}`);
+    let scriptHeader = currentWindow.querySelector(`#${headerId}`);
 
-            if (!scriptHeader) {
-                scriptHeader = currentWindow.createElement('div');
-                scriptHeader.id = headerId;
-                scriptHeader.style.cssText = `
+    if (!scriptHeader) {
+        scriptHeader = currentWindow.createElement('div');
+        scriptHeader.id = headerId;
+        scriptHeader.style.cssText = `
             display: flex; 
             flex-direction: column; 
             position: sticky; 
@@ -1201,53 +1201,53 @@ async function copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnit
             overflow-y: auto;
         `;
 
-                const jsConsole = currentWindow.querySelector('#js-console');
-                if (jsConsole) {
-                    scriptHeader.appendChild(jsConsole);
-                } else {
-                    const consoleContainer = currentWindow.createElement('div');
-                    consoleContainer.id = 'js-console';
-                    consoleContainer.style.cssText = 'display: flex; flex-direction: row; justify-content: center;';
-                    scriptHeader.appendChild(consoleContainer);
-                }
-                currentWindow.body.insertBefore(scriptHeader, currentWindow.body.firstChild);
-            }
-
-            let container = currentWindow.querySelector(`#${managerId}`);
-
-            if (!container) {
-                container = currentWindow.createElement('div');
-                container.id = managerId;
-                container.style.display = 'flex';
-                container.style.flexDirection = 'column';
-                container.style.gap = '10px';
-                container.style.marginTop = '10px';
-
-                scriptHeader.appendChild(container);
-            }
-
-            return {
-                addAlert: (message, bgColor = '#ffb6c4', alertClass = 'custom-alert') => {
-                    const existingAlert = container.querySelector(`.${alertClass}`);
-                    if (existingAlert) existingAlert.remove();
-
-                    const alert = currentWindow.createElement('div');
-                    alert.className = alertClass;
-                    alert.style.padding = '10px';
-                    alert.style.borderRadius = '4px';
-                    alert.style.backgroundColor = bgColor;
-                    alert.style.textAlign = 'center';
-                    alert.textContent = message;
-
-                    container.appendChild(alert);
-                },
-
-                removeAlert: (alertClass = 'custom-alert') => {
-                    const alert = container.querySelector(`.${alertClass}`);
-                    if (alert) alert.remove();
-                }
-            };
+        const jsConsole = currentWindow.querySelector('#js-console');
+        if (jsConsole) {
+            scriptHeader.appendChild(jsConsole);
+        } else {
+            const consoleContainer = currentWindow.createElement('div');
+            consoleContainer.id = 'js-console';
+            consoleContainer.style.cssText = 'display: flex; flex-direction: row; justify-content: center;';
+            scriptHeader.appendChild(consoleContainer);
         }
+        currentWindow.body.insertBefore(scriptHeader, currentWindow.body.firstChild);
+    }
+
+    let container = currentWindow.querySelector(`#${managerId}`);
+
+    if (!container) {
+        container = currentWindow.createElement('div');
+        container.id = managerId;
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '10px';
+        container.style.marginTop = '10px';
+
+        scriptHeader.appendChild(container);
+    }
+
+    return {
+        addAlert: (message, bgColor = '#ffb6c4', alertClass = 'custom-alert') => {
+            const existingAlert = container.querySelector(`.${alertClass}`);
+            if (existingAlert) existingAlert.remove();
+
+            const alert = currentWindow.createElement('div');
+            alert.className = alertClass;
+            alert.style.padding = '10px';
+            alert.style.borderRadius = '4px';
+            alert.style.backgroundColor = bgColor;
+            alert.style.textAlign = 'center';
+            alert.textContent = message;
+
+            container.appendChild(alert);
+        },
+
+        removeAlert: (alertClass = 'custom-alert') => {
+            const alert = container.querySelector(`.${alertClass}`);
+            if (alert) alert.remove();
+        }
+    };
+}
 
 // регулярки для проверки текущей страницы админки
 const pagePatterns = {
@@ -2396,8 +2396,8 @@ const pagePatterns = {
         checkGroupsOnSchedule();
 
         log('Страница модифицирована');
-        //}
-        //if (currentWindow.checkPath(pagePatterns.groups) && false) {
+    //}
+    //if (currentWindow.checkPath(pagePatterns.groups) && false) {
         let mcid = window.location.href.match(/\d+/)[0];
         let btn_return_moderators = document.createElement('button');
         btn_return_moderators.innerHTML = 'Вернуть модераторов'; btn_return_moderators.hidden = false;
@@ -2815,112 +2815,6 @@ const pagePatterns = {
             }
         }
         full_numeration_creation();
-
-        // занятия не по расписанию от @wanna_get_out
-        let no_rasp_groups = async function () {
-            // Возвращает список дней недели
-            function getWeekdays() {
-                const blocks = [];
-                const times = [];
-
-                for (let i = 0; i < 7; i++) {
-                    let element = document.querySelector
-                        ('#' + `group_template_week_days_attributes_${i}_slot_week_day` + ' option[selected]')
-                    let element_time = document.querySelector
-                        ('#edit_group_template #' + `group_template_week_days_attributes_${i}_slot_time`)
-                    if (element) {
-                        blocks.push(Number(element.value));
-                    }
-                    if (element_time) {
-                        times.push(element_time.value.split(':'))
-                    }
-                }
-                return [blocks, times]
-            }
-
-            // Список с датами уроков по расписанию
-            function trueLesssonDates() {
-                const days = [];
-                const startDate = new Date(
-                    window.document.querySelectorAll('[id*="starts_at_date"]')[1].value.split('.').reverse()
-                );
-                let landingLessonCount = window.document.querySelectorAll('.lesson_number').length;
-                const [weekdays, weekday_times] = getWeekdays();
-
-                // Создаем копиию начальной даты, чтобы не изменять исходную
-                let date = new Date(startDate);
-                // Переводим дату к нужному времени
-                date.setHours(weekday_times[0][0], weekday_times[0][1], 0, 0);
-                // получаем максимальную дату
-                let allLessonsStartDate = Array.from(window.document.querySelectorAll('[id*="starts_at_"]')).slice(2);
-                let maxDate = new Date(Math.max(...allLessonsStartDate.map(x => new Date(
-                    x.value.split(' ')[0].split('.').reverse()
-                ))));
-                maxDate.setHours(23, 59, 59, 999);
-                //while (landingLessonCount >= 0) {
-                while (date <= maxDate) {
-                    for (let i = 0; i < weekdays.length; i++) {
-                        // Если день недели есть в списке дней недели и он i-ый
-                        if (weekdays[i] == Number(date.getDay())) {
-                            let temp_date = new Date(date);
-                            temp_date.setHours(weekday_times[i][0], weekday_times[i][1], 0, 0)
-                            days.push(Number(temp_date));
-                            landingLessonCount--; // Уменьшаем счётчик уроков
-                        }
-                    }
-                    // Увеличиваем дату на один день
-                    date.setDate(date.getDate() + 1);
-
-                }
-                return days;
-            }
-
-            // const weekdays = getWeekdays();
-            let trueLessons = trueLesssonDates();
-
-            // Получаем все уроки с лендинга
-            let allLessonsStartDate = Array.from(window.document.querySelectorAll('[id*="starts_at_"]')).slice(2);
-            const bgColorEven = '#ff869d';
-            const bgColorOdd = '#ffb6c4';
-            let lessonsCount = 0;
-
-            // Проходим циклом по всем датам уроков
-            for (let i = 0; i < allLessonsStartDate.length; i++) {
-                // Преобразовываем дату с лендинга в человеческую
-                let date = new Date(allLessonsStartDate[i].value.split(' ')[0].split('.').reverse());
-                let time = allLessonsStartDate[i].value.split(' ')[1].split(':');
-                date.setHours(time[0], time[1], 0, 0);
-                date = Number(date);
-                // Ищем совпадение даты лендинга с датой по расписанию
-                if (!trueLessons.includes(date)) {
-                    // Если не совпадает с расписанием (перенос, переназначение), красим родительский элемент 
-                    // (родительского элемента родительского элемента...) в цвет
-                    let parent = allLessonsStartDate[i].parentElement.parentElement.parentElement.parentElement;
-                    if (lessonsCount % 2 == 0) {
-                        parent.style.backgroundColor = bgColorEven;
-                    } else {
-                        parent.style.backgroundColor = bgColorOdd;
-                    }
-                    lessonsCount += 1;
-                }
-                else {
-                    let parent = allLessonsStartDate[i].parentElement.parentElement.parentElement.parentElement;
-                    parent.style.backgroundColor = '';
-                }
-            }
-            const alerts = alertManager()
-            if (lessonsCount) {
-                alerts.addAlert(
-                    `В данной параллели занятий не по расписанию: ${lessonsCount}`,
-                    bgColorOdd,
-                    'no-rasp-alert'
-                );
-            } else {
-                alerts.removeAlert('no-rasp-alert');
-            }
-            document.body.firstChild.className += ' rasp_checked';
-        }
-        no_rasp_groups();
 
         function templateStartDateChecker() {
 
@@ -5455,7 +5349,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.100 от 27 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.101 от 28 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
