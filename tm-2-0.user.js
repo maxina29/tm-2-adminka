@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.92
+// @version      0.2.0.100
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -21,6 +21,7 @@ const HOME_ID_SET = [4, 1, 1, ''];
 const SSM_ID_SET = [4, 6, 1, 4789];
 const METABASE_URL = 'https://metabase.foxford.ru';
 const FOXFORD_URL = 'https://foxford.ru';
+const SECRET_PAGE = /admin\/courses\/15005\/lesson_packs\/new/;
 const LESSON_TYPE_MAP = {
     "Нулевое": "zero",
     "Обычное": "regular",
@@ -214,7 +215,7 @@ class ManagedWindow {
         }
     }
 
-    async postFormDataJSON(url, payload = {}, params = {}) {
+    async postFormDataJSON(url, payload = {}, params = { checkJSONresponse: true }) {
         let {
             method = 'POST',
             headers = {
@@ -225,6 +226,15 @@ class ManagedWindow {
             body = payload ? JSON.stringify(payload) : null
         } = params;
         await this.openPage(url, { method: method, headers: headers, body: body });
+        if (params.checkJSONresponse) await this.checkJSONresponse();
+    }
+
+    async checkJSONresponse() {
+        let json = JSON.parse(this.document.body.innerHTML);
+        if (json.result === true) {
+            return true;
+        }
+        throw new Error(json.errors);
     }
 
     getCSRFToken() {
@@ -1118,7 +1128,9 @@ async function copyMethodicalMaterials(virtualWindow, sourceUnitLink, targetUnit
                 log('-- Проверяю рекомендованность к ДЗ --');
                 for (let taskInd = 0; taskInd < sourceTaskRecommendations.length; taskInd++) {
                     if (sourceTaskRecommendations[taskInd] != targetTaskRecommendations[taskInd]) {
-                        await virtualWindow.postFormDataJSON(targetTaskRecommendationLinks[taskInd]);
+                        await virtualWindow.postFormDataJSON(
+                            targetTaskRecommendationLinks[taskInd], { checkJSONresponse: false }
+                        );
                     }
                 }
             }
@@ -1209,7 +1221,7 @@ const pagePatterns = {
     webinar: /admin\/courses\/\d*\/groups\/\d*$/,
     eventWebinar: /admin\/events\/\d*/,
     massChange: `${FOXFORD_URL}/admin/mass_change`,
-    secretPage: /admin\/courses\/15005\/lesson_packs\/new/,
+    secretPage: SECRET_PAGE,
     index: `${FOXFORD_URL}/admin`,
     hasAnchor: /#/
 };
@@ -1301,6 +1313,7 @@ const pagePatterns = {
             cancelMaternityCapital: 'Необходимо отключить оплату маткапиталом в отмененном курсе',
             cancelVisibleInCalendar: 'Необходимо отключить отображение в календаре отмененного курса',
             cancelNames: 'В названиях курса необходимо указать, что курс отменен',
+            cancelTags: 'В тегах курса не должно быть тегов',
         };
         const teacherWarnings = {
             saveReminder: createWarningElement('Не забудьте сохранить изменения :)'),
@@ -1332,6 +1345,7 @@ const pagePatterns = {
         elements.maternityCapital.parentNode.after(warnings.cancelMaternityCapital);
         elements.visibleInCalendar.parentNode.after(warnings.cancelVisibleInCalendar);
         elements.fullName.after(warnings.cancelNames);
+        elements.tags.after(warnings.cancelTags);
 
         function checkAsynchronousCourse() {
             if (!elements.async.checked && elements.published.checked) {
@@ -1351,7 +1365,10 @@ const pagePatterns = {
         }
         if (elements.teachers) checkAsynchronousCourse();
         const cancelButtonOnClick = () => {
-            if (elements.teachers) elements.teachers.value = CANCEL_GALINA_ID;
+            if (elements.teachers) {
+                elements.teachers.value = CANCEL_GALINA_ID;
+                elements.tags.value = '';
+            }
             else elements.tags.value = CANCEL_MG_TAG_ID;
             elements.purchaseMode.value = 'disabled';
             let x = currentWindow.querySelector('#s2id_course_purchase_mode').firstChild.childNodes[1];
@@ -1413,7 +1430,14 @@ const pagePatterns = {
                 let hasProblems = false;
                 // есть другие преподаватели кроме Галины
                 if (manyItems) { teacherWarnings.cancelTeacher.hidden = false; hasProblems = true; }
-                else { teacherWarnings.cancelTeacher.hidden = true }
+                else { teacherWarnings.cancelTeacher.hidden = true; }
+                // проставлены теги
+                if (elements.teachers && elements.tags.selectedOptions.length > 0) {
+                    teacherWarnings.cancelTags.hidden = false;
+                    warnings.cancelTags.hidden = false;
+                    hasProblems = true;
+                }
+                else { teacherWarnings.cancelTags.hidden = true; warnings.cancelTags.hidden = true; }
                 // включено приобретение
                 if (elements.purchaseMode.value != 'disabled') {
                     teacherWarnings.cancelPurchashing.hidden = false;
@@ -1579,8 +1603,8 @@ const pagePatterns = {
 
     // на странице с программой
     if (currentWindow.checkPath(pagePatterns.lessons)) {
-        let LessonTasksLinks = currentWindow.querySelectorAll('[href$="lesson_tasks"]');
-        for (let tasksLink of LessonTasksLinks) {
+        let lessonTasksLinks = currentWindow.querySelectorAll('[href$="lesson_tasks"]');
+        for (let tasksLink of lessonTasksLinks) {
             // добавляем к ссылке пустой поиск, чтобы всегда было побольше задач в выдаче
             tasksLink.href += '?q%5Bdisciplines_id_in%5D='
         }
@@ -1600,7 +1624,7 @@ const pagePatterns = {
         let spn = createElement('span');
         spn.innerHTML = '(включительно)';
         lessonIntervalForm.appendChild(spn);
-        let lessonNumbersList = Array.from(currentWindow.querySelector('.lessons-list').childNodes).map(
+        let lessonNumbersList = Array.from(currentWindow.querySelectorAll('.lessons-list .lesson')).map(
             lesson => {
                 let lessonTitle = lesson.querySelector('.panel-title').innerHTML;
                 let backspaceSecondIndex = lessonTitle.indexOf(' ', lessonTitle.indexOf(' ') + 1);
@@ -1614,7 +1638,7 @@ const pagePatterns = {
             optionLast.value = lessonNumberIndex; optionLast.innerHTML = lessonNumbersList[lessonNumberIndex];
             selectLastLesson.appendChild(optionLast);
             const lessonDescription =
-                currentWindow.querySelector('.lessons-list').childNodes[lessonNumberIndex].querySelector('textarea');
+                currentWindow.querySelectorAll('.lessons-list .lesson')[lessonNumberIndex].querySelector('textarea');
             // убираем по одной кавычке из описания с каждого края --- защита от гугл-таблиц
             lessonDescription.onchange = selfi => {
                 let self = selfi.currentTarget;
@@ -2012,7 +2036,7 @@ const pagePatterns = {
             x = document.getElementsByClassName('lesson_course_id')[0].parentNode.parentNode;
         }
         x.insertBefore(div, x.childNodes[2]);
-        if (window.location.href.match('#csv')) {
+        if (currentWindow.checkPath(/#csv/)) {
             document.querySelector('.csv-btn').classList.add('bot-approve');
             btn_show_onclick();
             btn_csv_onclick();
@@ -2099,8 +2123,10 @@ const pagePatterns = {
     }
 
     // на странице с расписанием
-    if (currentWindow.checkPath(pagePatterns.groups)) {
+    if (currentWindow.checkPath(pagePatterns.groups) && true) {
         group_template_id.classList.add('protected');
+
+        // Автоматическая простановка преподавателя для МГ и тренажерных курсов
         let courseTypeId = course_data.dataset.courseTypeId;
         if (['5', '6'].includes(courseTypeId)) {
             let newTemplateTeacher = currentWindow.querySelector('.new_group_template #group_template_teacher_id');
@@ -2110,15 +2136,18 @@ const pagePatterns = {
             newTemplateTeacher.dispatchEvent(new Event('change'));
             newTemplateTeacher.setAttribute('readonly', 'true');
         }
-        let lessonRows = currentWindow.querySelectorAll('tbody:last-of-type tr');
+
+        // Подготовка страницы
+        currentWindow.querySelector('[data-target="#new_group_template"]')
+            .classList.replace('btn-default', 'btn-success');
+        let lessonRows = Array.from(currentWindow.querySelectorAll('.groups_list .panel[id^="group_"]'));
         for (let lessonRow of lessonRows) {
             lessonRow.classList.add('lesson_row');
-            let firstColumn = lessonRow.querySelector('td.first_column');
-            let lessonIdElem = firstColumn.querySelector('a[name]');
-            lessonIdElem.classList.add('lesson_id');
-            let lessonId = lessonRow.querySelector('a[name]').name;
-            let lessonNumberElem = firstColumn.querySelector('.lesson_number');
-            let lessonTypeSpan = lessonNumberElem.querySelector('span');
+            let headingRow = lessonRow.querySelector('.panel-heading');
+            let lessonNumberElem = headingRow.querySelector('.lesson_number');
+            let lessonHref = lessonNumberElem.querySelector('a').href;
+            let lessonId = lessonHref.slice(lessonHref.search('=') + 1);
+            let lessonTypeSpan = headingRow.querySelector('span');
             lessonTypeSpan.classList.add('lesson_type');
             let lessonTypeText = lessonTypeSpan.textContent.trim();
             let lessonType = LESSON_TYPE_MAP[lessonTypeText];
@@ -2126,19 +2155,14 @@ const pagePatterns = {
             else log(`Неизвестный тип урока: ${lessonTypeText}`);
             let lessonIdSpan = createElement('span', 'label label-default');
             lessonIdSpan.innerHTML = `id: ${lessonId}`;
-            lessonNumberElem.append(createElement('br'));
-            lessonNumberElem.append(lessonIdSpan);
+            lessonTypeSpan.after(createElement('br'), lessonIdSpan);
             let actionButtons = lessonRow.querySelector('.actions_btn');
             let lessonHeader = actionButtons.closest('.form-group');
             lessonHeader.classList.add('lesson_header');
             let webinarNameElement = lessonHeader.querySelector('label');
             let webinarName = webinarNameElement.textContent.trim();
-            if (webinarName.includes('копия')) {
-                lessonRow.classList.add('copy');
-            }
-            else {
-                lessonRow.classList.add('original');
-            }
+            if (webinarName.includes('копия')) lessonRow.classList.add('copy');
+            else lessonRow.classList.add('original');
             let webinarButton = lessonHeader.querySelector('.actions_btn>a');
             let webinarLabel = webinarButton.textContent.trim();
             if (webinarButton.classList.contains('disabled') && webinarLabel == 'Без вебинара') {
@@ -2154,22 +2178,212 @@ const pagePatterns = {
                 let webinarStatus = statusLabel.split(': ')[1];
                 lessonRow.classList.add(webinarStatus);
             }
-
+            if (lessonRow.querySelector('[id^="starts_at_"]')) {
+                lessonRow.classList.add('has_starts_at');
+            }
+            else {
+                lessonRow.classList.add('no_starts_at');
+            }
         }
+        let adminButtons = createElement('div', 'adminButtons');
+        let groupsPage = currentWindow.querySelector('.groups_page');
+        groupsPage.prepend(adminButtons);
+
+        // Кнопка «↑ Перестроить ↑»
+        async function rebuildUpButtonOnClick() {
+            rebuildUpButton.style = 'display:none';
+            let hasFutureLesson = false;
+            let nextLessonDate = '01.01.1990';
+            let nextLessonNumber = 0;
+            for (let lessonRow of lessonRows) {
+                if (lessonRow.classList.contains('no_starts_at') &&
+                    !lessonRow.classList.contains('started') &&
+                    !lessonRow.classList.contains('ready_to_start')
+                ) {
+                    lessonRow.hidden = true;
+                }
+                else if (lessonRow.classList.contains('created') && hasFutureLesson == false) {
+                    hasFutureLesson = true;
+                    let startsAtValue = lessonRow.querySelector('[id^="starts_at_"]').value;
+                    nextLessonDate = startsAtValue.split(' ')[0];
+                    let lessonNumberText = lessonRow.querySelector('.lesson_number a[href]').innerHTML;
+                    nextLessonNumber = lessonNumberText.match(/\d+/)[0];
+                }
+            }
+            let groupsList = currentWindow.querySelector('.groups_list');
+            groupsList.before(groupsList.nextSibling);
+            currentWindow.querySelector('#from_lesson_number').value = nextLessonNumber;
+            currentWindow.querySelector('[id^=start_from_date_]').value = nextLessonDate;
+            if (currentWindow.querySelector('.bot-approve')) {
+                while (!currentWindow.querySelector('.rasp_checked')) { await sleep(100); }
+                if (!currentWindow.querySelector('.alert-no-rasp-groups')) {
+                    currentWindow.querySelector('.btn.btn-primary[value="Перестроить"]').click();
+                }
+            }
+            log('Прошедшие занятия скрыты, данные для перестроения параллели перенесены вверх страницы');
+        }
+        let rebuildUpButton = createButton('↑ Перестроить ↑', rebuildUpButtonOnClick, 'reset-btn');
+        adminButtons.appendChild(rebuildUpButton);
+        if (currentWindow.checkPath(/#reset_schedule/)) {
+            rebuildUpButton.classList.add('bot-approve');
+            rebuildUpButton.click();
+        }
+
+        // Генерация уведомлений от @wanna_get_out
+        function alertManager() {
+            const managerId = 'alert-manager-container';
+            let container = currentWindow.querySelector(`#${managerId}`);
+
+            if (!container) {
+                container = currentWindow.createElement('div');
+                container.id = managerId;
+                container.style.display = 'flex';
+                container.style.flexDirection = 'column';
+                container.style.gap = '10px';
+                container.style.marginTop = '10px';
+
+                const referenceNode = currentWindow.querySelector('#course_data');
+                if (referenceNode) {
+                    referenceNode.parentNode.insertBefore(container, referenceNode);
+                } else {
+                    currentWindow.body.prepend(container);
+                }
+            }
+
+            return {
+                addAlert: (message, bgColor = '#ffb6c4', alertClass = 'custom-alert') => {
+                    const existingAlert = container.querySelector(`.${alertClass}`);
+                    if (existingAlert) existingAlert.remove();
+
+                    const alert = currentWindow.createElement('div');
+                    alert.className = alertClass;
+                    alert.style.padding = '10px';
+                    alert.style.borderRadius = '4px';
+                    alert.style.backgroundColor = bgColor;
+                    alert.style.textAlign = 'center';
+                    alert.textContent = message;
+
+                    container.appendChild(alert);
+                },
+
+                removeAlert: (alertClass = 'custom-alert') => {
+                    const alert = container.querySelector(`.${alertClass}`);
+                    if (alert) alert.remove();
+                }
+            };
+        }
+
+        // Проверка, что все занятия по расписанию от @wanna_get_out
+        let checkGroupsOnSchedule = async function () {
+
+            // Возвращает список дней недели
+            function getWeekdays() {
+                const blocks = [];
+                const times = [];
+                for (let i = 0; i < 7; i++) {
+                    let element = currentWindow.querySelector
+                        (`#group_template_week_days_attributes_${i}_slot_week_day option[selected]`);
+                    let timeElement = currentWindow.querySelector
+                        (`#edit_group_template #group_template_week_days_attributes_${i}_slot_time`);
+                    if (element) blocks.push(Number(element.value));
+                    if (timeElement) times.push(timeElement.value.split(':'));
+                }
+                return [blocks, times]
+            }
+
+            // Список с датами уроков по расписанию
+            function trueLesssonDates() {
+                const days = [];
+                const startDateElement = currentWindow.querySelector('#edit_group_template [id*="starts_at_date"]');
+                const startDate = new Date(startDateElement.value.split('.').reverse());
+                const [weekdays, weekdayTimes] = getWeekdays();
+
+                // Создаем копиию начальной даты, чтобы не изменять исходную
+                let date = new Date(startDate);
+                date.setHours(weekdayTimes[0][0], weekdayTimes[0][1], 0, 0);
+
+                let startsAtElements = lessonRows.map(x => x.querySelector('[id*="starts_at_"]')).filter(Boolean);
+                let maxDate = new Date(
+                    Math.max(...startsAtElements.map(el => new Date(el.value.split(' ')[0].split('.').reverse())))
+                );
+                maxDate.setHours(23, 59, 59, 999);
+                while (date <= maxDate) {
+                    for (let i = 0; i < weekdays.length; i++) {
+                        // Если день недели есть в списке дней недели и он i-ый
+                        if (weekdays[i] == Number(date.getDay())) {
+                            let tempDate = new Date(date);
+                            tempDate.setHours(weekdayTimes[i][0], weekdayTimes[i][1], 0, 0)
+                            days.push(Number(tempDate));
+                        }
+                    }
+                    // Увеличиваем дату на один день
+                    date.setDate(date.getDate() + 1);
+
+                }
+                return days;
+            }
+            let trueLessons = trueLesssonDates();
+
+            // Получаем все уроки с лендинга
+            let allLessonsStartDate = Array.from(currentWindow.querySelectorAll('[id*="starts_at_"]')).slice(2);
+            const bgColorEven = '#ff869d';
+            const bgColorOdd = '#ffb6c4';
+            let lessonsCount = 0;
+
+            // Проходим циклом по всем датам уроков
+            for (let i = 0; i < allLessonsStartDate.length; i++) {
+                // Преобразовываем дату с лендинга в человеческую
+                let date = new Date(allLessonsStartDate[i].value.split(' ')[0].split('.').reverse());
+                let time = allLessonsStartDate[i].value.split(' ')[1].split(':');
+                date.setHours(time[0], time[1], 0, 0);
+                date = Number(date);
+                // Ищем совпадение даты лендинга с датой по расписанию
+                if (!trueLessons.includes(date)) {
+                    // Если не совпадает с расписанием (перенос, переназначение), красим родительский элемент 
+                    // (родительского элемента родительского элемента...) в цвет
+                    let parent = allLessonsStartDate[i].parentElement.parentElement.parentElement.parentElement;
+                    if (lessonsCount % 2 == 0) {
+                        parent.style.backgroundColor = bgColorEven;
+                    } else {
+                        parent.style.backgroundColor = bgColorOdd;
+                    }
+                    lessonsCount += 1;
+                }
+                else {
+                    let parent = allLessonsStartDate[i].parentElement.parentElement.parentElement.parentElement;
+                    parent.style.backgroundColor = '';
+                }
+            }
+            const alerts = alertManager()
+            if (lessonsCount) {
+                alerts.addAlert(
+                    `В данной параллели занятий не по расписанию: ${lessonsCount}`,
+                    bgColorOdd,
+                    'no-rasp-alert'
+                );
+            } else {
+                alerts.removeAlert('no-rasp-alert');
+            }
+            currentWindow.body.firstChild.className += ' rasp_checked';
+        }
+        let saveButtons = currentWindow.querySelectorAll('.btn-default[value="Сохранить"]');
+        for (let saveButton of saveButtons) saveButton.addEventListener('click', checkGroupsOnSchedule);
+        checkGroupsOnSchedule();
+
         log('Страница модифицирована');
+    //}
+    //if (currentWindow.checkPath(pagePatterns.groups) && false) {
         let mcid = window.location.href.match(/\d+/)[0];
-        let div = createElement('div', 'adminButtons');
         let btn_return_moderators = document.createElement('button');
         btn_return_moderators.innerHTML = 'Вернуть модераторов'; btn_return_moderators.hidden = false;
-        div.appendChild(btn_return_moderators);
+        adminButtons.appendChild(btn_return_moderators);
         let btn_show = document.createElement('button');
         btn_show.innerHTML = 'Продвинутые возможности';
         let btn_hide = document.createElement('button'); btn_hide.hidden = true;
         btn_hide.innerHTML = 'Скрыть продвинутые возможности';
         let btn_masscopy = document.createElement('button'); btn_masscopy.hidden = true;
         btn_masscopy.innerHTML = 'Массовое копирование занятий из другого курса в этот курс';
-        let btn_prs = document.createElement('button'); btn_prs.hidden = false; btn_prs.className = 'reset-btn';
-        btn_prs.innerHTML = '↑ Перестроить ↑';
+
         let btn_group_lessons;
         btn_show.onclick = function () {
             btn_show.hidden = true; btn_masscopy.hidden = false; btn_group_lessons.hidden = false;
@@ -2271,38 +2485,7 @@ const pagePatterns = {
                 try { masscopygroups(); } catch (e) { log(e); }
             }
         }
-        let btn_prs_onclick = async function () {
-            btn_prs.style = 'display:none';
-            let a = document.getElementsByClassName('groups_table')[0].getElementsByTagName('tr');
-            let k = false;
-            let md = '01.01.1990';
-            let tn = 0;
-            for (let i = 3; i < a.length - 2; i++) {
-                if (a[i].querySelectorAll('[id^="starts_at_"]').length == 0) {
-                    a[i].hidden = true;
-                }
-                else if (a[i].querySelectorAll('[id^="starts_at_"]').length != 0 && k == false) {
-                    k = true;
-                    let s = a[i].querySelectorAll('[id^="starts_at_"]')[0].value;
-                    md = s.slice(0, s.search(/ /));
-                    s = a[i].querySelector('.lesson_number a[href]').innerHTML;
-                    tn = s.substring(s.search(' ') + 1, s.search(/\(/) - 1);
-                }
-            }
-            a[0].parentNode.insertBefore(a[a.length - 1], a[0]);
-            a[0].parentNode.insertBefore(a[a.length - 1], a[1]);
-            document.querySelector('#from_lesson_number').value = tn;
-            document.querySelector('[id^=start_from_date_]').value = md;
-            if (document.querySelectorAll('.bot-approve').length) {
-                while (!document.querySelectorAll('.rasp_checked').length) { await sleep(100); }
-                await sleep(500);
-                if (!document.querySelectorAll('.alert-no-rasp-groups').length) {
-                    document.querySelector('.btn.btn-primary[value="Перестроить"]').click();
-                }
-            }
-            log('Прошедшие занятия скрыты, данные для перестроения параллели перенесены вверх страницы');
-        }
-        btn_prs.onclick = btn_prs_onclick;
+
         let btn_group_lessons_onclick = async () => {
             let hasBotApproval = checkBotApprove();
             btn_group_lessons_onclick.style = 'display:none';
@@ -2428,10 +2611,8 @@ const pagePatterns = {
             'Проставить доп. занятия (тариф Самостоятельный)', btn_dop_sam_lessons_onclick, 'set-dop-sam-lessons'
         );
         btn_dop_sam_lessons.hidden = true;
-        div.appendChild(btn_show); div.appendChild(btn_masscopy); div.appendChild(btn_group_lessons);
-        div.appendChild(btn_dop_sam_lessons); div.appendChild(btn_hide); div.appendChild(btn_prs);
-        let x = document.getElementsByClassName('container-fluid')[1].childNodes[2];
-        x.insertBefore(div, x.firstChild);
+        adminButtons.appendChild(btn_show); adminButtons.appendChild(btn_masscopy); adminButtons.appendChild(btn_group_lessons);
+        adminButtons.appendChild(btn_dop_sam_lessons); adminButtons.appendChild(btn_hide);
         function join_short(a, sym = ', ', end = ' и еще в ', cou = 3) {
             let k = '';
             if (a.length > cou) { k = end + (a.length - cou) }
@@ -2920,11 +3101,8 @@ const pagePatterns = {
                 if (!win.closed) win.close();
             }
         }
-
         changeWebinarLocations();
 
-        let all_save_btns = document.querySelectorAll('.btn-default[value="Сохранить"]');
-        for (let save_btn of all_save_btns) { save_btn.addEventListener('click', no_rasp_groups); }
         //
         let set_all_duration_at_ = async function (x = 40) {
             let a = document.getElementsByClassName('groups_table')[0].getElementsByTagName('tr');
@@ -3015,10 +3193,6 @@ const pagePatterns = {
         }
         btn_return_moderators.onclick = returnModeratorsOnClick;
 
-        if (window.location.href.match('#reset_schedule')) {
-            document.querySelector('.reset-btn').classList.add('bot-approve');
-            btn_prs_onclick();
-        }
         if (window.location.href.match('#duration40')) { set_all_duration_at_(40); }
     }
 
@@ -3514,7 +3688,8 @@ await currentWindow.reload();`;
         let goodSeries = [
             'Подготовка к ЕГЭ', 'Подготовка к ОГЭ', 'Домашняя школа', 'Родителям', 'Поступление', 'Профориентация',
             'Другое', 'Вне циклов', 'Семинары для учителей', 'Подготовка к ОГЭ для учителей',
-            'Вебинары с Федеральным подростковым центром', 'Подготовка к ЕГЭ для учителей'
+            'Вебинары с Федеральным подростковым центром', 'Подготовка к ЕГЭ для учителей',
+            'Как готовить к олимпиадам?',
         ];
         for (let optionElement of seriesElement.children) {
             if (goodSeries.includes(optionElement.textContent)) optionElement.className += ' good';
@@ -3922,13 +4097,8 @@ displayLog('Готово! Проверьте данные и сохраните'
     if (currentWindow.checkPath(pagePatterns.devServices)) {
         async function test_adminka() {
             let arr = document.querySelectorAll('div.col-sm-6');
-            let only_copy = false;
-            let only_week_day_webinars_settings = false;
-            let only_copy_href = currentWindow.location.href.match(/\?only_copy/) || [];
-            let only_week_day_webinars_settings_href =
-                currentWindow.location.href.match(/\?only_week_day_webinars_settings/) || [];
-            if (only_copy_href.length) { only_copy = true; }
-            if (only_week_day_webinars_settings_href.length) { only_week_day_webinars_settings = true; }
+            let only_copy = currentWindow.checkPath(/\?only_copy/);
+            let only_week_day_webinars_settings = currentWindow.checkPath(/\?only_week_day_webinars_settings/);
             for (let i of arr) {
                 if (!i.getElementsByTagName('h4').length || !i.getElementsByTagName('h4')[0]) {
                     if (only_copy || only_week_day_webinars_settings) {
@@ -4082,7 +4252,7 @@ displayLog('Готово! Проверьте данные и сохраните'
                     if (tmp_int == -1) { tmp_int = 100; }
                     document.querySelector('#change_original_group_original_group_id').value = tmp.slice(0, tmp_int);
                 } catch (e) { }
-                if ((currentWindow.location.href.match(/auto_validate/) || []).length) {
+                if (currentWindow.checkPath(/auto_validate/)) {
                     document.querySelector('.only-copy-main [type=submit]').click();
                 }
             }
@@ -4110,19 +4280,19 @@ displayLog('Готово! Проверьте данные и сохраните'
                         select.appendChild(opt); select.value = tmp_value;
                     }
                 } catch (e) { log(e) }
-                if ((currentWindow.location.href.match(/ssm/) || []).length) {
+                if (currentWindow.checkPath(/ssm/)) {
                     document.querySelector('.ssm').click();
                 }
-                if ((currentWindow.location.href.match(/mini/) || []).length) {
+                if (currentWindow.checkPath(/mini/)) {
                     document.querySelector('.mini').click();
                 }
-                if ((currentWindow.location.href.match(/home/) || []).length) {
+                if (currentWindow.checkPath(/home/)) {
                     document.querySelector('.home').click();
                 }
-                if ((currentWindow.location.href.match(/slag/) || []).length) {
+                if (currentWindow.checkPath(/slag/)) {
                     document.querySelector('.slag').click();
                 }
-                if ((currentWindow.location.href.match(/auto_validate/) || []).length) {
+                if (currentWindow.checkPath(/auto_validate/)) {
                     document.querySelector('.only-week-day-webinar-settings-main [type=submit]').click();
                 }
             }
@@ -4364,6 +4534,7 @@ displayLog('Готово! Проверьте данные и сохраните'
                 children: [
                     { title: 'Курсы / courses', key: 'adminCourses' },
                     { title: 'Программа / lessons', key: 'adminLessons' },
+                    { title: 'Изменение порядка уроков / lessons_order', key: 'lessonsOrder' },
                     { title: 'Расписание / groups', key: 'groups' },
                     { title: 'Календарь каникул / holidays_calendar', key: 'holidays' },
                     { title: 'Преподаватели / teachers', key: 'teachers' },
@@ -4377,6 +4548,7 @@ displayLog('Готово! Проверьте данные и сохраните'
                 children: [
                     { title: 'Курсы / courses', key: 'contentCourses' },
                     { title: 'Программа / lessons', key: 'contentLessons' },
+                    { title: 'Тесты / trainings', key: 'trainings' },
                     { title: 'Задачи / tasks', key: 'tasks' },
                     { title: 'Учебные программы / methodical_materials/programs', key: 'methodicalPrograms' }
                 ]
@@ -4568,6 +4740,26 @@ for (let [courseId, lessonId] of pairs) {
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
 }`,
                 parent: 'adminLessons'
+            },
+            LESSONS_EXCLUDED_FROM_PROGRESS_PAGE: {
+                name: 'Не учитывать уроки в успеваемости',
+                code: `// ${METABASE_URL}/question/46496?course=10609
+let pairs = [
+    // [course_id, lesson_id],
+    [10609, 293615],
+    [10609, 308300],
+];
+let win = await createWindow(-1);
+for (let [courseId, lessonId] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    let url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}\`;
+    let fields = {
+        '_method': 'patch',
+        'lesson[excluded_from_progress_page]': true,
+    };
+    await win.postFormData(url, fields, { successAlertIsNessesary: false });
+}`,
+                parent: 'contentLessons'
             },
             LESSONS_REORDER: {
                 name: 'Переместить уроки в конец курса (для удаления)',
@@ -5223,6 +5415,46 @@ for (let [courseId, groupId, teacherId] of pairs) {
 }`,
                 parent: 'groups'
             },
+            CHANGE_GROUP_DATES: {
+                name: 'Поменять даты в занятиях без вебинара',
+                description: `можно проставить в том числе прошедшую дату
+                    можно указать занятия во всех параллелях или оставить только часть`,
+                code: `// ${METABASE_URL}/question/51042
+let starts_at = '24.10.2023 10:00';
+const pairs = [
+    // course_id, lesson_id, [group_id1, group_id2...]
+    [10609, 313900, [710456, 955552]],
+];
+let win = await createWindow(-1);
+for (const [courseId, lessonId, groupIds] of pairs) {
+    log(\`$\{courseId}, $\{lessonId}\`);
+    const url = \`/admin/courses/$\{courseId}/lessons/$\{lessonId}/change_group_dates\`;
+    let arr = [];
+    for (let groupId of groupIds) {
+        arr.push({ id: groupId, starts_at: starts_at })
+    }
+    await win.postFormDataJSON(url, { groups: arr });
+}`,
+                parent: 'lessonsOrder'
+            },
+            CHANGE_TRAINING_NAME: {
+                name: 'Изменение названий тестов',
+                code: `let pairs = [
+    // [training_id, name],
+    [10092, 'Тест отдела видеотрансляций'],
+];
+let win = await createWindow(-1);
+for (let [trainingId, newName] of pairs) {
+    log(\`$\{trainingId} <- $\{newName}\`);
+    let url = \`/admin/trainings/$\{trainingId}\`;
+    let fields = {
+        '_method': 'patch',
+        'training[name]': newName,
+    };
+    await win.postFormData(url, fields);
+}`,
+                parent: 'trainings'
+            },
         }
         sections = buildSectionsRecursive(form, sectionsStructure);
         for (let key in SCRIPTS) {
@@ -5266,7 +5498,7 @@ for (let [courseId, groupId, teacherId] of pairs) {
         loopButton.href = 'https://foxford.loop.ru/foxford/channels/c04um2g2h6e';
         yonoteButton.href = 'https://foxford.yonote.ru/doc/adminy-uchebnoj-platformy-WH5s3sfbLA';
         fvsButton.href = 'https://next.fvs.foxford.ru/id/hub';
-        foxButton.href = '/admin/courses/15005/lesson_packs/new';
+        foxButton.href = SECRET_PAGE;
         loopButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287601/loop.png';
         yonoteButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287609/yonote.png';
         fvsButton.firstChild.src = 'https://uploads-foxford-ru.ngcdn.ru/uploads/inner_file/file/287608/fvs.png';
@@ -5275,7 +5507,7 @@ for (let [courseId, groupId, teacherId] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.92 от 17 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.100 от 27 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
