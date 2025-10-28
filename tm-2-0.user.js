@@ -110,7 +110,7 @@ class ManagedWindow {
                 const headers = params.headers || {};
                 const body = params.body || null;
                 const credentials = params.credentials || 'include';
-                if (method !== 'GET' && method !== 'HEAD') {
+                if (method !== 'GET' && method !== 'HEAD' || params.includeCsrfToken) {
                     const csrfToken = this.getCSRFToken();
                     if (csrfToken && !headers['X-CSRF-Token']) headers['X-CSRF-Token'] = csrfToken;
                 }
