@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.105
+// @version      0.2.0.106
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -164,7 +164,8 @@ class ManagedWindow {
             includeDefaultFields = true,
             headers = { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': this.getCSRFToken() },
             successAlertIsNessesary = true,
-            fileFields = []
+            fileFields = [],
+            skipDangerAlert = true,
         } = params;
         let defaultFields = {};
         if (includeDefaultFields) defaultFields = { 'authenticity_token': this.getCSRFToken(), 'utf8': '✓' };
@@ -206,13 +207,13 @@ class ManagedWindow {
         }
         await this.openPage(url, { method: 'POST', headers: headers, body: body });
         if (successAlertIsNessesary) {
-            try { await this.waitForSuccess(true); }
+            try { await this.waitForSuccess(skipDangerAlert); }
             catch (error) {
                 log(error.message);
                 await sleep(500);
                 log('Повторная попытка...')
                 await this.openPage(url, { method: 'POST', headers: headers, body: body });
-                await this.waitForSuccess(true);
+                await this.waitForSuccess(skipDangerAlert);
             }
         }
     }
@@ -2455,13 +2456,14 @@ const pagePatterns = {
                 if (selectedGroup) {
                     console.log(`Нужно скопировать в ${currentGroup.id} из ${selectedGroup.id}`);
                     let virtualWindow = await createWindow(-1);
-                    let fields = { 
+                    let fields = {
                         '_method': 'put',
-                        'change_original_group[group_id]': currentGroup.id, 
-                        'change_original_group[original_group_id]': selectedGroup.id 
+                        'change_original_group[group_id]': currentGroup.id,
+                        'change_original_group[original_group_id]': selectedGroup.id
                     }
+                    let params = { skipDangerAlert: false };
                     try {
-                        await virtualWindow.postFormData('/admin/dev_services/change_original_group', fields);
+                        await virtualWindow.postFormData('/admin/dev_services/change_original_group', fields, params);
                         modal.remove();
                         await sleep(3000);
                         currentWindow.reload();
@@ -5582,7 +5584,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.105 от 30 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.106 от 30 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
