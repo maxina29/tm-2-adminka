@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.107
+// @version      0.2.0.108
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2433,8 +2433,7 @@ const pagePatterns = {
                     border: 2px solid #ccc; margin-right: 10px; position: relative;`);
                 const groupText = createElement('span', 'modal-text');
                 const groupTemplateId = group.group_template_title.match(/\[(\d+)\]/)[1];
-                const teacherName = group.name.split(' ').slice(2).join(' ');
-                groupText.textContent = `[${groupTemplateId}] ${teacherName} id ${group.id}`;
+                groupText.textContent = `[${groupTemplateId}] ${group.name} id ${group.id}`;
                 groupItem.addEventListener('click', () => {
                     Array.from(list.children).forEach(item => {
                         item.style.background = 'none';
@@ -5682,7 +5681,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.107 от 30 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.108 от 30 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
