@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.103
+// @version      0.2.0.104
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -549,6 +549,30 @@ function createFileInput(format = 'text/csv') {
     inp.accept = format;
     inp.required = true;
     return inp;
+}
+
+function createLessonIntervalForm() {
+    let lessonIntervalForm = createElement('form');
+    let selectFirstLesson = createFormElement(
+        lessonIntervalForm, 'select', 'Массовые правки вносятся с ', 'tm_from_lesson', '', false
+    );
+    let selectLastLesson = createFormElement(lessonIntervalForm, 'select', ' по ', 'tm_last_lesson', '', false);
+    selectFirstLesson.style = 'margin:5pt; max-width:250px; display: inline;';
+    selectLastLesson.style = 'margin:5pt; max-width:250px; display: inline;';
+    selectFirstLesson.onchange = async () => { currentWindow.firstLessonNumber = Number(selectFirstLesson.value); };
+    selectLastLesson.onchange = async () => { currentWindow.lastLessonNumber = Number(selectLastLesson.value); };
+    let spn = createElement('span');
+    spn.innerHTML = '(включительно)';
+    lessonIntervalForm.appendChild(spn);
+    return { selectFirstLesson, selectLastLesson, lessonIntervalForm };
+}
+
+function createOption(select, value, label = '') {
+    let option = createElement('option');
+    option.value = value;
+    option.innerHTML = label;
+    select.appendChild(option);
+    return option;
 }
 
 async function createWindow(arg = window) {
@@ -1272,7 +1296,6 @@ function formatDateTime(date) {
     const year = date.getFullYear();
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
-
     return `${day}.${month}.${year} ${hours}:${minutes}`;
 }
 
@@ -1744,32 +1767,18 @@ const pagePatterns = {
         let status = createElement('div', 'my-status', 'display:none;');
         status.innerHTML = 'not-finished'; // статус выполнения функций для бота
         let div = createElement('div');
-        let lessonIntervalForm = createElement('form');
+        let { selectFirstLesson, selectLastLesson, lessonIntervalForm } = createLessonIntervalForm();
         lessonIntervalForm.appendChild(status);
-        let selectFirstLesson = createFormElement(
-            lessonIntervalForm, 'select', 'Массовые правки вносятся с ', 'tm_from_lesson', '', false
-        );
-        let selectLastLesson = createFormElement(lessonIntervalForm, 'select', ' по ', 'tm_last_lesson', '', false);
-        selectFirstLesson.style = 'margin:5pt; max-width:150px; display: inline;';
-        selectLastLesson.style = 'margin:5pt; max-width:150px; display: inline;';
-        selectFirstLesson.onchange = async () => { currentWindow.firstLessonNumber = Number(selectFirstLesson.value); };
-        selectLastLesson.onchange = async () => { currentWindow.lastLessonNumber = Number(selectLastLesson.value); };
-        let spn = createElement('span');
-        spn.innerHTML = '(включительно)';
-        lessonIntervalForm.appendChild(spn);
         let lessonNumbersList = Array.from(currentWindow.querySelectorAll('.lessons-list .lesson')).map(
             lesson => {
                 let lessonTitle = lesson.querySelector('.panel-title').innerHTML;
                 let backspaceSecondIndex = lessonTitle.indexOf(' ', lessonTitle.indexOf(' ') + 1);
-                return lessonTitle.substring(0, backspaceSecondIndex)
+                return lessonTitle.substring(0, backspaceSecondIndex);
             }
         );
         for (let lessonNumberIndex = 0; lessonNumberIndex < lessonNumbersList.length; lessonNumberIndex++) {
-            let optionFirst = createElement('option'); let optionLast = createElement('option');
-            optionFirst.value = lessonNumberIndex; optionFirst.innerHTML = lessonNumbersList[lessonNumberIndex];
-            selectFirstLesson.appendChild(optionFirst);
-            optionLast.value = lessonNumberIndex; optionLast.innerHTML = lessonNumbersList[lessonNumberIndex];
-            selectLastLesson.appendChild(optionLast);
+            createOption(selectFirstLesson, lessonNumberIndex, lessonNumbersList[lessonNumberIndex]);
+            createOption(selectLastLesson, lessonNumberIndex, lessonNumbersList[lessonNumberIndex]);
             const lessonDescription =
                 currentWindow.querySelectorAll('.lessons-list .lesson')[lessonNumberIndex].querySelector('textarea');
             // убираем по одной кавычке из описания с каждого края --- защита от гугл-таблиц
@@ -2304,8 +2313,9 @@ const pagePatterns = {
         }
 
         // Подготовка страницы
-        currentWindow.specialData.courseTypeId = course_data.dataset.courseTypeId;
         currentWindow.elements.groupTemplateId.classList.add('protected');
+        currentWindow.specialData.courseTypeId = course_data.dataset.courseTypeId;
+        currentWindow.specialData.courseId = window.location.href.match(/\d+/)[0];
         currentWindow.specialData.groupTemplateId = currentWindow.elements.groupTemplateId.value;
         if (['5', '6'].includes(currentWindow.specialData.courseTypeId)) {
             if (currentWindow.specialData.courseTypeId == '5') currentWindow.elements.newTemplateTeacher.value = MINI_GROUPS_TEACHER_ID;
@@ -2316,13 +2326,21 @@ const pagePatterns = {
             currentWindow.elements.newTemplateTeacher.setAttribute('readonly', 'true');
         }
         currentWindow.elements.newTemplateSection.classList.replace('btn-default', 'btn-success');
+        let { selectFirstLesson, selectLastLesson, lessonIntervalForm } = createLessonIntervalForm();
+        let tempSpan = createElement('span');
+        tempSpan.textContent = ' / функционал пока не работает';
+        lessonIntervalForm.append(tempSpan);
         let lessonRows = Array.from(currentWindow.querySelectorAll('.groups_list .panel[id^="group_"]'));
+        let lessonNumberIndex = 0;
         for (let lessonRow of lessonRows) {
             lessonRow.classList.add('lesson_row');
             let headingRow = lessonRow.querySelector('.panel-heading');
             let lessonNumberElem = headingRow.querySelector('.lesson_number');
             let lessonHref = lessonNumberElem.querySelector('a').href;
+            let lessonName = lessonNumberElem.textContent.trim();
             let lessonId = lessonHref.slice(lessonHref.search('=') + 1);
+            createOption(selectFirstLesson, lessonNumberIndex, `${lessonName} id: ${lessonId}`);
+            createOption(selectLastLesson, lessonNumberIndex, `${lessonName} id:${lessonId}`);
             let lessonTypeSpan = headingRow.querySelector('span');
             lessonTypeSpan.classList.add('lesson_type');
             let lessonTypeText = lessonTypeSpan.textContent.trim();
@@ -2360,7 +2378,10 @@ const pagePatterns = {
             else {
                 lessonRow.classList.add('no_starts_at');
             }
+            lessonNumberIndex++;
         }
+        selectFirstLesson.value = 0;
+        selectLastLesson.value = lessonNumberIndex - 1;
         let adminButtons = createElement('div', 'adminButtons');
         currentWindow.elements.groupsPage.prepend(adminButtons);
 
@@ -2399,7 +2420,6 @@ const pagePatterns = {
             log('Прошедшие занятия скрыты, данные для перестроения параллели перенесены вверх страницы');
         }
         let rebuildUpButton = createButton('↑ Перестроить ↑', rebuildUpButtonOnClick, 'reset-btn');
-        adminButtons.appendChild(rebuildUpButton);
         if (currentWindow.checkPath(/#reset_schedule/)) {
             currentWindow.specialData.botApprove = true;
             rebuildUpButton.click();
@@ -2533,29 +2553,14 @@ const pagePatterns = {
         });
         checkGroupsOnSchedule();
 
+        adminButtons.append(lessonIntervalForm, rebuildUpButton);
         log('Страница модифицирована');
-        //}
-        //if (currentWindow.checkPath(pagePatterns.groups) && false) {
-        let mcid = window.location.href.match(/\d+/)[0];
-        let btn_return_moderators = document.createElement('button');
-        btn_return_moderators.innerHTML = 'Вернуть модераторов'; btn_return_moderators.hidden = false;
+    //}
+    //if (currentWindow.checkPath(pagePatterns.groups) && false) {
+        let btn_return_moderators = createButton('Вернуть модераторов', () => {}, 'return-moderators', true);
         adminButtons.appendChild(btn_return_moderators);
-        let btn_show = document.createElement('button');
-        btn_show.innerHTML = 'Продвинутые возможности';
-        let btn_hide = document.createElement('button'); btn_hide.hidden = true;
-        btn_hide.innerHTML = 'Скрыть продвинутые возможности';
-        let btn_masscopy = document.createElement('button'); btn_masscopy.hidden = true;
-        btn_masscopy.innerHTML = 'Массовое копирование занятий из другого курса в этот курс';
 
-        let btn_group_lessons;
-        btn_show.onclick = function () {
-            btn_show.hidden = true; btn_masscopy.hidden = false; btn_group_lessons.hidden = false;
-            btn_hide.hidden = false;
-        }
-        btn_hide.onclick = function () {
-            btn_show.hidden = false; btn_masscopy.hidden = true; btn_group_lessons.hidden = true;
-            btn_hide.hidden = true;
-        }
+        let btn_masscopy = createButton('Массовое копирование занятий из другого курса в данный курс', () => {}, 'masscopy', true);
         btn_masscopy.onclick = function () {
             let cid = prompt(
                 'Процесс будет запущен в отдельной вкладке, не закрывайте ее до завершения процесса\n' +
@@ -2649,6 +2654,7 @@ const pagePatterns = {
             }
         }
 
+        let btn_group_lessons;
         let btn_group_lessons_onclick = async () => {
             let hasBotApproval = checkBotApprove();
             btn_group_lessons_onclick.style = 'display:none';
@@ -2716,7 +2722,6 @@ const pagePatterns = {
         btn_group_lessons = createButton(
             'Проставить групповые встречи', btn_group_lessons_onclick, 'set-group-lessons'
         );
-        btn_group_lessons.hidden = true;
         let btn_dop_sam_lessons_onclick = async () => {
             function isValidTime(timeString) {
                 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -2773,9 +2778,9 @@ const pagePatterns = {
         let btn_dop_sam_lessons = createButton(
             'Проставить доп. занятия (тариф Самостоятельный)', btn_dop_sam_lessons_onclick, 'set-dop-sam-lessons'
         );
-        btn_dop_sam_lessons.hidden = true;
-        adminButtons.appendChild(btn_show); adminButtons.appendChild(btn_masscopy); adminButtons.appendChild(btn_group_lessons);
-        adminButtons.appendChild(btn_dop_sam_lessons); adminButtons.appendChild(btn_hide);
+        adminButtons.appendChild(btn_masscopy);
+        adminButtons.appendChild(btn_group_lessons);
+        adminButtons.appendChild(btn_dop_sam_lessons); 
         function join_short(a, sym = ', ', end = ' и еще в ', cou = 3) {
             let k = '';
             if (a.length > cou) { k = end + (a.length - cou) }
@@ -2786,7 +2791,7 @@ const pagePatterns = {
             try {
                 let course_info;
                 let res = 0;
-                fetch("/api/courses/" + mcid + "/landing")
+                fetch("/api/courses/" + currentWindow.specialData.courseId + "/landing")
                     .then((response) => response.json())
                     .then((json) => { course_info = json; res = 1; });
                 while (!res) { await sleep(100); }
@@ -3930,11 +3935,8 @@ for (const [groupType, disciplines] of Object.entries(groups)) {
                 // Параллели
                 const tplSelect = courseRow.querySelector('select[id$="_group_template_ids"]');
                 for (const tplId of courseData.templates) {
-                    const option = document.createElement('option');
-                    option.value = tplId;
-                    option.text = tplId;
+                    const option = createOption(tplSelect, tplId, tplId);
                     option.selected = true;
-                    tplSelect.appendChild(option);
                 }
                 courseRow.querySelector(\`#s2id_$\{tplSelect.id}\`).style = 'display:none';
                 tplSelect.style = '';
@@ -4249,9 +4251,8 @@ displayLog('Готово! Проверьте данные и сохраните'
                     let tmp_num = Number(tmp_value);
                     if (tmp_num > 0) {
                         let select = document.querySelector('#select_group_template');
-                        let opt = document.createElement('option');
-                        opt.value = tmp_value; opt.innerHTML = tmp_value;
-                        select.appendChild(opt); select.value = tmp_value;
+                        createOption(select, tmp_value, tmp_value);
+                        select.value = tmp_value;
                     }
                 } catch (e) { log(e) }
                 if (currentWindow.checkPath(/ssm/)) {
@@ -5481,7 +5482,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.103 от 29 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.104 от 30 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
