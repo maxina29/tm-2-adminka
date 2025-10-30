@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.106
+// @version      0.2.0.107
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4631,6 +4631,91 @@ displayLog('Готово! Проверьте данные и сохраните'
                 ]
             }
         ];
+        function mass_create_templates_script(mini = true) {
+            return `let newTempalatesData = [
+    // вставить параллели сюда
+    ${mini ? `{
+        id: 15005, day: [2], time: ['18:00'], start: '10.09.2026', agent: 1620064, hidden: false, users: 12,
+        active: false
+    },
+    {
+        id: 15005, day: [3, 4], time: ['18:00'], start: '11.09.2026', agent: 1620064, hidden: false, users: 12,
+        active: true
+    },
+    {
+        id: 15005, day: [4, 5], time: ['18:00', '20:00'], start: '12.09.2026', agent: 2578272, hidden: false, users: 12,
+        active: false
+    },
+` : `{ id: 10609, day: [1], time: ['15:00'], start: '01.09.2026', teacher: 1932, hidden: false, users: 100 },
+    { id: 10609, day: [1, 3], time: ['15:00', '16:00'], start: '01.09.2026', teacher: 1932, hidden: false, users: 200 },
+    { id: 10609, day: [1, 3], time: ['15:00'], start: '07.09.2026', from: 3, teacher: 1875, hidden: false, users: 300 },
+`}];
+let virtualWindow = await createWindow(-1);
+let finalOutput = '';
+try {
+    for (let template of newTempalatesData) {
+        let courseId = template.id;
+        let fields = {
+            'group_template[starts_at]': template.start,
+            'group_template[teacher_id]': ${mini ? '1361' : 'template.teacher'},
+            'group_template[schedule_hidden]': template.hidden ? '1' : '0',
+            'group_template[users_limit]': template.users,
+        };
+        await virtualWindow.openPage(\`/admin/courses/$\{courseId}/groups\`);
+        for (let num = 0; num < template.day.length; num++) {
+            fields[\`group_template[week_days_attributes][$\{num}][slot][week_day]\`] = template.day[num];
+            if (template.time.length == 1) {
+                fields[\`group_template[week_days_attributes][$\{num}][slot][time]\`] = template.time[0];
+            }
+            else fields[\`group_template[week_days_attributes][$\{num}][slot][time]\`] = template.time[num];
+            fields[\`group_template[week_days_attributes][$\{num}][_destroy]\`] = 'false';
+        }
+        let firstLessonNumberElement = virtualWindow.querySelector('#group_template_first_lesson_number');
+        if (template.from) fields['group_template[first_lesson_number]'] = template.from;
+        else fields['group_template[first_lesson_number]'] = firstLessonNumberElement.options[1].value;
+${mini ? `        if (template.agent) fields['group_template[agent_id]'] = template.agent;
+` : ''}        await virtualWindow.postFormData(
+            \`/admin/courses/$\{courseId}/group_templates\`, fields, { skipDangerAlert: false }
+        );
+        let templatesSelect = virtualWindow.querySelector('#group_template_id');
+        let templateDescription = templatesSelect.selectedOptions[0].textContent;
+        let templateNumber = templateDescription.substr(0, templateDescription.search('-') - 1);
+        let templateId = templatesSelect.value;
+${mini ? `        fields = {
+            '_method': 'patch',
+            'group_template[default_location_id]': MINI_GROUPS_ID_SET[0],
+            'group_template[default_format_id]': MINI_GROUPS_ID_SET[1],
+            'group_template[default_studio_id]': MINI_GROUPS_ID_SET[2]
+        };
+        await virtualWindow.postFormData(\`/admin/courses/$\{courseId}/group_templates/$\{templateId}\`, fields);
+        while (template.active && virtualWindow.querySelector('a[data-confirm="Сделать активной?"]')) {
+            await virtualWindow.postFormData(\`/admin/group_templates/$\{templateId}/toggle_activate\` +
+                \`?activate_change_log%5Breason%5D=activate\`, {}, {successAlertIsNessesary: false});
+        }
+        fields = {
+            '_method': 'put',
+            'week_day_webinars_settings[group_template_id]': templateId,
+            'week_day_webinars_settings[all_days]': 'true',
+            'week_day_webinars_settings[location_id]': MINI_GROUPS_ID_SET[0],
+            'week_day_webinars_settings[format_id]': MINI_GROUPS_ID_SET[1],
+            'week_day_webinars_settings[studio_id]': MINI_GROUPS_ID_SET[2]
+        };
+        await virtualWindow.postFormData(\`/admin/dev_services/week_day_webinars_settings\`, fields);
+` : ''}        let templateInfo = [templateNumber, templateId].join('	')
+        log(\`Заведено: $\{templateInfo}\`);
+        finalOutput += \`$\{templateInfo}
+\`;
+    }
+    clear()
+}
+catch (err) {
+    displayError(err);
+}
+finally {
+    log('Все заведенные параллели:')
+    log(finalOutput)
+}`;
+        }
         const SCRIPTS = {
             REP: {
                 name: 'Проставление галки «Репетиторская»',
@@ -5532,6 +5617,19 @@ for (let [trainingId, newName] of pairs) {
 }`,
                 parent: 'trainings'
             },
+            MASS_CREATE_TEMPLATES_MINI: {
+                name: 'Массовое заведение параллелей (МГ)',
+                description: `рабочая таблица - https://disk.360.yandex.ru/i/qRDgjjgrOLaoQA (вкладка Мини-группы)
+                    сразу проставляет локацию мини-группового формата`,
+                code: mass_create_templates_script(true),
+                parent: 'groups'
+            },
+            MASS_CREATE_TEMPLATES_COURSES: {
+                name: 'Массовое заведение параллелей (Курсы)',
+                description: 'рабочая таблица - https://disk.360.yandex.ru/i/qRDgjjgrOLaoQA (вкладка Курсы)',
+                code: mass_create_templates_script(false),
+                parent: 'groups'
+            },
         }
         sections = buildSectionsRecursive(form, sectionsStructure);
         for (let key in SCRIPTS) {
@@ -5584,7 +5682,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.106 от 30 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.107 от 30 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
