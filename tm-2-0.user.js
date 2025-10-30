@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.104
+// @version      0.2.0.105
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -499,9 +499,10 @@ function log(s) {
     currentWindow.log(s);
 }
 
-function createButton(btnLabel, onClickFunction = null, className = '', isRealButton = true, isAsyncFunction = true) {
+function createButton(btnLabel, onClickFunction = null, className = '', isRealButton = true, params = {}) {
     if (onClickFunction == null) onClickFunction = async () => { };
-    let button = createElement(isRealButton ? 'button' : 'a', `my-btn btn ${className}`, 'margin:2px;');
+    let { style = 'margin:2px;', defaultClass = 'btn' } = params;
+    let button = createElement(isRealButton ? 'button' : 'a', `my-btn ${defaultClass} ${className}`, style);
     button.textContent = btnLabel;
     button.onclick = onClickFunction;
     return button;
@@ -2317,6 +2318,7 @@ const pagePatterns = {
         currentWindow.specialData.courseTypeId = course_data.dataset.courseTypeId;
         currentWindow.specialData.courseId = window.location.href.match(/\d+/)[0];
         currentWindow.specialData.groupTemplateId = currentWindow.elements.groupTemplateId.value;
+        currentWindow.specialData.groupTemplatesInCourse = currentWindow.elements.groupTemplateId.children.length;
         if (['5', '6'].includes(currentWindow.specialData.courseTypeId)) {
             if (currentWindow.specialData.courseTypeId == '5') currentWindow.elements.newTemplateTeacher.value = MINI_GROUPS_TEACHER_ID;
             else currentWindow.elements.newTemplateTeacher.value = TRAINING_COURSE_TEACHER_ID;
@@ -2351,6 +2353,7 @@ const pagePatterns = {
             lessonIdSpan.innerHTML = `id: ${lessonId}`;
             lessonTypeSpan.after(createElement('br'), lessonIdSpan);
             let actionButtons = lessonRow.querySelector('.actions_btn');
+            let dropdownMenu = actionButtons.querySelector('.dropdown-menu');
             let lessonHeader = actionButtons.closest('.form-group');
             lessonHeader.classList.add('lesson_header');
             let webinarNameElement = lessonHeader.querySelector('label');
@@ -2371,6 +2374,19 @@ const pagePatterns = {
                 let statusLabel = statusButton.textContent.trim();
                 let webinarStatus = statusLabel.split(': ')[1];
                 lessonRow.classList.add(webinarStatus);
+                if ((webinarStatus == 'finished' || webinarStatus == 'created') &&
+                    currentWindow.specialData.groupTemplatesInCourse > 1
+                ) {
+                    let dividerLi = createElement('li', 'divider');
+                    let customLi = createElement('li');
+                    let copyGroupButton = createButton(
+                        'Скопировать запись из другой параллели', copyGroupFromAnotherTemplate, 'copy-group', false,
+                        { style: '', defaultClass: '' }
+                    )
+                    copyGroupButton.dataset.lessonId = lessonId;
+                    customLi.append(copyGroupButton);
+                    dropdownMenu.append(dividerLi, customLi);
+                }
             }
             if (lessonRow.querySelector('[id^="starts_at_"]')) {
                 lessonRow.classList.add('has_starts_at');
@@ -2384,6 +2400,88 @@ const pagePatterns = {
         selectLastLesson.value = lessonNumberIndex - 1;
         let adminButtons = createElement('div', 'adminButtons');
         currentWindow.elements.groupsPage.prepend(adminButtons);
+
+        // Кнопки «Скопировать запись из другой параллели»
+        async function copyGroupFromAnotherTemplate(event) {
+            let lessonId = event.target.dataset.lessonId;
+            while (!currentWindow.specialData.states.lessonsOrderJson) { await sleep(100); }
+            let lessonInfo = currentWindow.specialData.lessonsOrderJson.filter(data => data.id == lessonId)[0];
+            let currentGroup = lessonInfo.groups.filter(
+                group => group.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`)
+            )[0];
+            let potentialGroups = lessonInfo.groups.filter(
+                group => (
+                    !group.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`) &&
+                    parseDateTime(group.starts_at) < new Date()
+                )
+            );
+            const modal = createElement('div', 'my-modal', `position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; 
+                z-index: 1049;`);
+            const content = createElement('div', 'modal-content', `background: white; padding: 20px; border-radius: 8px; 
+                min-width: 400px; max-width: 90%; max-height: 80%; overflow-y: auto;`);
+            const title = createElement('h3', 'modal-title');
+            title.textContent = 'Выберите запись для копирования';
+            content.append(title);
+            const list = createElement('div', 'modal-list', 'margin-bottom: 20px;');
+            let selectedGroup = null;
+            potentialGroups.forEach(group => {
+                const groupItem = createElement('div', 'modal-group', `display: flex; align-items: center; 
+                    padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;`);
+                const radio = createElement('div', 'modal-radio', `width: 20px; height: 20px; border-radius: 50%; 
+                    border: 2px solid #ccc; margin-right: 10px; position: relative;`);
+                const groupText = createElement('span', 'modal-text');
+                const groupTemplateId = group.group_template_title.match(/\[(\d+)\]/)[1];
+                const teacherName = group.name.split(' ').slice(2).join(' ');
+                groupText.textContent = `[${groupTemplateId}] ${teacherName} id ${group.id}`;
+                groupItem.addEventListener('click', () => {
+                    Array.from(list.children).forEach(item => {
+                        item.style.background = 'none';
+                        Array.from(item.children).forEach(subitem => subitem.style.background = 'none');
+                    });
+                    groupItem.style.background = '#f0f0f0';
+                    radio.style.background = '#007cba';
+                    selectedGroup = group;
+                });
+                groupItem.appendChild(radio);
+                groupItem.appendChild(groupText);
+                list.appendChild(groupItem);
+            });
+            const buttons = createElement('div', 'modal-buttons', `display: flex; justify-content: flex-end; 
+                gap: 10px;`);
+            const cancelBtn = createButton('Отмена', () => modal.remove(), 'cancel-btn');
+            const confirmBtn = createButton('Выбрать', () => { }, 'confirm-btn');
+            confirmBtn.addEventListener('click', async () => {
+                if (selectedGroup) {
+                    console.log(`Нужно скопировать в ${currentGroup.id} из ${selectedGroup.id}`);
+                    let virtualWindow = await createWindow(-1);
+                    let fields = { 
+                        '_method': 'put',
+                        'change_original_group[group_id]': currentGroup.id, 
+                        'change_original_group[original_group_id]': selectedGroup.id 
+                    }
+                    try {
+                        await virtualWindow.postFormData('/admin/dev_services/change_original_group', fields);
+                        modal.remove();
+                        await sleep(3000);
+                        currentWindow.reload();
+                    }
+                    catch (err) {
+                        displayError(err);
+                    }
+                }
+                else {
+                    displayError(new Error('Нужная запись не была выбрана'));
+                }
+            });
+            buttons.append(cancelBtn, confirmBtn);
+            content.append(list, buttons);
+            modal.append(content);
+            document.body.append(modal);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
+        }
 
         // Кнопка «↑ Перестроить ↑»
         async function rebuildUpButtonOnClick() {
@@ -2555,12 +2653,14 @@ const pagePatterns = {
 
         adminButtons.append(lessonIntervalForm, rebuildUpButton);
         log('Страница модифицирована');
-    //}
-    //if (currentWindow.checkPath(pagePatterns.groups) && false) {
-        let btn_return_moderators = createButton('Вернуть модераторов', () => {}, 'return-moderators', true);
+        //}
+        //if (currentWindow.checkPath(pagePatterns.groups) && false) {
+        let btn_return_moderators = createButton('Вернуть модераторов', () => { }, 'return-moderators', true);
         adminButtons.appendChild(btn_return_moderators);
 
-        let btn_masscopy = createButton('Массовое копирование занятий из другого курса в данный курс', () => {}, 'masscopy', true);
+        let btn_masscopy = createButton(
+            'Массовое копирование занятий из другого курса в данный курс', () => { }, 'masscopy', true
+        );
         btn_masscopy.onclick = function () {
             let cid = prompt(
                 'Процесс будет запущен в отдельной вкладке, не закрывайте ее до завершения процесса\n' +
@@ -2780,7 +2880,7 @@ const pagePatterns = {
         );
         adminButtons.appendChild(btn_masscopy);
         adminButtons.appendChild(btn_group_lessons);
-        adminButtons.appendChild(btn_dop_sam_lessons); 
+        adminButtons.appendChild(btn_dop_sam_lessons);
         function join_short(a, sym = ', ', end = ' и еще в ', cou = 3) {
             let k = '';
             if (a.length > cou) { k = end + (a.length - cou) }
@@ -3613,11 +3713,11 @@ let taskIds = splitString(\`
 3
 \`);
 let trainingsWindow = await createWindow('adminka_trainings');
-let createButton = currentWindow.querySelector('.btn-success[href$="task_templates"]');
-createButton.target = 'adminka_trainings';
+let createTrButton = currentWindow.querySelector('.btn-success[href$="task_templates"]');
+createTrButton.target = 'adminka_trainings';
 for (let taskId of taskIds) {
     log(taskId);
-    createButton.click();
+    createTrButton.click();
     await trainingsWindow.waitForElementDisappear('.alert-success');
     await trainingsWindow.waitForElement('.loaded');
     let individualTasksLinks = trainingsWindow.querySelectorAll('#edit_task_template .btn[href$="individual_tasks"]');
@@ -5482,7 +5582,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.104 от 30 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.105 от 30 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
