@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.110
+// @version      0.2.0.111
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2663,10 +2663,8 @@ const pagePatterns = {
             if (!hasBotApproval) {
                 isConfirmed = confirm(
                     'Можно использовать если\n - ВСЕ групповые встречи стоят после ближайшего занятия по ' +
-                    'расписанию\n - на 20:00 ничего не стоит или стоят ТОЛЬКО прошлые групповые встречи\nСтраница ' +
-                    'программы будет открыта в новой вкладке, не закрывайте ее заранее\nЕсли страница не ' +
-                    'открываются, разрешите сайту работать со всплывающими окнами\nСкрипт НЕ работает, если первым ' +
-                    'занятием стоит вводное или пробник на ту же ДАТУ, что и следующее занятие (можно поменять на ' +
+                    'расписанию\n - на 20:00 ничего не стоит или стоят ТОЛЬКО прошлые групповые встречи\n Скрипт НЕ ' +
+                    'работает, если первым занятием стоит вводное, групповое или пробник (можно поменять на ' +
                     'другую ДАТУ и сработает, время не учитывается)'
                 );
             }
@@ -2681,6 +2679,7 @@ const pagePatterns = {
                 log(groupLessonsIndexes);
                 let startsAt = [];
                 let nowDate = new Date();
+                nowDate.setMinutes(nowDate.getMinutes()+30);
                 let firstFutureLessonIndex = -1;
                 for (let index = 0; index < currentWindow.specialData.lessonsOrderJson.length; ++index) {
                     let lesson = currentWindow.specialData.lessonsOrderJson[index];
@@ -5687,7 +5686,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.110 от 30 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.111 от 30 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
