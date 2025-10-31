@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.111
+// @version      0.2.0.112
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2689,36 +2689,40 @@ const pagePatterns = {
                     let startAt = parseDateTime(group.starts_at);
                     if (!group.starts_at.includes('20:00') && startAt > nowDate) {
                         startsAt.push(startAt);
-                        if (firstFutureLessonIndex == -1) firstFutureLessonIndex = index;
                     }
+                    if (firstFutureLessonIndex == -1 && startAt > nowDate) firstFutureLessonIndex = index;
                 }
                 let delta = firstFutureLessonIndex;
                 let virtualWindow = await createWindow(-1);
                 for (let index = firstFutureLessonIndex;
                     index < currentWindow.specialData.lessonsOrderJson.length;
-                    ++index
+                    index++
                 ) {
                     let lesson = currentWindow.specialData.lessonsOrderJson[index];
                     let group = lesson.groups.find(
                         g => g.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`)
                     );
                     let isGroupLesson = lesson.name.includes('Группов');
-                    if (['Обычное', 'Перевёрнутое'].includes(lesson.type) && index != firstFutureLessonIndex) delta += 1;
-                    if (isGroupLesson) delta += 1;
-                    while (index != 0 && startsAt[index - delta] == startsAt[index - delta - 1]) delta -= 1;
-                    log(index + 1 + ' ' + startsAt[index - delta] + ' ' + isGroupLesson);
+                    if (!(['Обычное', 'Перевёрнутое'].includes(lesson.type)) && index != firstFutureLessonIndex) delta += 1;
+                    if (isGroupLesson && index != firstFutureLessonIndex) delta += 1;
+                    while (index > delta && startsAt[index - delta] == startsAt[index - delta - 1]) delta -= 1;
+                    if (parseDateTime(group.starts_at) < nowDate) { delta += 1; continue; }
+                    //log(index + 1 + ' ' + startsAt[index - delta] + ' ' + isGroupLesson);
                     let fields = { '_method': 'patch' };
-                    if (!isGroupLesson) fields['group[starts_at]'] = formatDateTime(startsAt[index - delta]);
-                    else {
-                        let date = new Date(startsAt[index - delta]);
+                    let date = new Date(startsAt[index - delta]);
+                    if (isGroupLesson) {
                         date.setHours(20, 0);
-                        fields['group[starts_at]'] = formatDateTime(date);
                         fields['group[duration]'] = 45;
                     }
+                    if (isGroupLesson && index == firstFutureLessonIndex) delta += 1;
+                    fields['group[starts_at]'] = formatDateTime(date);
+                    log(`${index} ${delta} ${formatDateTime(date)} ${lesson.name}`)
+                    await sleep(100);
                     await virtualWindow.postFormData(
                         `/admin/courses/${currentWindow.specialData.courseId}/groups/${group.id}`, fields,
                         { successAlertIsNessesary: false }
                     );
+
                 }
                 displayLog("Готово)");
                 await sleep(3000);
@@ -5686,7 +5690,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.111 от 30 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.112 от 30 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
