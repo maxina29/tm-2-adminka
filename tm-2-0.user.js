@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.108
+// @version      0.2.0.109
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2652,10 +2652,84 @@ const pagePatterns = {
         });
         checkGroupsOnSchedule();
 
-        adminButtons.append(lessonIntervalForm, rebuildUpButton);
+        let setGroupLessonsButton = createButton(
+            'Проставить групповые встречи', setGroupLessonsButtonOnClick, 'set-group-lessons'
+        );
+        async function setGroupLessonsButtonOnClick() {
+            let hasBotApproval = checkBotApprove();
+            setGroupLessonsButton.style = 'display:none';
+            let isConfirmed = true;
+            if (!hasBotApproval) {
+                isConfirmed = confirm(
+                    'Можно использовать если\n - ВСЕ групповые встречи стоят после ближайшего занятия по ' +
+                    'расписанию\n - на 20:00 ничего не стоит или стоят ТОЛЬКО прошлые групповые встречи\nСтраница ' +
+                    'программы будет открыта в новой вкладке, не закрывайте ее заранее\nЕсли страница не ' +
+                    'открываются, разрешите сайту работать со всплывающими окнами\nСкрипт НЕ работает, если первым ' +
+                    'занятием стоит вводное или пробник на ту же ДАТУ, что и следующее занятие (можно поменять на ' +
+                    'другую ДАТУ и сработает, время не учитывается)'
+                );
+            }
+            if (isConfirmed) {
+                while (!currentWindow.specialData.states.lessonsOrderJson) await sleep(100);
+                let groupLessons =
+                    currentWindow.specialData.lessonsOrderJson.filter(lesson => lesson.name.includes('Группов'));
+                let groupLessonsIndexes = [];
+                for (let i of groupLessons) {
+                    groupLessonsIndexes.push(currentWindow.specialData.lessonsOrderJson.indexOf(i));
+                }
+                log(groupLessonsIndexes);
+                let startsAt = [];
+                let nowDate = new Date();
+                let firstFutureLessonIndex = -1;
+                for (let index = 0; index < currentWindow.specialData.lessonsOrderJson.length; ++index) {
+                    let lesson = currentWindow.specialData.lessonsOrderJson[index];
+                    let group = lesson.groups.find(
+                        g => g.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`)
+                    );
+                    let startAt = parseDateTime(group.starts_at);
+                    if (!group.starts_at.includes('20:00') && startAt > nowDate) {
+                        startsAt.push(startAt);
+                        if (firstFutureLessonIndex == -1) firstFutureLessonIndex = index;
+                    }
+                }
+                let delta = firstFutureLessonIndex;
+                let virtualWindow = await createWindow(-1);
+                for (let index = firstFutureLessonIndex;
+                    index < currentWindow.specialData.lessonsOrderJson.length;
+                    ++index
+                ) {
+                    let lesson = currentWindow.specialData.lessonsOrderJson[index];
+                    let group = lesson.groups.find(
+                        g => g.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`)
+                    );
+                    let isGroupLesson = lesson.name.includes('Группов');
+                    if (['Обычное', 'Перевёрнутое'].includes(lesson.type) && index != firstFutureLessonIndex) delta += 1;
+                    if (isGroupLesson) delta += 1;
+                    while (index != 0 && startsAt[index - delta] == startsAt[index - delta - 1]) delta -= 1;
+                    log(index + 1 + ' ' + startsAt[index - delta] + ' ' + isGroupLesson);
+                    let fields = { '_method': 'patch' };
+                    if (!isGroupLesson) fields['group[starts_at]'] = formatDateTime(startsAt[index - delta]);
+                    else {
+                        let date = new Date(startsAt[index - delta]);
+                        date.setHours(20, 0);
+                        fields['group[starts_at]'] = formatDateTime(date);
+                        fields['group[duration]'] = 45;
+                    }
+                    await virtualWindow.postFormData(
+                        `/admin/courses/${currentWindow.specialData.courseId}/groups/${group.id}`, fields,
+                        { successAlertIsNessesary: false }
+                    );
+                }
+                displayLog("Готово)");
+                await sleep(3000);
+                currentWindow.reload();
+            }
+        }
+
+        adminButtons.append(lessonIntervalForm, rebuildUpButton, setGroupLessonsButton);
         log('Страница модифицирована');
-        //}
-        //if (currentWindow.checkPath(pagePatterns.groups) && false) {
+    //}
+    //if (currentWindow.checkPath(pagePatterns.groups) && false) {
         let btn_return_moderators = createButton('Вернуть модераторов', () => { }, 'return-moderators', true);
         adminButtons.appendChild(btn_return_moderators);
 
@@ -2755,74 +2829,6 @@ const pagePatterns = {
             }
         }
 
-        let btn_group_lessons;
-        let btn_group_lessons_onclick = async () => {
-            let hasBotApproval = checkBotApprove();
-            btn_group_lessons_onclick.style = 'display:none';
-            let todoshka = true;
-            if (!hasBotApproval) {
-                todoshka = confirm(
-                    'Можно использовать если\n - ВСЕ групповые встречи стоят после ближайшего занятия по ' +
-                    'расписанию\n - на 20:00 ничего не стоит или стоят ТОЛЬКО прошлые групповые встречи\nСтраница ' +
-                    'программы будет открыта в новой вкладке, не закрывайте ее заранее\nЕсли страница не ' +
-                    'открываются, разрешите сайту работать со всплывающими окнами\nСкрипт НЕ работает, если первым ' +
-                    'занятием стоит вводное или пробник на ту же ДАТУ, что и следующее занятие (можно поменять на ' +
-                    'другую ДАТУ и сработает, время не учитывается)'
-                );
-            }
-            if (todoshka) {
-                let href = window.location.href;
-                let win = window.open('about:blank', 'adminka_lessons');
-                //win.blur(); window.focus();
-                win.location.href = href.substring(0, href.search(/groups/) - 1) + '/lessons';
-                while (!win.document.querySelectorAll('#lesson_name').length ||
-                    Array.from(win.document.querySelectorAll('#lesson_name')).map(i => i.value)
-                        .filter(i => i.search(/Группов/) != -1).length < 3
-                ) { await sleep(500); }
-                let all_lessons = Array.from(win.document.querySelectorAll('#lesson_name')).map(i => i.value);
-                let group_lessons = all_lessons.filter(i => i.search(/Группов/) != -1);
-                let ind = [];
-                for (let i of group_lessons) {
-                    ind.push(all_lessons.indexOf(i) - 1);
-                }
-                win.close();
-                await sleep(100);
-                log(ind);
-                let a = document.getElementsByName('group[starts_at]');
-                let a_t = document.querySelectorAll('[id^=group_][id$=_toolbar]');
-                let delta = a_t.length - a.length;
-                let b = Array.from(a).map(i => i.value);
-                b = b.filter(x => !(x.includes('20:00')));
-                let k = 0;
-                let t = 0;
-                for (let index = 0, len = a.length; index < len; ++index) {
-                    let x = a[index].parentNode.parentNode.parentNode.getElementsByClassName('btn-default');
-                    if (
-                        a[index].parentNode.parentNode.parentNode.parentNode.parentNode.innerHTML
-                            .search('Обычное') == -1 &&
-                        index != 0
-                    ) { k += 1 };
-                    if (index == ind[0] - delta || index == ind[1] - delta || index == ind[2] - delta) {
-                        k += 1;
-                        t = 1;
-                    }
-                    while (index != 0 && b[index - k] == b[index - k - 1]) k -= 1
-                    log(index + 1 + ' ' + b[index - k] + ' ' + t);
-                    if (t == 0) a[index].value = b[index - k];
-                    else {
-                        a[index].value = b[index - k].slice(0, b[index - k].length - 5) + '20:00';
-                        a[index].parentNode.parentNode.parentNode.querySelector('#group_duration').value = 45;
-                        t = 0;
-                    }
-                    x[x.length - 1].click();
-                    await sleep(100);
-                }
-                log("Готово) Проверьте, что все сохранилось в админке (может занять некоторое время)")
-            }
-        }
-        btn_group_lessons = createButton(
-            'Проставить групповые встречи', btn_group_lessons_onclick, 'set-group-lessons'
-        );
         let btn_dop_sam_lessons_onclick = async () => {
             function isValidTime(timeString) {
                 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -2880,7 +2886,6 @@ const pagePatterns = {
             'Проставить доп. занятия (тариф Самостоятельный)', btn_dop_sam_lessons_onclick, 'set-dop-sam-lessons'
         );
         adminButtons.appendChild(btn_masscopy);
-        adminButtons.appendChild(btn_group_lessons);
         adminButtons.appendChild(btn_dop_sam_lessons);
         function join_short(a, sym = ', ', end = ' и еще в ', cou = 3) {
             let k = '';
@@ -5681,7 +5686,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.108 от 30 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.109 от 30 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
