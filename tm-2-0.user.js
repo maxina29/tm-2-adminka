@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.113
+// @version      0.2.0.114
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2679,7 +2679,7 @@ const pagePatterns = {
                 log(groupLessonsIndexes);
                 let startsAt = [];
                 let nowDate = new Date();
-                nowDate.setMinutes(nowDate.getMinutes()+30);
+                nowDate.setMinutes(nowDate.getMinutes() + 30);
                 let firstFutureLessonIndex = -1;
                 for (let index = 0; index < currentWindow.specialData.lessonsOrderJson.length; ++index) {
                     let lesson = currentWindow.specialData.lessonsOrderJson[index];
@@ -3782,14 +3782,14 @@ await currentWindow.reload();`;
         for (let optionElement of seriesElement.children) {
             if (goodSeries.includes(optionElement.textContent)) optionElement.className += ' good';
             else {
-                optionElement.textContent = `x ${optionElement.textContent}`;
+                if (optionElement.value) optionElement.textContent = `x ${optionElement.textContent}`;
                 optionElement.classList.add('bad');
             }
         }
-        seriesElement.querySelector('[value=""]').textContent = '!!! Bce aктyaльныe циклы yкaзaны вышe !!!';
         let selectedOption = seriesElement.selectedOptions[0];
-        seriesElement.prepend(selectedOption);
-        seriesElement.prepend(...seriesElement.querySelectorAll('.good'), seriesElement.querySelector('[value=""]'));
+        for (let optionElement of seriesElement.querySelectorAll('.bad')) {
+            if (optionElement != selectedOption && optionElement.value <= 187) optionElement.remove();
+        }
         if (currentWindow.checkPath(pagePatterns.eventsEdit) && selectedOption.className.includes('bad')) {
             seriesWarning.hidden = false;
         }
@@ -5689,7 +5689,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.113 от 30 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.114 от 30 октября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
