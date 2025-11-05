@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.114
+// @version      0.2.0.115
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1761,6 +1761,14 @@ const pagePatterns = {
 
     // на странице с программой
     if (currentWindow.checkPath(pagePatterns.lessons)) {
+        currentWindow.specialData.states = {
+            'uploadAllLessons': false,
+        };
+        currentWindow.elements = {
+            'pagination': currentWindow.querySelector('.lessons-list-navigation .pagination'),
+            'lessonsList': currentWindow.querySelector('.lessons-list'),
+        };
+
         let lessonTasksLinks = currentWindow.querySelectorAll('[href$="lesson_tasks"]');
         for (let tasksLink of lessonTasksLinks) {
             // добавляем к ссылке пустой поиск, чтобы всегда было побольше задач в выдаче
@@ -1771,29 +1779,70 @@ const pagePatterns = {
         let div = createElement('div');
         let { selectFirstLesson, selectLastLesson, lessonIntervalForm } = createLessonIntervalForm();
         lessonIntervalForm.appendChild(status);
-        let lessonNumbersList = Array.from(currentWindow.querySelectorAll('.lessons-list .lesson')).map(
-            lesson => {
-                let lessonTitle = lesson.querySelector('.panel-title').innerHTML;
-                let backspaceSecondIndex = lessonTitle.indexOf(' ', lessonTitle.indexOf(' ') + 1);
-                return lessonTitle.substring(0, backspaceSecondIndex);
+        function updateLessonsList() {
+            currentWindow.specialData.lessonsList = currentWindow.elements.lessonsList.querySelectorAll('.lesson');
+        }
+        function getLessonName(lesson) {
+            return lesson.querySelector('.panel-title').firstChild.textContent;
+        }
+        function updateLessonIntervalForm() {
+            for (let option of selectFirstLesson.querySelectorAll('option')) option.remove();
+            for (let option of selectLastLesson.querySelectorAll('option')) option.remove();
+            let lessonNumberIndex = 0;
+            for (let lesson of currentWindow.specialData.lessonsList) {
+                createOption(selectFirstLesson, lessonNumberIndex, getLessonName(lesson));
+                createOption(selectLastLesson, lessonNumberIndex, getLessonName(lesson));
+                lessonNumberIndex++;
             }
-        );
-        for (let lessonNumberIndex = 0; lessonNumberIndex < lessonNumbersList.length; lessonNumberIndex++) {
-            createOption(selectFirstLesson, lessonNumberIndex, lessonNumbersList[lessonNumberIndex]);
-            createOption(selectLastLesson, lessonNumberIndex, lessonNumbersList[lessonNumberIndex]);
-            const lessonDescription =
-                currentWindow.querySelectorAll('.lessons-list .lesson')[lessonNumberIndex].querySelector('textarea');
-            // убираем по одной кавычке из описания с каждого края --- защита от гугл-таблиц
-            lessonDescription.onchange = selfi => {
-                let self = selfi.currentTarget;
-                if (self.value[0] == '"') self.value = self.value.substring(1, self.value.length);
-                if (self.value[self.value.length - 1] == '"') {
-                    self.value = self.value.substring(0, self.value.length - 1)
+            selectFirstLesson.value = 0;
+            selectLastLesson.value = lessonNumberIndex - 1;
+        }
+        function createLessonsLogic() {
+            // автоматически убираем по одной кавычке из описания с каждого края --- защита от гугл-таблиц
+            for (let lesson of currentWindow.specialData.lessonsList) {
+                const lessonDescription = lesson.querySelector('#lesson_themes_as_text');
+                lessonDescription.onchange = selfi => {
+                    let self = selfi.currentTarget;
+                    if (self.value[0] == '"') self.value = self.value.substring(1, self.value.length);
+                    if (self.value[self.value.length - 1] == '"') {
+                        self.value = self.value.substring(0, self.value.length - 1);
+                    }
                 }
             }
         }
-        selectFirstLesson.value = 0;
-        selectLastLesson.value = lessonNumbersList.length - 1;
+        function runInitialLessonsFunctions() {
+            updateLessonsList();
+            updateLessonIntervalForm();
+            createLessonsLogic();
+        }
+        runInitialLessonsFunctions();
+        if (currentWindow.elements.pagination) {
+            let virtualWindow = await createWindow(-1);
+            let loadAllLessonsButton = createButton(
+                'Подгрузить все уроки', loadAllLessonsButtonOnClick, 'upload-all-lessons btn-info', false
+            );
+            async function loadAllLessonsButtonOnClick() {
+                loadAllLessonsButton.style = 'display:none;';
+                currentWindow.elements.pagination.style = 'display:none;';
+                log('Подгрузка всех уроков');
+                let paginationLinkElements = currentWindow.elements.pagination.querySelectorAll('a');
+                for (let paginationLinkElement of paginationLinkElements) {
+                    let paginationLink = paginationLinkElement.href;
+                    if (!paginationLink.includes('page')) {
+                        displayError(new Error('Подгрузка возможна только с первой страницы пагинации'));
+                        return;
+                    }
+                    await virtualWindow.openPage(paginationLinkElement.href);
+                    let clones = Array.from(virtualWindow.querySelectorAll('.lessons-list .row.lesson'))
+                        .map(el => el.cloneNode(true));
+                    currentWindow.elements.lessonsList.append(...clones);
+                }
+                runInitialLessonsFunctions();
+                currentWindow.specialData.states.uploadAllLessons = true;
+                displayLog('Все уроки подгружены');
+            }
+            lessonIntervalForm.append(loadAllLessonsButton);
+        }
         let adminkaFeatures = createElement('div', 'adminka-features');
         let adminkaFeaturesTitle = createElement('p', '', 'display: inline;');
         adminkaFeaturesTitle.innerHTML = 'Для админов админки: ';
@@ -2019,10 +2068,12 @@ const pagePatterns = {
                     await secondaryWindow.waitForElement('.alert');
                     let alert = secondaryWindow.querySelector('.alert');
                     if (alert.className.match('danger')) {
-                        log(lessonNumbersList[num] + '\t' + alert.innerHTML.replace(/<button(.*?)\/button>/, ''))
+                        log(getLessonName(currentWindow.specialData.lessonsList[num]) + '\t' +
+                            alert.innerHTML.replace(/<button(.*?)\/button>/, '')
+                        );
                     }
                     else {
-                        log(lessonNumbersList[num]);
+                        log(getLessonName(currentWindow.specialData.lessonsList[num]));
                     }
                     secondaryWindow.openPage('about:blank');
                     await sleep(100);
@@ -5689,7 +5740,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.114 от 30 октября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.115 от 5 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
