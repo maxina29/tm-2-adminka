@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.119
+// @version      0.2.0.120
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2396,7 +2396,8 @@ const pagePatterns = {
         let tempSpan = createElement('span');
         tempSpan.textContent = ' / функционал пока не работает';
         lessonIntervalForm.append(tempSpan);
-        let lessonRows = Array.from(currentWindow.querySelectorAll('.groups_list .panel[id^="group_"]'));
+        currentWindow.specialData.lessonRows =
+            Array.from(currentWindow.querySelectorAll('.groups_list .panel[id^="group_"]'));
         let lessonNumberIndex = 0;
         const alerts = alertManager();
 
@@ -2700,7 +2701,7 @@ const pagePatterns = {
         }
         checkGroupsOnSchedule();
 
-        for (let lessonRow of lessonRows) {
+        for (let lessonRow of currentWindow.specialData.lessonRows) {
             initializeLesson(lessonRow);
         }
         selectFirstLesson.value = 0;
@@ -2728,12 +2729,14 @@ const pagePatterns = {
                     for (let loadedRow of virtualWindow.querySelectorAll('.groups_list .panel[id^="group_"]')) {
                         let newRow = loadedRow.cloneNode(true);
                         currentWindow.elements.groupsList.append(newRow);
+                        currentWindow.specialData.lessonRows.push(newRow);
                         initializeLesson(newRow);
                     }
                 }
                 currentWindow.specialData.states.uploadAllGroups = true;
                 selectFirstLesson.value = 0;
                 selectLastLesson.value = lessonNumberIndex - 1;
+                rebuildUpButton.style = '';
                 displayLog('Все уроки подгружены');
             }
             lessonIntervalForm.append(loadAllGroupsButton);
@@ -2745,7 +2748,7 @@ const pagePatterns = {
             let hasFutureLesson = false;
             let nextLessonDate = '01.01.1990';
             let nextLessonNumber = 0;
-            for (let lessonRow of lessonRows) {
+            for (let lessonRow of currentWindow.specialData.lessonRows) {
                 if (lessonRow.classList.contains('no_starts_at') &&
                     !lessonRow.classList.contains('started') &&
                     !lessonRow.classList.contains('ready_to_start')
@@ -5815,7 +5818,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.119 от 6 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.120 от 6 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
