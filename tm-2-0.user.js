@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.115
+// @version      0.2.0.116
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1769,11 +1769,6 @@ const pagePatterns = {
             'lessonsList': currentWindow.querySelector('.lessons-list'),
         };
 
-        let lessonTasksLinks = currentWindow.querySelectorAll('[href$="lesson_tasks"]');
-        for (let tasksLink of lessonTasksLinks) {
-            // добавляем к ссылке пустой поиск, чтобы всегда было побольше задач в выдаче
-            tasksLink.href += '?q%5Bdisciplines_id_in%5D='
-        }
         let status = createElement('div', 'my-status', 'display:none;');
         status.innerHTML = 'not-finished'; // статус выполнения функций для бота
         let div = createElement('div');
@@ -1798,10 +1793,15 @@ const pagePatterns = {
             selectLastLesson.value = lessonNumberIndex - 1;
         }
         function createLessonsLogic() {
-            // автоматически убираем по одной кавычке из описания с каждого края --- защита от гугл-таблиц
             for (let lesson of currentWindow.specialData.lessonsList) {
-                const lessonDescription = lesson.querySelector('#lesson_themes_as_text');
-                lessonDescription.onchange = selfi => {
+                // добавляем к ссылке пустой поиск, чтобы всегда было побольше задач в выдаче
+                let taskLinkElement = lesson.querySelector('[href$="lesson_tasks"]');
+                if (taskLinkElement && !taskLinkElement.href.includes('?q')) {
+                    taskLinkElement.href += '?q%5Bdisciplines_id_in%5D=';
+                }
+                // убираем по одной кавычке из описания с каждого края --- защита от гугл-таблиц
+                let lessonDescriptionElement = lesson.querySelector('#lesson_themes_as_text');
+                lessonDescriptionElement.onchange = selfi => {
                     let self = selfi.currentTarget;
                     if (self.value[0] == '"') self.value = self.value.substring(1, self.value.length);
                     if (self.value[self.value.length - 1] == '"') {
@@ -2320,8 +2320,8 @@ const pagePatterns = {
     // на странице с расписанием
     if (currentWindow.checkPath(pagePatterns.groups)) {
         currentWindow.specialData.states = {
-            'lessonsOrderJson': false, 'apiLanding': false, 'allGroups': false, 'raspChecked': false,
-            'hasСompensatingLesson': false, 'hasSkippedLesson': false,
+            'lessonsOrderJson': false, 'apiLanding': false, 'raspChecked': false, 'hasСompensatingLesson': false,
+            'hasSkippedLesson': false,
         };
         currentWindow.elements = {
             'groupTemplateId': currentWindow.querySelector('#group_template_id'),
@@ -2330,6 +2330,7 @@ const pagePatterns = {
             'groupsList': currentWindow.querySelector('.groups_list'),
             'newTemplateTeacher': currentWindow.querySelector('.new_group_template #group_template_teacher_id'),
             'editTemplateStartDate': currentWindow.querySelector('#edit_group_template [id*="starts_at_date"]'),
+            'pagination': currentWindow.querySelector('.group-list-navigation .pagination'),
             'rebuildFromLessonNumber': currentWindow.querySelector('#from_lesson_number'),
             'rebuildStartFromDate': currentWindow.querySelector('[id^=start_from_date_]'),
             'rebuildButton': currentWindow.querySelector('.btn.btn-primary[value="Перестроить"]'),
@@ -2623,7 +2624,7 @@ const pagePatterns = {
                 const [weekdays, weekdayTimes] = getTemplateWeekdaySlots();
                 while (!currentWindow.specialData.states.lessonsOrderJson) await sleep(100);
                 let maxDate = new Date(Math.max(...currentWindow.specialData.allGroups.map(
-                    elem => parseDateTime(elem.starts_at)
+                    group => parseDateTime(group.starts_at)
                 )));
                 maxDate.setHours(23, 59, 59, 999);
                 const days = [];
@@ -5740,7 +5741,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.115 от 5 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.116 от 6 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
