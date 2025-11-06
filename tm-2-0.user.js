@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.117
+// @version      0.2.0.118
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -112,6 +112,7 @@ class ManagedWindow {
                 const headers = params.headers || {};
                 const body = params.body || null;
                 const credentials = params.credentials || 'include';
+                const evalAnswer = params.evalAnswer || false;
                 if (method !== 'GET' && method !== 'HEAD' || params.includeCsrfToken) {
                     const csrfToken = this.getCSRFToken();
                     if (csrfToken && !headers['X-CSRF-Token']) headers['X-CSRF-Token'] = csrfToken;
@@ -125,6 +126,7 @@ class ManagedWindow {
                     throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
                 }
                 const html = await response.text();
+                if (evalAnswer) eval(html);
                 const parser = new DOMParser();
                 const newDoc = parser.parseFromString(html, 'text/html');
                 this._nativeWindow.document = newDoc;
@@ -166,6 +168,7 @@ class ManagedWindow {
             successAlertIsNessesary = true,
             fileFields = [],
             skipDangerAlert = true,
+            evalAnswer = false,
         } = params;
         let defaultFields = {};
         if (includeDefaultFields) defaultFields = { 'authenticity_token': this.getCSRFToken(), 'utf8': '✓' };
@@ -196,7 +199,10 @@ class ManagedWindow {
                 }
             }
             body = formData;
-        } else {
+        } else if (fields instanceof FormData) {
+            body = fields;
+        }
+        else {
             let urlParams = new URLSearchParams();
             for (const [name, value] of Object.entries(allFields)) {
                 if (Array.isArray(value)) value.forEach(v => urlParams.append(name, v));
@@ -205,14 +211,14 @@ class ManagedWindow {
             body = urlParams;
             if (!headers['Content-Type']) headers['Content-Type'] = 'application/x-www-form-urlencoded';
         }
-        await this.openPage(url, { method: 'POST', headers: headers, body: body });
+        await this.openPage(url, { method: 'POST', headers: headers, body: body, evalAnswer: evalAnswer });
         if (successAlertIsNessesary) {
             try { await this.waitForSuccess(skipDangerAlert); }
             catch (error) {
                 log(error.message);
                 await sleep(500);
                 log('Повторная попытка...')
-                await this.openPage(url, { method: 'POST', headers: headers, body: body });
+                await this.openPage(url, { method: 'POST', headers: headers, body: body, evalAnswer: evalAnswer });
                 await this.waitForSuccess(skipDangerAlert);
             }
         }
@@ -2392,35 +2398,21 @@ const pagePatterns = {
         lessonIntervalForm.append(tempSpan);
         let lessonRows = Array.from(currentWindow.querySelectorAll('.groups_list .panel[id^="group_"]'));
         let lessonNumberIndex = 0;
-        function initializeLesson(lessonRow) {
-            lessonRow.classList.add('lesson_row');
-            let headingRow = lessonRow.querySelector('.panel-heading');
-            let lessonNumberElem = headingRow.querySelector('.lesson_number');
-            let lessonHref = lessonNumberElem.querySelector('a').href;
-            let lessonName = lessonNumberElem.textContent.trim();
-            let lessonId = lessonHref.slice(lessonHref.search('=') + 1);
-            let lessonFullName = `${lessonName} id: ${lessonId}`;
-            createOption(selectFirstLesson, lessonNumberIndex, lessonFullName);
-            createOption(selectLastLesson, lessonNumberIndex, lessonFullName);
-            let lessonTypeSpan = headingRow.querySelector('span');
-            lessonTypeSpan.classList.add('lesson_type');
-            let lessonTypeText = lessonTypeSpan.textContent.trim();
-            let lessonType = LESSON_TYPE_MAP[lessonTypeText];
-            if (lessonType) lessonRow.classList.add(lessonType);
-            else log(`Неизвестный тип урока: ${lessonTypeText}`);
-            let lessonIdSpan = createElement('span', 'label label-default');
-            lessonIdSpan.innerHTML = `id: ${lessonId}`;
-            lessonTypeSpan.after(createElement('br'), lessonIdSpan);
+        const alerts = alertManager();
+
+        function initializeLessonHeader(lessonRow, lessonId) {
             let actionButtons = lessonRow.querySelector('.actions_btn');
             let dropdownMenu = actionButtons.querySelector('.dropdown-menu');
             let lessonHeader = actionButtons.closest('.form-group');
             lessonHeader.classList.add('lesson_header');
-            let webinarNameElement = lessonHeader.querySelector('label');
-            let webinarName = webinarNameElement.textContent.trim();
-            if (webinarName.includes('копия')) lessonRow.classList.add('copy');
-            else lessonRow.classList.add('original');
             let webinarButton = lessonHeader.querySelector('.actions_btn>a');
             let webinarLabel = webinarButton.textContent.trim();
+            lessonRow.classList.remove('no_webinar');
+            lessonRow.classList.remove('has_webinar');
+            lessonRow.classList.remove('started');
+            lessonRow.classList.remove('finished');
+            lessonRow.classList.remove('created');
+            lessonRow.classList.remove('ready_to_start');
             if (webinarButton.classList.contains('disabled') && webinarLabel == 'Без вебинара') {
                 lessonRow.classList.add('no_webinar');
             }
@@ -2447,176 +2439,61 @@ const pagePatterns = {
                     dropdownMenu.append(dividerLi, customLi);
                 }
             }
+            actionButtons.parentElement.classList.add('group_toolbar');
+            actionButtons.parentElement.classList.add('modified');
+        }
+
+        function initializeLesson(lessonRow) {
+            lessonRow.classList.add('lesson_row');
+            let headingRow = lessonRow.querySelector('.panel-heading');
+            let lessonNumberElem = headingRow.querySelector('.lesson_number');
+            let lessonHref = lessonNumberElem.querySelector('a').href;
+            let lessonName = lessonNumberElem.textContent.trim();
+            let lessonId = lessonHref.slice(lessonHref.search('=') + 1);
+            let lessonFullName = `${lessonName} id: ${lessonId}`;
+            createOption(selectFirstLesson, lessonNumberIndex, lessonFullName);
+            createOption(selectLastLesson, lessonNumberIndex, lessonFullName);
+            let lessonTypeSpan = headingRow.querySelector('span');
+            lessonTypeSpan.classList.add('lesson_type');
+            let lessonTypeText = lessonTypeSpan.textContent.trim();
+            let lessonType = LESSON_TYPE_MAP[lessonTypeText];
+            if (lessonType) lessonRow.classList.add(lessonType);
+            else log(`Неизвестный тип урока: ${lessonTypeText}`);
+            let lessonIdSpan = createElement('span', 'label label-default');
+            lessonIdSpan.innerHTML = `id: ${lessonId}`;
+            lessonTypeSpan.after(createElement('br'), lessonIdSpan);
+            initializeLessonHeader(lessonRow, lessonId);
+            let lessonHeader = lessonRow.querySelector('.lesson_header');
+            let webinarNameElement = lessonHeader.querySelector('label');
+            let webinarName = webinarNameElement.textContent.trim();
+            if (webinarName.includes('копия')) lessonRow.classList.add('copy');
+            else lessonRow.classList.add('original');
             if (lessonRow.querySelector('[id^="starts_at_"]')) {
                 lessonRow.classList.add('has_starts_at');
             }
             else {
                 lessonRow.classList.add('no_starts_at');
             }
+            let form = lessonRow.querySelector('input[type="submit"]').closest('form');
+            let alert = lessonRow.querySelector('.alert');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                let virtualWindow = await createWindow(-1);
+                await virtualWindow.postFormData(
+                    form.action, new FormData(form), { successAlertIsNessesary: false, evalAnswer: true }
+                );
+                initializeLessonHeader(lessonRow, lessonId);
+                alert.classList.add('alert-success');
+                alert.classList.remove('hidden');
+                alert.innerHTML = 'Данные сохранены';
+                await checkGroupsOnSchedule();
+            });
             lessonNumberIndex++;
-        }
-        for (let lessonRow of lessonRows) {
-            initializeLesson(lessonRow);
-        }
-        selectFirstLesson.value = 0;
-        selectLastLesson.value = lessonNumberIndex - 1;
-        let adminButtons = createElement('div', 'adminButtons');
-        currentWindow.elements.groupsPage.prepend(adminButtons);
-        if (currentWindow.elements.pagination) {
-            let virtualWindow = await createWindow(-1);
-            let loadAllGroupsButton = createButton(
-                'Подгрузить все уроки', loadAllGroupsButtonOnClick, 'upload-all-lessons btn-info', false
-            );
-            async function loadAllGroupsButtonOnClick() {
-                loadAllGroupsButton.style = 'display:none;';
-                currentWindow.elements.pagination.style = 'display:none;';
-                log('Подгрузка всех уроков');
-                let paginationLinkElements = currentWindow.elements.pagination.querySelectorAll('a');
-                for (let paginationLinkElement of paginationLinkElements) {
-                    let paginationLink = paginationLinkElement.href;
-                    if (!paginationLink.includes('page')) {
-                        displayError(new Error('Подгрузка возможна только с первой страницы пагинации'));
-                        currentWindow.elements.pagination.style = '';
-                        return;
-                    }
-                    await virtualWindow.openPage(paginationLinkElement.href);
-                    for (let loadedRow of virtualWindow.querySelectorAll('.groups_list .panel[id^="group_"]')) {
-                        let newRow = loadedRow.cloneNode(true);
-                        currentWindow.elements.groupsList.append(newRow);
-                        initializeLesson(newRow);
-                    }
-                }
-                currentWindow.specialData.states.uploadAllGroups = true;
-                selectFirstLesson.value = 0;
-                selectLastLesson.value = lessonNumberIndex - 1;
-                displayLog('Все уроки подгружены');
-            }
-            lessonIntervalForm.append(loadAllGroupsButton);
+            return lessonId;
         }
 
-        // Кнопки «Скопировать запись из другой параллели»
-        async function copyGroupFromAnotherTemplate(event) {
-            let lessonId = event.target.dataset.lessonId;
-            while (!currentWindow.specialData.states.lessonsOrderJson) { await sleep(100); }
-            let lessonInfo = currentWindow.specialData.lessonsOrderJson.filter(data => data.id == lessonId)[0];
-            let currentGroup = lessonInfo.groups.filter(
-                group => group.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`)
-            )[0];
-            let potentialGroups = lessonInfo.groups.filter(
-                group => (
-                    !group.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`) &&
-                    parseDateTime(group.starts_at) < new Date()
-                )
-            );
-            const modal = createElement('div', 'my-modal', `position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; 
-                z-index: 1049;`);
-            const content = createElement('div', 'modal-content', `background: white; padding: 20px; border-radius: 8px; 
-                min-width: 400px; max-width: 90%; max-height: 80%; overflow-y: auto;`);
-            const title = createElement('h3', 'modal-title');
-            title.textContent = 'Выберите запись для копирования';
-            content.append(title);
-            const list = createElement('div', 'modal-list', 'margin-bottom: 20px;');
-            let selectedGroup = null;
-            potentialGroups.forEach(group => {
-                const groupItem = createElement('div', 'modal-group', `display: flex; align-items: center; 
-                    padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;`);
-                const radio = createElement('div', 'modal-radio', `width: 20px; height: 20px; border-radius: 50%; 
-                    border: 2px solid #ccc; margin-right: 10px; position: relative;`);
-                const groupText = createElement('span', 'modal-text');
-                const groupTemplateId = group.group_template_title.match(/\[(\d+)\]/)[1];
-                groupText.textContent = `[${groupTemplateId}] ${group.name} id ${group.id}`;
-                groupItem.addEventListener('click', () => {
-                    Array.from(list.children).forEach(item => {
-                        item.style.background = 'none';
-                        Array.from(item.children).forEach(subitem => subitem.style.background = 'none');
-                    });
-                    groupItem.style.background = '#f0f0f0';
-                    radio.style.background = '#007cba';
-                    selectedGroup = group;
-                });
-                groupItem.appendChild(radio);
-                groupItem.appendChild(groupText);
-                list.appendChild(groupItem);
-            });
-            const buttons = createElement('div', 'modal-buttons', `display: flex; justify-content: flex-end; 
-                gap: 10px;`);
-            const cancelBtn = createButton('Отмена', () => modal.remove(), 'cancel-btn');
-            const confirmBtn = createButton('Выбрать', () => { }, 'confirm-btn');
-            confirmBtn.addEventListener('click', async () => {
-                if (selectedGroup) {
-                    console.log(`Нужно скопировать в ${currentGroup.id} из ${selectedGroup.id}`);
-                    let virtualWindow = await createWindow(-1);
-                    let fields = {
-                        '_method': 'put',
-                        'change_original_group[group_id]': currentGroup.id,
-                        'change_original_group[original_group_id]': selectedGroup.id
-                    }
-                    let params = { skipDangerAlert: false };
-                    try {
-                        await virtualWindow.postFormData('/admin/dev_services/change_original_group', fields, params);
-                        modal.remove();
-                        await sleep(3000);
-                        currentWindow.reload();
-                    }
-                    catch (err) {
-                        displayError(err);
-                    }
-                }
-                else {
-                    displayError(new Error('Нужная запись не была выбрана'));
-                }
-            });
-            buttons.append(cancelBtn, confirmBtn);
-            content.append(list, buttons);
-            modal.append(content);
-            document.body.append(modal);
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) modal.remove();
-            });
-        }
-
-        // Кнопка «↑ Перестроить ↑»
-        async function rebuildUpButtonOnClick() {
-            rebuildUpButton.style = 'display:none';
-            let hasFutureLesson = false;
-            let nextLessonDate = '01.01.1990';
-            let nextLessonNumber = 0;
-            for (let lessonRow of lessonRows) {
-                if (lessonRow.classList.contains('no_starts_at') &&
-                    !lessonRow.classList.contains('started') &&
-                    !lessonRow.classList.contains('ready_to_start')
-                ) {
-                    lessonRow.hidden = true;
-                }
-                else if (lessonRow.classList.contains('created') && hasFutureLesson == false) {
-                    hasFutureLesson = true;
-                    let startsAtValue = lessonRow.querySelector('[id^="starts_at_"]').value;
-                    nextLessonDate = startsAtValue.split(' ')[0];
-                    let lessonNumberText = lessonRow.querySelector('.lesson_number a[href]').innerHTML;
-                    nextLessonNumber = lessonNumberText.match(/\d+/)[0];
-                }
-            }
-            currentWindow.elements.groupsList.before(currentWindow.elements.groupsList.nextSibling);
-            currentWindow.elements.rebuildFromLessonNumber.value = nextLessonNumber;
-            currentWindow.elements.rebuildStartFromDate.value = nextLessonDate;
-            if (checkBotApprove()) {
-                while (!currentWindow.specialData.states.raspChecked) { await sleep(100); }
-                if (!currentWindow.specialData.states.hasСompensatingLesson &&
-                    !currentWindow.specialData.states.hasSkippedLesson
-                ) {
-                    currentWindow.elements.rebuildButton.click();
-                }
-            }
-            log('Прошедшие занятия скрыты, данные для перестроения параллели перенесены вверх страницы');
-        }
-        let rebuildUpButton = createButton('↑ Перестроить ↑', rebuildUpButtonOnClick, 'reset-btn');
-        if (currentWindow.checkPath(/#reset_schedule/)) {
-            currentWindow.specialData.botApprove = true;
-            rebuildUpButton.click();
-        }
-        const alerts = alertManager();
-        // Проверка, что все занятия по расписанию
+                // Проверка, что все занятия по расписанию
         async function checkGroupsOnSchedule() {
             loadLessonsOrderJson();
             const bgColorEven = '#ff869d';
@@ -2739,11 +2616,167 @@ const pagePatterns = {
             alerts.removeAlert('no-rasp-alert-temp');
             currentWindow.specialData.states.raspChecked = true;
         }
-        let saveButtons = currentWindow.querySelectorAll('.btn-default[value="Сохранить"]');
-        for (let saveButton of saveButtons) saveButton.addEventListener('click', async () => {
-            await sleep(300); checkGroupsOnSchedule();
-        });
-        checkGroupsOnSchedule();
+
+        // Кнопки «Скопировать запись из другой параллели»
+        async function copyGroupFromAnotherTemplate(event) {
+            let lessonId = event.target.dataset.lessonId;
+            while (!currentWindow.specialData.states.lessonsOrderJson) { await sleep(100); }
+            let lessonInfo = currentWindow.specialData.lessonsOrderJson.filter(data => data.id == lessonId)[0];
+            let currentGroup = lessonInfo.groups.filter(
+                group => group.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`)
+            )[0];
+            let potentialGroups = lessonInfo.groups.filter(
+                group => (
+                    !group.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`) &&
+                    parseDateTime(group.starts_at) < new Date()
+                )
+            );
+            const modal = createElement('div', 'my-modal', `position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; 
+                z-index: 1049;`);
+            const content = createElement('div', 'modal-content', `background: white; padding: 20px; border-radius: 8px; 
+                min-width: 400px; max-width: 90%; max-height: 80%; overflow-y: auto;`);
+            const title = createElement('h3', 'modal-title');
+            title.textContent = 'Выберите запись для копирования';
+            content.append(title);
+            const list = createElement('div', 'modal-list', 'margin-bottom: 20px;');
+            let selectedGroup = null;
+            potentialGroups.forEach(group => {
+                const groupItem = createElement('div', 'modal-group', `display: flex; align-items: center; 
+                    padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;`);
+                const radio = createElement('div', 'modal-radio', `width: 20px; height: 20px; border-radius: 50%; 
+                    border: 2px solid #ccc; margin-right: 10px; position: relative;`);
+                const groupText = createElement('span', 'modal-text');
+                const groupTemplateId = group.group_template_title.match(/\[(\d+)\]/)[1];
+                groupText.textContent = `[${groupTemplateId}] ${group.name} id ${group.id}`;
+                groupItem.addEventListener('click', () => {
+                    Array.from(list.children).forEach(item => {
+                        item.style.background = 'none';
+                        Array.from(item.children).forEach(subitem => subitem.style.background = 'none');
+                    });
+                    groupItem.style.background = '#f0f0f0';
+                    radio.style.background = '#007cba';
+                    selectedGroup = group;
+                });
+                groupItem.appendChild(radio);
+                groupItem.appendChild(groupText);
+                list.appendChild(groupItem);
+            });
+            const buttons = createElement('div', 'modal-buttons', `display: flex; justify-content: flex-end; 
+                gap: 10px;`);
+            const cancelBtn = createButton('Отмена', () => modal.remove(), 'cancel-btn');
+            const confirmBtn = createButton('Выбрать', () => { }, 'confirm-btn');
+            confirmBtn.addEventListener('click', async () => {
+                if (selectedGroup) {
+                    console.log(`Нужно скопировать в ${currentGroup.id} из ${selectedGroup.id}`);
+                    let virtualWindow = await createWindow(-1);
+                    let fields = {
+                        '_method': 'put',
+                        'change_original_group[group_id]': currentGroup.id,
+                        'change_original_group[original_group_id]': selectedGroup.id
+                    }
+                    let params = { skipDangerAlert: false };
+                    try {
+                        await virtualWindow.postFormData('/admin/dev_services/change_original_group', fields, params);
+                        modal.remove();
+                        await sleep(3000);
+                        currentWindow.reload();
+                    }
+                    catch (err) {
+                        displayError(err);
+                    }
+                }
+                else {
+                    displayError(new Error('Нужная запись не была выбрана'));
+                }
+            });
+            buttons.append(cancelBtn, confirmBtn);
+            content.append(list, buttons);
+            modal.append(content);
+            document.body.append(modal);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
+        }
+
+        for (let lessonRow of lessonRows) {
+            initializeLesson(lessonRow);
+        }
+        selectFirstLesson.value = 0;
+        selectLastLesson.value = lessonNumberIndex - 1;
+        let adminButtons = createElement('div', 'adminButtons');
+        currentWindow.elements.groupsPage.prepend(adminButtons);
+        if (currentWindow.elements.pagination) {
+            let virtualWindow = await createWindow(-1);
+            let loadAllGroupsButton = createButton(
+                'Подгрузить все уроки', loadAllGroupsButtonOnClick, 'upload-all-lessons btn-info', false
+            );
+            async function loadAllGroupsButtonOnClick() {
+                loadAllGroupsButton.style = 'display:none;';
+                currentWindow.elements.pagination.style = 'display:none;';
+                log('Подгрузка всех уроков');
+                let paginationLinkElements = currentWindow.elements.pagination.querySelectorAll('a');
+                for (let paginationLinkElement of paginationLinkElements) {
+                    let paginationLink = paginationLinkElement.href;
+                    if (!paginationLink.includes('page')) {
+                        displayError(new Error('Подгрузка возможна только с первой страницы пагинации'));
+                        currentWindow.elements.pagination.style = '';
+                        return;
+                    }
+                    await virtualWindow.openPage(paginationLinkElement.href);
+                    for (let loadedRow of virtualWindow.querySelectorAll('.groups_list .panel[id^="group_"]')) {
+                        let newRow = loadedRow.cloneNode(true);
+                        currentWindow.elements.groupsList.append(newRow);
+                        initializeLesson(newRow);
+                    }
+                }
+                currentWindow.specialData.states.uploadAllGroups = true;
+                selectFirstLesson.value = 0;
+                selectLastLesson.value = lessonNumberIndex - 1;
+                displayLog('Все уроки подгружены');
+            }
+            lessonIntervalForm.append(loadAllGroupsButton);
+        }
+
+        // Кнопка «↑ Перестроить ↑»
+        async function rebuildUpButtonOnClick() {
+            rebuildUpButton.style = 'display:none';
+            let hasFutureLesson = false;
+            let nextLessonDate = '01.01.1990';
+            let nextLessonNumber = 0;
+            for (let lessonRow of lessonRows) {
+                if (lessonRow.classList.contains('no_starts_at') &&
+                    !lessonRow.classList.contains('started') &&
+                    !lessonRow.classList.contains('ready_to_start')
+                ) {
+                    lessonRow.hidden = true;
+                }
+                else if (lessonRow.classList.contains('created') && hasFutureLesson == false) {
+                    hasFutureLesson = true;
+                    let startsAtValue = lessonRow.querySelector('[id^="starts_at_"]').value;
+                    nextLessonDate = startsAtValue.split(' ')[0];
+                    let lessonNumberText = lessonRow.querySelector('.lesson_number a[href]').innerHTML;
+                    nextLessonNumber = lessonNumberText.match(/\d+/)[0];
+                }
+            }
+            currentWindow.elements.groupsList.before(currentWindow.elements.groupsList.nextSibling);
+            currentWindow.elements.rebuildFromLessonNumber.value = nextLessonNumber;
+            currentWindow.elements.rebuildStartFromDate.value = nextLessonDate;
+            if (checkBotApprove()) {
+                while (!currentWindow.specialData.states.raspChecked) { await sleep(100); }
+                if (!currentWindow.specialData.states.hasСompensatingLesson &&
+                    !currentWindow.specialData.states.hasSkippedLesson
+                ) {
+                    currentWindow.elements.rebuildButton.click();
+                }
+            }
+            log('Прошедшие занятия скрыты, данные для перестроения параллели перенесены вверх страницы');
+        }
+        let rebuildUpButton = createButton('↑ Перестроить ↑', rebuildUpButtonOnClick, 'reset-btn');
+        if (currentWindow.checkPath(/#reset_schedule/)) {
+            currentWindow.specialData.botApprove = true;
+            rebuildUpButton.click();
+        }
 
         let setGroupLessonsButton = createButton(
             'Проставить групповые встречи', setGroupLessonsButtonOnClick, 'set-group-lessons'
@@ -5781,7 +5814,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.117 от 6 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.118 от 6 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
