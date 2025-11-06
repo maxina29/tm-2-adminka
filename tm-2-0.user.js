@@ -1778,7 +1778,8 @@ const pagePatterns = {
             currentWindow.specialData.lessonsList = currentWindow.elements.lessonsList.querySelectorAll('.lesson');
         }
         function getLessonName(lesson) {
-            return lesson.querySelector('.panel-title').firstChild.textContent;
+            return `${lesson.querySelector('.panel-title').firstChild.textContent} ` + 
+                `${lesson.querySelector('.panel-title').lastChild.textContent}`;
         }
         function updateLessonIntervalForm() {
             for (let option of selectFirstLesson.querySelectorAll('option')) option.remove();
