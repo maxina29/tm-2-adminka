@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.116
+// @version      0.2.0.117
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -1778,7 +1778,7 @@ const pagePatterns = {
             currentWindow.specialData.lessonsList = currentWindow.elements.lessonsList.querySelectorAll('.lesson');
         }
         function getLessonName(lesson) {
-            return `${lesson.querySelector('.panel-title').firstChild.textContent} ` + 
+            return `${lesson.querySelector('.panel-title').firstChild.textContent} ` +
                 `${lesson.querySelector('.panel-title').lastChild.textContent}`;
         }
         function updateLessonIntervalForm() {
@@ -1831,6 +1831,7 @@ const pagePatterns = {
                     let paginationLink = paginationLinkElement.href;
                     if (!paginationLink.includes('page')) {
                         displayError(new Error('Подгрузка возможна только с первой страницы пагинации'));
+                        currentWindow.elements.pagination.style = '';
                         return;
                     }
                     await virtualWindow.openPage(paginationLinkElement.href);
@@ -2322,7 +2323,7 @@ const pagePatterns = {
     if (currentWindow.checkPath(pagePatterns.groups)) {
         currentWindow.specialData.states = {
             'lessonsOrderJson': false, 'apiLanding': false, 'raspChecked': false, 'hasСompensatingLesson': false,
-            'hasSkippedLesson': false,
+            'hasSkippedLesson': false, 'uploadAllGroups': false,
         };
         currentWindow.elements = {
             'groupTemplateId': currentWindow.querySelector('#group_template_id'),
@@ -2332,6 +2333,7 @@ const pagePatterns = {
             'newTemplateTeacher': currentWindow.querySelector('.new_group_template #group_template_teacher_id'),
             'editTemplateStartDate': currentWindow.querySelector('#edit_group_template [id*="starts_at_date"]'),
             'pagination': currentWindow.querySelector('.group-list-navigation .pagination'),
+            'groupsList': currentWindow.querySelector('.groups_list'),
             'rebuildFromLessonNumber': currentWindow.querySelector('#from_lesson_number'),
             'rebuildStartFromDate': currentWindow.querySelector('[id^=start_from_date_]'),
             'rebuildButton': currentWindow.querySelector('.btn.btn-primary[value="Перестроить"]'),
@@ -2374,7 +2376,9 @@ const pagePatterns = {
         currentWindow.specialData.groupTemplateId = currentWindow.elements.groupTemplateId.value;
         currentWindow.specialData.groupTemplatesInCourse = currentWindow.elements.groupTemplateId.children.length;
         if (['5', '6'].includes(currentWindow.specialData.courseTypeId)) {
-            if (currentWindow.specialData.courseTypeId == '5') currentWindow.elements.newTemplateTeacher.value = MINI_GROUPS_TEACHER_ID;
+            if (currentWindow.specialData.courseTypeId == '5') {
+                currentWindow.elements.newTemplateTeacher.value = MINI_GROUPS_TEACHER_ID;
+            }
             else currentWindow.elements.newTemplateTeacher.value = TRAINING_COURSE_TEACHER_ID;
             currentWindow.elements.newTemplateTeacher.style = 'cursor: not-allowed;';
             currentWindow.elements.newTemplateTeacher.previousElementSibling.style = 'display: none;';
@@ -2388,15 +2392,16 @@ const pagePatterns = {
         lessonIntervalForm.append(tempSpan);
         let lessonRows = Array.from(currentWindow.querySelectorAll('.groups_list .panel[id^="group_"]'));
         let lessonNumberIndex = 0;
-        for (let lessonRow of lessonRows) {
+        function initializeLesson(lessonRow) {
             lessonRow.classList.add('lesson_row');
             let headingRow = lessonRow.querySelector('.panel-heading');
             let lessonNumberElem = headingRow.querySelector('.lesson_number');
             let lessonHref = lessonNumberElem.querySelector('a').href;
             let lessonName = lessonNumberElem.textContent.trim();
             let lessonId = lessonHref.slice(lessonHref.search('=') + 1);
-            createOption(selectFirstLesson, lessonNumberIndex, `${lessonName} id: ${lessonId}`);
-            createOption(selectLastLesson, lessonNumberIndex, `${lessonName} id:${lessonId}`);
+            let lessonFullName = `${lessonName} id: ${lessonId}`;
+            createOption(selectFirstLesson, lessonNumberIndex, lessonFullName);
+            createOption(selectLastLesson, lessonNumberIndex, lessonFullName);
             let lessonTypeSpan = headingRow.querySelector('span');
             lessonTypeSpan.classList.add('lesson_type');
             let lessonTypeText = lessonTypeSpan.textContent.trim();
@@ -2436,7 +2441,7 @@ const pagePatterns = {
                     let copyGroupButton = createButton(
                         'Скопировать запись из другой параллели', copyGroupFromAnotherTemplate, 'copy-group', false,
                         { style: '', defaultClass: '' }
-                    )
+                    );
                     copyGroupButton.dataset.lessonId = lessonId;
                     customLi.append(copyGroupButton);
                     dropdownMenu.append(dividerLi, customLi);
@@ -2450,10 +2455,44 @@ const pagePatterns = {
             }
             lessonNumberIndex++;
         }
+        for (let lessonRow of lessonRows) {
+            initializeLesson(lessonRow);
+        }
         selectFirstLesson.value = 0;
         selectLastLesson.value = lessonNumberIndex - 1;
         let adminButtons = createElement('div', 'adminButtons');
         currentWindow.elements.groupsPage.prepend(adminButtons);
+        if (currentWindow.elements.pagination) {
+            let virtualWindow = await createWindow(-1);
+            let loadAllGroupsButton = createButton(
+                'Подгрузить все уроки', loadAllGroupsButtonOnClick, 'upload-all-lessons btn-info', false
+            );
+            async function loadAllGroupsButtonOnClick() {
+                loadAllGroupsButton.style = 'display:none;';
+                currentWindow.elements.pagination.style = 'display:none;';
+                log('Подгрузка всех уроков');
+                let paginationLinkElements = currentWindow.elements.pagination.querySelectorAll('a');
+                for (let paginationLinkElement of paginationLinkElements) {
+                    let paginationLink = paginationLinkElement.href;
+                    if (!paginationLink.includes('page')) {
+                        displayError(new Error('Подгрузка возможна только с первой страницы пагинации'));
+                        currentWindow.elements.pagination.style = '';
+                        return;
+                    }
+                    await virtualWindow.openPage(paginationLinkElement.href);
+                    for (let loadedRow of virtualWindow.querySelectorAll('.groups_list .panel[id^="group_"]')) {
+                        let newRow = loadedRow.cloneNode(true);
+                        currentWindow.elements.groupsList.append(newRow);
+                        initializeLesson(newRow);
+                    }
+                }
+                currentWindow.specialData.states.uploadAllGroups = true;
+                selectFirstLesson.value = 0;
+                selectLastLesson.value = lessonNumberIndex - 1;
+                displayLog('Все уроки подгружены');
+            }
+            lessonIntervalForm.append(loadAllGroupsButton);
+        }
 
         // Кнопки «Скопировать запись из другой параллели»
         async function copyGroupFromAnotherTemplate(event) {
@@ -5742,7 +5781,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.116 от 6 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.117 от 6 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
