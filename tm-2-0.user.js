@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.121
+// @version      0.2.0.122
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -5612,7 +5612,7 @@ for (let promoId of promoIds) {
                 parent: 'codeCampaigns'
             },
             PRODUCT_PACK_APPEND_COURSES: {
-                name: 'Привязка курсов к пакам',
+                name: 'Привязка курсов к пакам / подпискам',
                 description: `укажите accessType: premium или standard для паков;
                     specific_date_premium или specific_date_standard для подписок`,
                 code: `let accessType = 'premium';
@@ -5633,6 +5633,39 @@ for (let productPackId in productPackData) {
             \`&product_pack_item%5Bresource_type%5D=Course\`;
         await win.postFormData(url, fields);
     }
+}`,
+                parent: 'productPacks'
+            },
+            SUBS_CREATE_NEW_PLAN: {
+                name: 'Создание нового тарифа подписок',
+                description: 'можно добавлять/убирать параметры, но не обновить их также в форме и деструкторе ниже',
+                code: `const subscriptionInfo = {
+    //subscriptionId: { name, price, payments }
+    13207: { name: 'Скидка для подписки с ежемесячной оплатой -50% (ноябрь)', price: 8990, payments: 7 },
+};
+
+let win = await createWindow(-1);
+for (const subscriptionId in subscriptionInfo) {
+    let { name, price, payments } = subscriptionInfo[subscriptionId];
+    log(\`$\{subscriptionId}\`);
+    url = \`https://foxford.ru/admin/product_packs/$\{subscriptionId}\`;
+    let fields = {
+        '_method': 'patch',
+        'product_pack[subscription_plans_attributes][0][title]': name,
+        'product_pack[subscription_plans_attributes][0][period]': 'month',
+        'product_pack[subscription_plans_attributes][0][price]': price,
+        'product_pack[subscription_plans_attributes][0][free_period]': 0,
+        'product_pack[subscription_plans_attributes][0][first_payment_amount]': price / 2,
+        'product_pack[subscription_plans_attributes][0][first_payment_period]': 0,
+        'product_pack[subscription_plans_attributes][0][first_activation_at]': '01.11.2025',
+        'product_pack[subscription_plans_attributes][0][payments_count_limit]': payments,
+        'product_pack[subscription_plans_attributes][0][discount_subscription_plan_id]': '',
+        'product_pack[subscription_plans_attributes][0][default]': '0',
+        'product_pack[subscription_plans_attributes][0][active]': '1', // новые тарифы всегда создаются активные
+        'product_pack[subscription_plans_attributes][0][protected]': '0',
+        'product_pack[subscription_plans_attributes][0][for_new_landing]': '0',
+    };
+    await win.postFormData(url, fields);
 }`,
                 parent: 'productPacks'
             },
@@ -5818,7 +5851,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.121 от 7 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.122 от 10 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
