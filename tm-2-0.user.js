@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.122
+// @version      0.2.0.123
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -2810,17 +2810,22 @@ const pagePatterns = {
                 let nowDate = new Date();
                 nowDate.setMinutes(nowDate.getMinutes() + 30);
                 let firstFutureLessonIndex = -1;
+                let lastDate = new Date();
                 for (let index = 0; index < currentWindow.specialData.lessonsOrderJson.length; ++index) {
                     let lesson = currentWindow.specialData.lessonsOrderJson[index];
                     let group = lesson.groups.find(
                         g => g.group_template_title.includes(`[${currentWindow.specialData.groupTemplateId}]`)
                     );
                     let startAt = parseDateTime(group.starts_at);
-                    if (!group.starts_at.includes('20:00') && startAt > nowDate) {
+                    if (!group.starts_at.includes('20:00') && startAt > nowDate &&
+                        lastDate.getTime() != startAt.getTime()
+                    ) {
                         startsAt.push(startAt);
+                        lastDate = startAt;
                     }
                     if (firstFutureLessonIndex == -1 && startAt > nowDate) firstFutureLessonIndex = index;
                 }
+                console.log(startsAt);
                 let delta = firstFutureLessonIndex;
                 let virtualWindow = await createWindow(-1);
                 for (let index = firstFutureLessonIndex;
@@ -2835,7 +2840,6 @@ const pagePatterns = {
                     if (parseDateTime(group.starts_at) < nowDate) { delta += 1; continue; }
                     if (!(['Обычное', 'Перевёрнутое'].includes(lesson.type)) && index != firstFutureLessonIndex) delta += 1;
                     if (isGroupLesson && index != firstFutureLessonIndex) delta += 1;
-                    while (index > delta && startsAt[index - delta] == startsAt[index - delta - 1]) delta -= 1;
                     let fields = { '_method': 'patch' };
                     let date = new Date(startsAt[index - delta]);
                     if (isGroupLesson) {
@@ -5851,7 +5855,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.122 от 10 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.123 от 10 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
