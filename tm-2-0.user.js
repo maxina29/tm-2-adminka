@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.125
+// @version      0.2.0.126
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4755,7 +4755,8 @@ displayLog('Готово! Проверьте данные и сохраните'
                     { title: 'Календарь каникул / holidays_calendar', key: 'holidays' },
                     { title: 'Преподаватели / teachers', key: 'teachers' },
                     { title: 'Акции с промокодами / marketing/code_campaigns', key: 'codeCampaigns' },
-                    { title: 'Комплекты занятий / product_packs', key: 'productPacks' }
+                    { title: 'Комплекты занятий / product_packs', key: 'productPacks' },
+                    { title: 'Инструменты разработчиков / dev_services', key: 'adminDevServices' },
                 ]
             },
             {
@@ -4766,7 +4767,7 @@ displayLog('Готово! Проверьте данные и сохраните'
                     { title: 'Программа / lessons', key: 'contentLessons' },
                     { title: 'Тесты / trainings', key: 'trainings' },
                     { title: 'Задачи / tasks', key: 'tasks' },
-                    { title: 'Учебные программы / methodical_materials/programs', key: 'methodicalPrograms' }
+                    { title: 'Учебные программы / methodical_materials/programs', key: 'methodicalPrograms' },
                 ]
             }
         ];
@@ -5792,6 +5793,26 @@ for (let [trainingId, newName] of pairs) {
 }`,
                 parent: 'trainings'
             },
+            MASS_COPY_GROUPS: {
+                name: 'Копирование записей из одной параллели в другую',
+                code: `// ${METABASE_URL}/question/51816
+let pairs = [
+    // [group_id куда, group_id откуда],
+    [693590, 1165746],
+];
+let win = await createWindow(-1);
+for (let [groupId, originalGroupId] of pairs) {
+    log(\`$\{groupId} <- $\{originalGroupId}\`);
+    let url = \`/admin/dev_services/change_original_group\`;
+    let fields = {
+        '_method': 'put',
+        'change_original_group[group_id]': groupId,
+        'change_original_group[original_group_id]': originalGroupId,
+    };
+    await win.postFormData(url, fields);
+}`,
+                parent: 'adminDevServices'
+            },
             MASS_CREATE_TEMPLATES_MINI: {
                 name: 'Массовое заведение параллелей (МГ)',
                 description: `рабочая таблица - https://disk.360.yandex.ru/i/qRDgjjgrOLaoQA (вкладка Мини-группы)
@@ -5857,7 +5878,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.125 от 18 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.126 от 18 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
