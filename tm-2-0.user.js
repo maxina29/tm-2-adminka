@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.124
+// @version      0.2.0.125
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -492,12 +492,12 @@ async function displayError(err, comment = '', time = 3000) {
 }
 
 async function displayLog(message, type = 'success', time = 3000) {
-    try { currentWindow.log(message); }
+    try { currentWindow.log(message.replaceAll('<br>', '\n')); }
     catch (e) { console.error('Логирование во внутреннюю консоль невозможно', e); }
     const displayAlert = createElement(
         'div', `alert alert-${type} custom-alert`, 'position:fixed; top:0%; width:100%; z-index:9999;'
     );
-    displayAlert.textContent = message;
+    displayAlert.innerHTML = message;
     currentWindow.body.appendChild(displayAlert);
     setTimeout(() => displayAlert.remove(), time);
 }
@@ -3999,7 +3999,6 @@ await currentWindow.reload();`;
                 log(`Нужно выдать ${fullCsvArray.length} записей`);
                 let accessData = generateAccessData(fullCsvArray);
                 console.log(accessData);
-                currentWindow.document.accessData = accessData;
                 let tempWindow = await createWindow('access_temp_window');
                 currentWindow.querySelector('form').target = 'access_temp_window';
                 let submitButton = currentWindow.querySelector('input[type="submit"]');
@@ -4020,7 +4019,7 @@ await currentWindow.reload();`;
                     await tempWindow.openPage('about:blank');
                 }
                 await tempWindow.close();
-                displayLog('Доступы выданы');
+                displayLog(`Доступы выданы<br>Количество задач: ${Object.keys(accessData).length}`, 'success', 15000);
 
                 function generateAccessData(arr) {
                     let maxSize = 5000;
@@ -5858,7 +5857,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.124 от 10 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.125 от 18 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
