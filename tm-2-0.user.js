@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.123
+// @version      0.2.0.124
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -5103,7 +5103,10 @@ for (let [courseId, lessonId] of pairs) {
             },
             LESSONS_DELETE_SOFT: {
                 name: '«Удалить» неудаляемый урок',
-                description: 'Переведите все параллели этого занятия в finished/шлак заранее',
+                description: 'Скрипт пока не работает из-за изменения логики работы курса-свалки, ' +
+                    'для удаления таких уроков обращайтесь к Андрею Скурятину напрямую',
+                code: '',
+                /* description: 'Переведите все параллели этого занятия в finished/шлак заранее',
                 code: `let pairs = [
     // [course_id, lesson_id],
     [10609, 500859],
@@ -5117,7 +5120,7 @@ for (let [courseId, lessonId] of pairs) {
         'lesson[course_id]': '9118',
     };
     await win.postFormData(url, fields, { successAlertIsNessesary: false });
-}`,
+}`, */
                 parent: 'adminLessons'
             },
             LESSONS_VIDEO: {
@@ -5855,7 +5858,7 @@ for (let [trainingId, newName] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.123 от 10 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.124 от 10 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
