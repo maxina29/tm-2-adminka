@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.129
+// @version      0.2.0.130
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -5687,10 +5687,12 @@ for (const subscriptionId in subscriptionInfo) {
 }`,
                 parent: 'productPacks'
             },
-            HOLIDAYS_DSH_1_8: {
-                name: 'Проставление каникул ДШ 1-8 кл. (2025-2026)',
-                code: `let courseIds = splitString(\`
-10609
+            SET_HOLIDAYS: {
+                name: 'Проставление каникул',
+                description: 'Подставить корректные даты по таблице',
+                code: `\\ https://disk.360.yandex.ru/i/85kACkOM7ZMfYA
+let courseIds = splitString(\`
+    10609
 \`);
 let win = await createWindow(-1);
 for (let courseId of courseIds) {
@@ -5701,12 +5703,6 @@ for (let courseId of courseIds) {
         'holidays[]': [
             '2025-10-06 — 2025-10-10',
             '2025-11-03 — 2025-11-04',
-            '2025-11-17 — 2025-11-21',
-            '2025-12-29 — 2026-01-09',
-            '2026-02-23 — 2026-02-27',
-            '2026-03-09 — 2026-03-09',
-            '2026-04-06 — 2026-04-10',
-            '2026-05-01 — 2026-05-01',
         ]
     }
     await win.postFormData(url, fields);
@@ -5915,7 +5911,7 @@ for (let eventId in eventsData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.129 от 20 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.130 от 20 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
