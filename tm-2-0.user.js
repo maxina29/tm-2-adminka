@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.127
+// @version      0.2.0.128
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4766,6 +4766,7 @@ displayLog('Готово! Проверьте данные и сохраните'
                     { title: 'Курсы / courses', key: 'contentCourses' },
                     { title: 'Программа / lessons', key: 'contentLessons' },
                     { title: 'Тесты / trainings', key: 'trainings' },
+                    { title: 'Открытые занятия / events', key: 'contentEvents' },
                     { title: 'Задачи / tasks', key: 'tasks' },
                     { title: 'Учебные программы / methodical_materials/programs', key: 'methodicalPrograms' },
                 ]
@@ -5813,6 +5814,27 @@ for (let [groupId, originalGroupId] of pairs) {
 }`,
                 parent: 'adminDevServices'
             },
+            EVENTS_ADD_TASKS: {
+                name: 'Привязка задач в подборку к ОЗ',
+                code: `const eventsData = {
+    // ID ОЗ: [ID задачи, ID задачи, ...],
+    4256: [1, 2, 3, 4, 5],
+    4234: splitString(\`1 2 3 4 5\`),
+};
+let fields = {
+    '_method': 'post',
+};
+let win = await createWindow(-1);
+for (let eventId in eventsData) {
+    for (let taskId of eventsData[eventId]) {
+        log(\`$\{eventId} <- $\{taskId}\`);
+        let url = \`/admin/events/$\{eventId}/homework/items?homework_item%5Bresource_id%5D=$\{taskId}\` +
+            \`&homework_item%5Bresource_type%5D=Task\`;
+        await win.postFormData(url, fields);
+    }
+}`,
+                parent: 'contentEvents',
+            },
             MASS_CREATE_TEMPLATES_MINI: {
                 name: 'Массовое заведение параллелей (МГ)',
                 description: `рабочая таблица - https://disk.360.yandex.ru/i/qRDgjjgrOLaoQA (вкладка Мини-группы)
@@ -5878,7 +5900,7 @@ for (let [groupId, originalGroupId] of pairs) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.127 от 18 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.128 от 20 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
