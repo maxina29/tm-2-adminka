@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TestAdminka
 // @namespace    https://uploads-foxford-ru.ngcdn.ru/
-// @version      0.2.0.130
+// @version      0.2.0.131
 // @description  Улучшенная версия админских инструментов
 // @author       maxina29, wanna_get_out && deepseek
 // @match        https://foxford.ru/admin*
@@ -4693,6 +4693,7 @@ displayLog('Готово! Проверьте данные и сохраните'
                 currentWindow.jsCodeArea.value += `${scriptObj.code}`;
             }, `btn btn-default script-btn ${className}`, false);
             button.title = description.replace(/\n\s*/ig, '; ');
+            button.dataset.scriptName = key.toLowerCase();
             sections[scriptObj.parent].appendChild(button);
             return button;
         }
@@ -4746,8 +4747,27 @@ displayLog('Готово! Проверьте данные и сохраните'
                 }
             });
         });
+        function copyLinkButtonOnClick() {
+            let activeButton = currentWindow.querySelector('.script-btn.active');
+            if (!activeButton) {
+                alert('Сперва выберите скрипт');
+                return;
+            }
+            let scriptName = activeButton.dataset.scriptName;
+            let link = `${FOXFORD_URL}/admin/courses/15005/lesson_packs/new?action=click&button=${scriptName}`;
+            navigator.clipboard.writeText(link);
+            alert(`Ссылка скопирована в буфер обмена`);
+        }
+        let copyLinkButton = createButton(
+            'Скопировать ссылку на активный скрипт',
+            copyLinkButtonOnClick,
+            'copy-link-btn btn-info',
+            false,
+            { style: 'margin-left: 10px;' }
+        );
         form.before(searchInput);
         form.prepend(div);
+        div.append(copyLinkButton);
         const originalButton = form.querySelector('[type="submit"]');
         originalButton.removeAttribute('data-disable-with');
         originalButton.style = 'display: none;';
@@ -5911,7 +5931,7 @@ for (let eventId in eventsData) {
         mainPage.appendChild(fvsButton);
         mainPage.appendChild(foxButton);
         mainPage.querySelector('p').innerHTML +=
-            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.130 от 20 ноября 2025)
+            `<br>Установлены скрипты Tampermonkey 2.0 (v.0.2.0.131 от 21 ноября 2025)
             <br>Примеры скриптов можно посмотреть 
             <a href="https://github.com/maxina29/tm-2-adminka/tree/main/scripts_examples" target="_blank">здесь</a>
             <br><a href="/tampermoney_script_adminka.user.js" target="_blank">Обновить скрипт</a>`;
